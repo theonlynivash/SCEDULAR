@@ -1,0 +1,168 @@
+import { useEffect, useState } from 'react'
+import { PageHeader, Btn, Field, Select, GlassPanel, Chip, IconBtn } from './ui'
+import type { Page } from '../types'
+import { api, type ComponentType, type Course } from '../api'
+
+const componentTypeLabels: Record<ComponentType, string> = {
+  INTEGRATED: 'Integrated (Theory + Lab)',
+  NON_INTEGRATED: 'Theory Only',
+  MANDATORY: 'Mandatory',
+  LAB_ONLY: 'Lab Only',
+}
+
+const componentTypeTones: Record<ComponentType, 'accent' | 'neutral' | 'warning' | 'success'> = {
+  INTEGRATED: 'accent',
+  NON_INTEGRATED: 'neutral',
+  MANDATORY: 'warning',
+  LAB_ONLY: 'success',
+}
+
+export default function SubjectManagement({ navigate }: { navigate: (p: Page) => void }) {
+  const [courses, setCourses] = useState<Course[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ id: '', code: '', name: '', componentType: 'NON_INTEGRATED' as ComponentType, labBlockLength: 3 })
+
+  async function load() {
+    setLoading(true)
+    setError(null)
+    try {
+      setCourses(await api.courses.list())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load courses from the backend')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  async function handleSave() {
+    if (!form.id || !form.code || !form.name) return
+    setSaving(true)
+    setError(null)
+    try {
+      await api.courses.create(form)
+      setDrawerOpen(false)
+      setForm({ id: '', code: '', name: '', componentType: 'NON_INTEGRATED', labBlockLength: 3 })
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save course')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm(`Remove course ${id}?`)) return
+    try {
+      await api.courses.remove(id)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete course')
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader title="Subject Management" desc="The department-wide syllabus catalog — every course, any year, tagged by component type">
+        <button
+          onClick={() => navigate('dashboard')}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-500 text-slate-600 glass-pill transition"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+        <Btn variant="secondary" onClick={() => navigate('data-hub')}>Import via Spreadsheet</Btn>
+        <Btn onClick={() => setDrawerOpen(true)}>+ Add Subject</Btn>
+      </PageHeader>
+
+      {error && (
+        <div className="bg-rose-400/15 border border-rose-300/40 text-rose-700 text-sm rounded-xl px-4 py-2.5 mb-4">{error}</div>
+      )}
+
+      <GlassPanel className="overflow-hidden">
+        <table className="tbl text-sm">
+          <thead>
+            <tr className="bg-white/25 border-b border-white/40">
+              {['Course ID', 'Code', 'Name', 'Component Type', 'Lab Block', ''].map(h => (
+                <th key={h} className="text-left px-4 py-3 text-xs font-600 text-slate-500 uppercase tracking-wider">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">Loading courses…</td></tr>
+            )}
+            {!loading && courses.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">No courses configured yet.</td></tr>
+            )}
+            {!loading && courses.map((c, i) => (
+              <tr key={c.id} className={`border-b border-white/25 hover:bg-white/30 transition ${i % 2 === 0 ? '' : 'bg-white/10'}`}>
+                <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.id}</td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.code}</td>
+                <td className="px-4 py-3 font-500 text-slate-800">{c.name}</td>
+                <td className="px-4 py-3">
+                  <Chip tone={componentTypeTones[c.componentType]}>{componentTypeLabels[c.componentType]}</Chip>
+                </td>
+                <td className="px-4 py-3 text-center font-mono text-xs text-slate-600">{c.labBlockLength}</td>
+                <td className="px-4 py-3">
+                  <IconBtn tone="danger" title="Delete subject" onClick={() => handleDelete(c.id)}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </IconBtn>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="px-4 py-3 border-t border-white/30">
+          <p className="text-xs text-slate-500">Showing {courses.length} course{courses.length !== 1 ? 's' : ''}</p>
+        </div>
+      </GlassPanel>
+
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/30 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
+          <div className="w-96 glass-strong overflow-y-auto rounded-l-[2rem]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/40 sticky top-0 glass-strong">
+              <h3 className="font-display font-700 text-slate-800">Add Subject</h3>
+              <button onClick={() => setDrawerOpen(false)} className="p-1 hover:bg-white/40 rounded-lg transition">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <Field label="Course ID" placeholder="e.g. AIES" value={form.id} onChange={e => setForm({ ...form, id: e.target.value })} />
+              <Field label="Subject Code" placeholder="e.g. 23AD1311" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
+              <Field label="Subject Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              <Select label="Component Type" value={form.componentType} onChange={e => setForm({ ...form, componentType: e.target.value as ComponentType })}>
+                {Object.entries(componentTypeLabels).map(([k, label]) => (
+                  <option key={k} value={k}>{label}</option>
+                ))}
+              </Select>
+              {form.componentType !== 'NON_INTEGRATED' && form.componentType !== 'MANDATORY' && (
+                <Field
+                  label="Lab Block Length (periods)"
+                  hint="Normal labs are 3 contiguous periods; exceptions like Technical Skill Practices use their own configured length."
+                  type="number"
+                  value={form.labBlockLength}
+                  onChange={e => setForm({ ...form, labBlockLength: Number(e.target.value) })}
+                />
+              )}
+              <Btn onClick={handleSave} disabled={saving || !form.id || !form.code || !form.name}>{saving ? 'Saving…' : 'Save Subject'}</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -1,0 +1,184 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --color-primary: #0e254f;
+  --color-primary-dark: #081a38;
+  --color-primary-light: #2f6fc4;
+  --color-accent: #f3c326;
+  --color-accent-dark: #c98f00;
+  --color-accent-light: #fff4cf;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-surface: #eef2f9;
+  --color-card: #ffffff;
+  --color-border: #dbe2ee;
+  --color-muted: #55607a;
+  --color-text: #0f172a;
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  color: #0f172a;
+  background: #071433;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(14, 37, 79,0.35); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(14, 37, 79,0.55); }
+
+/* ---------------------------------------------------------------------
+   Liquid Glass design system -- Panimalar Engineering College colours
+   (deep navy blue + institutional gold), tuned for clarity: crisper
+   edges and less blur than a purely decorative glass UI, so tabs, type
+   and data stay sharp and professional while keeping the translucent
+   iOS-26 "Liquid Glass" material language. Chrome (sidebar, top bar,
+   buttons, pills) carries the most colour; data-dense surfaces (tables,
+   forms) stay closer to opaque white so they read cleanly.
+--------------------------------------------------------------------- */
+
+.app-wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #071433;
+}
+.app-wallpaper::before,
+.app-wallpaper::after,
+.app-wallpaper .blob {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(95px);
+  opacity: 0.55;
+  will-change: transform;
+}
+.app-wallpaper::before {
+  width: 60vw;
+  height: 60vw;
+  left: -10vw;
+  top: -15vw;
+  background: radial-gradient(circle at 30% 30%, #1c5fc4, transparent 70%);
+  animation: drift-a 26s ease-in-out infinite alternate;
+}
+.app-wallpaper::after {
+  width: 55vw;
+  height: 55vw;
+  right: -15vw;
+  bottom: -10vw;
+  background: radial-gradient(circle at 60% 60%, #f3c326, transparent 72%);
+  opacity: 0.28;
+  animation: drift-b 32s ease-in-out infinite alternate;
+}
+.app-wallpaper .blob {
+  width: 45vw;
+  height: 45vw;
+  left: 30vw;
+  top: 20vh;
+  background: radial-gradient(circle at 50% 50%, #0a2a63, transparent 70%);
+  animation: drift-c 22s ease-in-out infinite alternate;
+}
+@keyframes drift-a {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(8vw, 6vh) scale(1.15); }
+}
+@keyframes drift-b {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(-6vw, -8vh) scale(1.1); }
+}
+@keyframes drift-c {
+  from { transform: translate(-4vw, 0) scale(0.9); }
+  to   { transform: translate(6vw, 5vh) scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-wallpaper::before, .app-wallpaper::after, .app-wallpaper .blob { animation: none; }
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 6px 22px rgba(7, 20, 51, 0.14);
+}
+
+.glass-chrome {
+  background: linear-gradient(180deg, rgba(14, 37, 79, 0.92), rgba(6, 22, 54, 0.92));
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(243, 195, 38, 0.25);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 8px 28px rgba(4, 12, 30, 0.45);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 6px 20px rgba(7, 20, 51, 0.12);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(14, 37, 79, 0.22);
+}
+.glass-input:focus {
+  outline: none;
+  border-color: rgba(14, 37, 79, 0.55);
+  box-shadow: 0 0 0 4px rgba(14, 37, 79, 0.14);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(14, 37, 79, 0.22);
+}
+
+/* The "sharp tab" state: solid institutional gold, dark navy text --
+   no blur on the active state itself, so the current tab reads
+   instantly rather than blending into the glass behind it. */
+.glass-pill-active {
+  background: #f3c326;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 3px 10px rgba(243, 195, 38, 0.4);
+}
+
+.glass-scrollarea {
+  scrollbar-gutter: stable;
+}
+
+/* Data tables: real grid lines on every row and column, not just a
+   bottom rule, so dense tabular data (rosters, workload, rejections)
+   reads like a real spreadsheet. */
+.tbl {
+  border-collapse: collapse;
+  width: 100%;
+}
+.tbl th, .tbl td {
+  border: 1px solid rgba(15, 23, 42, 0.14);
+}
