@@ -147,7 +147,7 @@ export function listLabCourseMappings(): LabCourseMapping[] {
 
 export function setLabCourseMapping(labId: string, courseId: string): void {
   db.prepare(
-    'INSERT OR IGNORE INTO lab_course_mapping (lab_id, course_id) VALUES (?, ?)'
+    'INSERT INTO lab_course_mapping (lab_id, course_id) VALUES (?, ?) ON CONFLICT (lab_id, course_id) DO NOTHING'
   ).run(labId, courseId)
 }
 

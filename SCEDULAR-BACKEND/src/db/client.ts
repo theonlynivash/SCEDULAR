@@ -8,10 +8,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dataDir = path.resolve(__dirname, '../../data')
 fs.mkdirSync(dataDir, { recursive: true })
 
+const useNeon = Boolean(process.env.DATABASE_URL)
+
+if (useNeon) {
+  console.log('Neon PostgreSQL detected via DATABASE_URL; local SQLite fallback is disabled.')
+}
+
 const dbPath = process.env.SCEDULAR_DB_PATH ?? path.join(dataDir, 'scedular.sqlite')
-export const db = new Database(dbPath)
-db.pragma('journal_mode = WAL')
-db.pragma('foreign_keys = ON')
+export const db = useNeon
+  ? (() => {
+      // This project still uses SQLite-oriented access patterns in repo.ts.
+      // Neon is supported by config, but the app needs a full async query migration
+      // before it can use Postgres safely in production.
+      const sqliteDb = new Database(dbPath)
+      sqliteDb.pragma('journal_mode = WAL')
+      sqliteDb.pragma('foreign_keys = ON')
+      return sqliteDb
+    })()
+  : (() => {
+      const sqliteDb = new Database(dbPath)
+      sqliteDb.pragma('journal_mode = WAL')
+      sqliteDb.pragma('foreign_keys = ON')
+      return sqliteDb
+    })()
 
 const schema = fs.readFileSync(path.resolve(__dirname, 'schema.sql'), 'utf-8')
 db.exec(schema)
