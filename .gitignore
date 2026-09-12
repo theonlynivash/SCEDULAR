@@ -1,0 +1,8 @@
+.kombai/
+**/node_modules/
+**/dist/
+**/data/*.sqlite
+**/data/*.sqlite-*
+*.log
+.env
+.env.*
