@@ -3,6 +3,15 @@ import { contiguousGroups } from '../utils/grid.js'
 
 const MAX_BACKTRACK_STEPS = 2_000_000
 
+// Hard cap: a section can have at most this many theory periods of the
+// SAME course on the same day. Without this, nothing stops the solver from
+// legally stacking every weekly occurrence of one subject onto a single
+// day (e.g. 3x OOP on Monday, 0x the rest of the week) -- it satisfies
+// every other rule but reads as a broken, unbalanced timetable. Exported
+// so the independent post-validator (Section 16) checks the exact same
+// number from scratch rather than trusting the solver kept to it.
+export const MAX_SAME_COURSE_PER_DAY = 2
+
 interface Candidate {
   day: string
   startPeriod: number
@@ -20,6 +29,7 @@ interface SolveContext {
   facultyDailyCount: Map<string, number> // `${facultyId}:${day}`
   facultyWeeklyCount: Map<string, number>
   sectionDailyCount: Map<string, number> // `${sectionId}:${day}`
+  sectionCourseDailyCount: Map<string, number> // `${sectionId}:${courseId}:${day}`
   labBusy: Map<string, Set<string>>
   groups: number[][]
   // Every course's lab options, fetched once by the pipeline before the
@@ -52,6 +62,7 @@ function buildContext(
     facultyDailyCount: new Map(),
     facultyWeeklyCount: new Map(),
     sectionDailyCount: new Map(),
+    sectionCourseDailyCount: new Map(),
     labBusy: new Map(),
     groups: contiguousGroups(config.periods),
     labsByCourse,
@@ -86,6 +97,8 @@ function getDomain(unit: SchedulableUnit, ctx: SolveContext): Candidate[] {
     if (dailyCount + unit.length > faculty.maxDailyPeriods) continue
 
     if (unit.blockType === 'THEORY') {
+      const courseDayCount = ctx.sectionCourseDailyCount.get(`${unit.sectionId}:${unit.courseId}:${day}`) ?? 0
+      if (courseDayCount >= MAX_SAME_COURSE_PER_DAY) continue // hard cap: no third same-subject period in one day
       for (const p of ctx.config.periods) {
         if (!p.schedulable) continue
         const key = slotKey(day, p.index)
@@ -97,7 +110,12 @@ function getDomain(unit: SchedulableUnit, ctx: SolveContext): Candidate[] {
           day,
           startPeriod: p.index,
           endPeriod: p.index,
-          score: sectionDayCount * 2 + dailyCount,
+          // Weighted heavily so the search prefers a day with zero
+          // occurrences of this subject over one that already has one,
+          // even while both are still under the hard cap above -- this is
+          // what actually spreads a subject across the week instead of
+          // just barely staying under 2/day.
+          score: courseDayCount * 5 + sectionDayCount * 2 + dailyCount,
         })
       }
     } else {
@@ -143,6 +161,10 @@ function place(unit: SchedulableUnit, c: Candidate, ctx: SolveContext) {
   ctx.facultyDailyCount.set(`${unit.facultyId}:${c.day}`, (ctx.facultyDailyCount.get(`${unit.facultyId}:${c.day}`) ?? 0) + unit.length)
   ctx.facultyWeeklyCount.set(unit.facultyId, (ctx.facultyWeeklyCount.get(unit.facultyId) ?? 0) + unit.length)
   ctx.sectionDailyCount.set(`${unit.sectionId}:${c.day}`, (ctx.sectionDailyCount.get(`${unit.sectionId}:${c.day}`) ?? 0) + unit.length)
+  if (unit.blockType === 'THEORY') {
+    const key = `${unit.sectionId}:${unit.courseId}:${c.day}`
+    ctx.sectionCourseDailyCount.set(key, (ctx.sectionCourseDailyCount.get(key) ?? 0) + 1)
+  }
 }
 
 function unplace(unit: SchedulableUnit, c: Candidate, ctx: SolveContext) {
@@ -156,6 +178,10 @@ function unplace(unit: SchedulableUnit, c: Candidate, ctx: SolveContext) {
   ctx.facultyDailyCount.set(`${unit.facultyId}:${c.day}`, (ctx.facultyDailyCount.get(`${unit.facultyId}:${c.day}`) ?? 0) - unit.length)
   ctx.facultyWeeklyCount.set(unit.facultyId, (ctx.facultyWeeklyCount.get(unit.facultyId) ?? 0) - unit.length)
   ctx.sectionDailyCount.set(`${unit.sectionId}:${c.day}`, (ctx.sectionDailyCount.get(`${unit.sectionId}:${c.day}`) ?? 0) - unit.length)
+  if (unit.blockType === 'THEORY') {
+    const key = `${unit.sectionId}:${unit.courseId}:${c.day}`
+    ctx.sectionCourseDailyCount.set(key, (ctx.sectionCourseDailyCount.get(key) ?? 0) - 1)
+  }
 }
 
 function periodRange(c: Candidate): number[] {

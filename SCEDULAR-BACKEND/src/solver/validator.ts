@@ -8,6 +8,7 @@ import type {
   ScheduleConfig,
 } from '../types.js'
 import { contiguousGroups } from '../utils/grid.js'
+import { MAX_SAME_COURSE_PER_DAY } from './csp.js'
 
 // Pipeline step 7 (Section 16 "Post-validation"): replays every hard
 // constraint against the generated master timetable, written completely
@@ -150,6 +151,27 @@ export function independentValidate(
           day,
         })
       }
+    }
+  }
+
+  // Balanced timetable: no more than MAX_SAME_COURSE_PER_DAY theory
+  // periods of the same subject for the same section on the same day.
+  const theoryPerSectionCourseDay = new Map<string, number>()
+  for (const a of assignments) {
+    if (a.blockType !== 'THEORY') continue
+    const key = `${a.sectionId}::${a.courseId}::${a.day}`
+    theoryPerSectionCourseDay.set(key, (theoryPerSectionCourseDay.get(key) ?? 0) + 1)
+  }
+  for (const [key, count] of theoryPerSectionCourseDay) {
+    if (count > MAX_SAME_COURSE_PER_DAY) {
+      const [sectionId, courseId, day] = key.split('::')
+      conflicts.push({
+        type: 'DAILY_SUBJECT_LIMIT_EXCEEDED',
+        message: `Section ${sectionId} has ${count} periods of ${courseId} on ${day}, exceeding the ${MAX_SAME_COURSE_PER_DAY}/day balance limit`,
+        sectionId,
+        courseId,
+        day,
+      })
     }
   }
 
