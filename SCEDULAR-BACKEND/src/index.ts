@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import serverless from 'serverless-http'
 import './db/client.js' // ensures schema + default config are initialized before routes load
 import { facultyRouter } from './routes/faculty.js'
 import { sectionsRouter } from './routes/sections.js'
@@ -10,7 +11,7 @@ import { workloadRouter } from './routes/workload.js'
 import { importRouter } from './routes/import.js'
 import { timetableRouter } from './routes/timetable.js'
 
-const app = express()
+export const app = express()
 app.use(cors())
 app.use(express.json())
 
@@ -30,7 +31,11 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: 'Internal server error' })
 })
 
-const PORT = Number(process.env.PORT) || 8090
-app.listen(PORT, () => {
-  console.log(`SCEDULAR backend listening on http://localhost:${PORT}`)
-})
+export const handler = serverless(app)
+
+if (!process.env.VERCEL) {
+  const PORT = Number(process.env.PORT) || 8090
+  app.listen(PORT, () => {
+    console.log(`SCEDULAR backend listening on http://localhost:${PORT}`)
+  })
+}
