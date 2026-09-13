@@ -70,22 +70,6 @@ function I({ d, className = 'w-5 h-5' }: { d: string; className?: string }) {
   )
 }
 
-/* ---------- Left-to-right progress points ---------- */
-function PointFlow() {
-  return (
-    <div className="h-full min-h-[320px] flex items-center px-8" aria-hidden="true">
-      <div className="w-full flex items-center">
-        {Array.from({ length: 15 }).map((_, i) => (
-          <div key={i} className="flex items-center flex-1">
-            <span className={`w-3 h-3 rounded-full flex-shrink-0 ${i % 4 === 0 ? 'bg-[#f3c326]' : 'bg-[#0e254f]'}`} />
-            {i < 14 && <span className="h-px flex-1 bg-[#0e254f]/25 mx-2" />}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 /* ---------- Section heading (editorial font) ---------- */
 function SectionTitle({ kicker, title }: { kicker: string; title: string }) {
   return (
@@ -256,10 +240,10 @@ export default function About({ navigate }: { navigate: (p: Page) => void }) {
         ))}
       </div>
 
-      {/* How it works — visual pipeline + point flow */}
+      {/* How it works — visual pipeline */}
       <div>
         <SectionTitle kicker="How it works" title="From spreadsheet to master grid" />
-        <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr] items-start">
+        <div>
           <div className="relative pl-16">
             <div className="pipe-track" aria-hidden="true" />
             <div className="space-y-4">
@@ -279,9 +263,6 @@ export default function About({ navigate }: { navigate: (p: Page) => void }) {
               ))}
             </div>
           </div>
-          <Reveal className="lg:sticky lg:top-6">
-            <PointFlow />
-          </Reveal>
         </div>
       </div>
 
