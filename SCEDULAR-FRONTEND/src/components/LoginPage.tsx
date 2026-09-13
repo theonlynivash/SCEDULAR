@@ -29,7 +29,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
       <div className="relative z-10 w-full max-w-md mx-4">
         <form onSubmit={handleSubmit} className="glass-strong rounded-[2rem] overflow-hidden">
           <div className="px-8 pt-9 pb-6 text-center">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-3xl flex items-center justify-center bg-white ring-1 ring-[#f3c326]/60 shadow-[0_8px_24px_rgba(14,37,79,0.45)] p-2">
+            <div className="w-64 h-24 mx-auto mb-4 rounded-3xl flex items-center justify-center bg-white ring-1 ring-[#f3c326]/60 shadow-[0_8px_24px_rgba(14,37,79,0.45)] p-2">
               <CollegeLogo className="w-full h-full" />
             </div>
             <h1 className="text-slate-900 font-display text-lg font-700 leading-tight">Panimalar Engineering College</h1>

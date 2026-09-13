@@ -19,6 +19,7 @@
 
 public/PEC-Logo-Updated-July-12-2024-218x150.png -filter -diff -merge
 public/scedular_logo.png -filter -diff -merge
+public/PEC_LOGO.png -filter -diff -merge
 # ---------------------------------------------------------------------------
 # Video
 # ---------------------------------------------------------------------------
