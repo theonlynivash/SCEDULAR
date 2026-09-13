@@ -117,6 +117,7 @@ export type ConflictType =
   | 'INVALID_INPUT'
   | 'NO_FEASIBLE_SOLUTION'
   | 'DAILY_SUBJECT_LIMIT_EXCEEDED'
+  | 'COLUMN_SUBJECT_LIMIT_EXCEEDED'
 
 export interface Conflict {
   type: ConflictType

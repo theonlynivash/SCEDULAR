@@ -11,6 +11,7 @@ const MAX_BACKTRACK_STEPS = 2_000_000
 // so the independent post-validator (Section 16) checks the exact same
 // number from scratch rather than trusting the solver kept to it.
 export const MAX_SAME_COURSE_PER_DAY = 2
+export const MAX_SAME_COURSE_SAME_PERIOD_PER_WEEK = 2
 
 interface Candidate {
   day: string
@@ -117,6 +118,7 @@ function getDomain(unit: SchedulableUnit, ctx: SolveContext): Candidate[] {
         // the dominant preference, but strong enough to break ties toward
         // a genuinely different period once a day is already used.
         const columnCount = ctx.sectionCoursePeriodCount.get(`${unit.sectionId}:${unit.courseId}:${p.index}`) ?? 0
+        if (columnCount >= MAX_SAME_COURSE_SAME_PERIOD_PER_WEEK) continue
         domain.push({
           day,
           startPeriod: p.index,

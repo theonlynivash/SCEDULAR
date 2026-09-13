@@ -8,7 +8,7 @@ import type {
   ScheduleConfig,
 } from '../types.js'
 import { contiguousGroups } from '../utils/grid.js'
-import { MAX_SAME_COURSE_PER_DAY } from './csp.js'
+import { MAX_SAME_COURSE_PER_DAY, MAX_SAME_COURSE_SAME_PERIOD_PER_WEEK } from './csp.js'
 
 // Pipeline step 7 (Section 16 "Post-validation"): replays every hard
 // constraint against the generated master timetable, written completely
@@ -171,6 +171,27 @@ export function independentValidate(
         sectionId,
         courseId,
         day,
+      })
+    }
+  }
+
+  // Keep a theory subject from occupying the same period column more than
+  // twice for one section during the week.
+  const theoryPerSectionCoursePeriod = new Map<string, number>()
+  for (const a of assignments) {
+    if (a.blockType !== 'THEORY') continue
+    const key = `${a.sectionId}::${a.courseId}::${a.startPeriod}`
+    theoryPerSectionCoursePeriod.set(key, (theoryPerSectionCoursePeriod.get(key) ?? 0) + 1)
+  }
+  for (const [key, count] of theoryPerSectionCoursePeriod) {
+    if (count > MAX_SAME_COURSE_SAME_PERIOD_PER_WEEK) {
+      const [sectionId, courseId, period] = key.split('::')
+      conflicts.push({
+        type: 'COLUMN_SUBJECT_LIMIT_EXCEEDED',
+        message: `Section ${sectionId} has ${courseId} in period ${period} on ${count} days, exceeding the ${MAX_SAME_COURSE_SAME_PERIOD_PER_WEEK}/week column limit`,
+        sectionId,
+        courseId,
+        period: Number(period),
       })
     }
   }
