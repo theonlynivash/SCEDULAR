@@ -70,36 +70,17 @@ function I({ d, className = 'w-5 h-5' }: { d: string; className?: string }) {
   )
 }
 
-/* ---------- Live solver preview grid ---------- */
-function SolverDemo() {
-  const cols = 6
-  const rows = 5
-  const total = cols * rows
-  const [step, setStep] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => setStep(s => (s >= total + 3 ? 0 : s + 1)), 240)
-    return () => clearInterval(id)
-  }, [total])
+/* ---------- Left-to-right progress points ---------- */
+function PointFlow() {
   return (
-    <div className="relative rounded-2xl border border-[#0e254f]/10 bg-white/50 backdrop-blur-md p-4 overflow-hidden">
-      <div className="demo-scan" aria-hidden="true" />
-      <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}>
-        {Array.from({ length: total }).map((_, i) => {
-          const on = i < Math.min(step, total)
-          const lab = on && i % 7 === 3
-          return <div key={i} className={`demo-cell ${on ? (lab ? 'on-lab' : 'on') : ''}`} />
-        })}
-      </div>
-      <p className="mt-3 text-[11px] font-mono text-slate-500 tracking-wider text-center uppercase">
-        Live preview · CSP search placing weekly units
-      </p>
-      <div className="flex justify-center gap-4 mt-2">
-        <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-          <span className="w-2.5 h-2.5 rounded-sm bg-gradient-to-br from-[#14346b] to-[#0e254f] inline-block" /> Theory period
-        </span>
-        <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-          <span className="w-2.5 h-2.5 rounded-sm bg-gradient-to-br from-[#f3c326] to-[#d9a90f] inline-block" /> Lab block
-        </span>
+    <div className="h-full min-h-[320px] flex items-center px-8" aria-hidden="true">
+      <div className="w-full flex items-center">
+        {Array.from({ length: 15 }).map((_, i) => (
+          <div key={i} className="flex items-center flex-1">
+            <span className={`w-3 h-3 rounded-full flex-shrink-0 ${i % 4 === 0 ? 'bg-[#f3c326]' : 'bg-[#0e254f]'}`} />
+            {i < 14 && <span className="h-px flex-1 bg-[#0e254f]/25 mx-2" />}
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -275,7 +256,7 @@ export default function About({ navigate }: { navigate: (p: Page) => void }) {
         ))}
       </div>
 
-      {/* How it works — visual pipeline + live demo */}
+      {/* How it works — visual pipeline + point flow */}
       <div>
         <SectionTitle kicker="How it works" title="From spreadsheet to master grid" />
         <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr] items-start">
@@ -299,7 +280,7 @@ export default function About({ navigate }: { navigate: (p: Page) => void }) {
             </div>
           </div>
           <Reveal className="lg:sticky lg:top-6">
-            <SolverDemo />
+            <PointFlow />
           </Reveal>
         </div>
       </div>
