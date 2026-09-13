@@ -1,5 +1,4 @@
 import type { Page } from '../types'
-import CollegeLogo from './CollegeLogo'
 import { navItems } from '../navItems'
 
 export default function Sidebar({
@@ -18,7 +17,11 @@ export default function Sidebar({
     >
       <div className="px-6 py-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <CollegeLogo className="w-10 h-10 flex-shrink-0 drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)]" />
+          <img
+            src="/PEC_ICON.jpeg"
+            alt="Panimalar Engineering College"
+            className="w-10 h-10 flex-shrink-0 object-contain"
+          />
           <div>
             <p className="font-display font-700 text-[15px] leading-tight text-white tracking-wide">SCEDULAR</p>
             <p className="text-white/60 text-xs">Panimalar · AI&DS</p>
