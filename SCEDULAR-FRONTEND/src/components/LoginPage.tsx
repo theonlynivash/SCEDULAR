@@ -32,7 +32,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
             <div className="w-full max-w-[420px] mx-auto mb-4 p-0 bg-white border-0 rounded-none shadow-none">
               <CollegeLogo className="block w-full h-auto" />
             </div>
-            <h1 className="text-slate-900 font-display text-2xl font-800 tracking-[0.2em]">SCEDULAR</h1>
+            <h1 className="text-slate-400 font-display text-2xl font-900 tracking-normal">SCEDULAR</h1>
           </div>
 
           <div className="px-8 pb-8">
@@ -42,7 +42,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
                 value={user}
                 onChange={e => { setUser(e.target.value); setError(null) }}
                 className="w-full glass-input rounded-xl px-4 py-2.5 text-sm text-slate-800 transition placeholder:text-slate-400"
-                placeholder="Malathi.S"
+                placeholder="USERNAME"
                 autoComplete="username"
               />
             </div>
@@ -54,7 +54,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
                   value={pass}
                   onChange={e => { setPass(e.target.value); setError(null) }}
                   className="w-full glass-input rounded-xl px-4 py-2.5 pr-11 text-sm text-slate-800 transition placeholder:text-slate-400"
-                  placeholder="Enter your password"
+                  placeholder="PASSWORD"
                   autoComplete="current-password"
                 />
                 <button
