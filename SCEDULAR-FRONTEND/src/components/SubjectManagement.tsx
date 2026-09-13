@@ -28,6 +28,16 @@ const componentTypeTones: Record<ComponentType, 'accent' | 'neutral' | 'warning'
   ADDITIONAL: 'neutral',
 }
 
+function componentTypeValue(course: Course): string {
+  const raw = course.componentType ?? (course as Course & { component_type?: string }).component_type
+  if (!raw) return 'Unknown'
+  return raw.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
+}
+
+function componentTypeTone(course: Course): 'accent' | 'neutral' | 'warning' | 'success' {
+  return componentTypeTones[course.componentType] ?? 'neutral'
+}
+
 export default function SubjectManagement({ navigate }: { navigate: (p: Page) => void }) {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
@@ -121,7 +131,7 @@ export default function SubjectManagement({ navigate }: { navigate: (p: Page) =>
                 <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.code}</td>
                 <td className="px-4 py-3 font-500 text-slate-800">{c.name}</td>
                 <td className="px-4 py-3">
-                  <Chip tone={componentTypeTones[c.componentType]}>{componentTypeLabels[c.componentType]}</Chip>
+                  <Chip tone={componentTypeTone(c)}>{componentTypeLabels[c.componentType] ?? componentTypeValue(c)}</Chip>
                 </td>
                 <td className="px-4 py-3 text-center font-mono text-xs text-slate-600">{c.labBlockLength}</td>
                 <td className="px-4 py-3">
