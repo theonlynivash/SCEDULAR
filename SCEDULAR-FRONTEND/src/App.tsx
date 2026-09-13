@@ -29,7 +29,11 @@ export default function App() {
 
   return (
     <ScopeProvider>
-      <div className="app-wallpaper"><div className="blob" /></div>
+      <div className="app-wallpaper">
+        <div className="blob" />
+        <div className="fx-grid" aria-hidden="true" />
+        <div className="fx-particles" aria-hidden="true" />
+      </div>
       <div className="relative z-10 flex h-screen overflow-hidden p-3 gap-3">
         <Sidebar page={page} navigate={navigate} open={sidebarOpen} />
         <div className="flex flex-col flex-1 overflow-hidden gap-3 min-w-0">
