@@ -17,6 +17,8 @@
 *.ai                 filter=lfs diff=lfs merge=lfs -text
 *.sketch             filter=lfs diff=lfs merge=lfs -text
 
+public/PEC-Logo-Updated-July-12-2024-218x150.png -filter -diff -merge
+public/scedular_logo.png -filter -diff -merge
 # ---------------------------------------------------------------------------
 # Video
 # ---------------------------------------------------------------------------
