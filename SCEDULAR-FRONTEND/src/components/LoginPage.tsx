@@ -32,8 +32,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
             <div className="w-full max-w-[420px] mx-auto mb-4 p-2 bg-white border border-[#f3c326] rounded-none shadow-none">
               <CollegeLogo className="block w-full h-auto" />
             </div>
-            <h1 className="text-slate-900 font-display text-lg font-700 leading-tight">Panimalar Engineering College</h1>
-            <p className="text-[#0e254f] text-sm mt-1 font-display font-600 tracking-wide">SCEDULAR TIMETABLE SYSTEM</p>
+            <h1 className="text-slate-900 font-display text-2xl font-800 tracking-[0.2em]">SCEDULAR</h1>
           </div>
 
           <div className="px-8 pb-8">
