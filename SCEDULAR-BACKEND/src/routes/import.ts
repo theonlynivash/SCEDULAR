@@ -22,10 +22,19 @@ import {
 // requiring them to already exist. This is what makes one workload-style
 // spreadsheet sufficient for a whole department/year/semester rather than
 // needing separate Sections and Courses imports first.
+//
+// One faculty teaching the same subject to several sections (commonly
+// 3-4) is just several rows with the same FacultyId + CourseId and a
+// different SectionId -- no special handling needed, each row is an
+// independent (course, section) requirement. Per-faculty caps
+// (MaxDailyPeriods/MaxWeeklyPeriods) always travel with this sheet, never
+// as separate manual text entry -- the last value seen for a given
+// FacultyId across the sheet's rows wins (upsertFaculty is called once
+// per row).
 export const importRouter = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
-const componentTypeSchema = z.enum(['INTEGRATED', 'NON_INTEGRATED', 'MANDATORY', 'LAB_ONLY'])
+const componentTypeSchema = z.enum(['INTEGRATED_THEORY', 'INTEGRATED_LAB', 'LAB_ONLY', 'THEORY_ONLY', 'MANDATORY', 'ADDITIONAL'])
 
 const rowSchema = z.object({
   FacultyId: z.union([z.string(), z.number()]).transform(String),
@@ -82,7 +91,14 @@ importRouter.post('/faculty-workload', upload.single('file'), async (req, res, n
           id: r.CourseId,
           code: r.CourseCode ?? r.CourseId,
           name: r.CourseName ?? r.CourseId,
-          componentType: r.ComponentType ?? (r.WeeklyLabPeriods > 0 && r.WeeklyTheoryPeriods === 0 ? 'LAB_ONLY' : r.WeeklyLabPeriods > 0 ? 'INTEGRATED' : 'NON_INTEGRATED'),
+          // Only the unambiguous single-signal cases are inferred. A row
+          // with BOTH counts > 0 and no explicit ComponentType is exactly
+          // the shape the taxonomy forbids -- an "integrated" subject must
+          // be two separate rows (its own INTEGRATED_THEORY row and
+          // INTEGRATED_LAB row), so defaulting it to THEORY_ONLY here lets
+          // preValidate's symmetric check catch and report the mistake
+          // instead of silently guessing.
+          componentType: r.ComponentType ?? (r.WeeklyLabPeriods > 0 && r.WeeklyTheoryPeriods === 0 ? 'LAB_ONLY' : 'THEORY_ONLY'),
           labBlockLength: r.LabBlockLength,
         })
       }

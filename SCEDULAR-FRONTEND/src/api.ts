@@ -25,7 +25,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 // ---------- Types (mirrors SCEDULAR-BACKEND/src/types.ts) ----------
 
-export type ComponentType = 'INTEGRATED' | 'NON_INTEGRATED' | 'MANDATORY' | 'LAB_ONLY'
+export type ComponentType = 'INTEGRATED_THEORY' | 'INTEGRATED_LAB' | 'LAB_ONLY' | 'THEORY_ONLY' | 'MANDATORY' | 'ADDITIONAL'
 
 export interface FacultyUnavailability {
   day: string
@@ -171,6 +171,8 @@ export const api = {
     remove: (id: string) => request<void>(`/labs/${id}`, { method: 'DELETE' }),
     mapCourse: (labId: string, courseId: string) =>
       request('/labs/mapping', { method: 'POST', body: JSON.stringify({ labId, courseId }) }),
+    unmapCourse: (labId: string, courseId: string) =>
+      request<void>(`/labs/mapping?labId=${encodeURIComponent(labId)}&courseId=${encodeURIComponent(courseId)}`, { method: 'DELETE' }),
   },
   config: {
     get: () => request<ScheduleConfig>('/config'),

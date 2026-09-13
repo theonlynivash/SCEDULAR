@@ -82,10 +82,26 @@ export function preValidate(input: PreValidationInput): Conflict[] {
         })
       }
     }
-    if (course.componentType === 'LAB_ONLY' && r.weeklyTheoryPeriods > 0) {
+    // A course row is unambiguously theory-only or lab-only by type -- an
+    // "integrated" subject is always two paired rows (INTEGRATED_THEORY +
+    // INTEGRATED_LAB), never one row carrying both counts, so any row
+    // whose counts contradict its declared type signals the exact
+    // ambiguity this taxonomy exists to rule out (Section 7).
+    if ((course.componentType === 'LAB_ONLY' || course.componentType === 'INTEGRATED_LAB') && r.weeklyTheoryPeriods > 0) {
       conflicts.push({
         type: 'INVALID_INPUT',
-        message: `Course ${r.courseId} is LAB_ONLY but has theory periods requested`,
+        message: `Course ${r.courseId} is ${course.componentType} but has theory periods requested -- split theory into its own INTEGRATED_THEORY row`,
+        courseId: r.courseId,
+        sectionId: r.sectionId,
+      })
+    }
+    if (
+      (course.componentType === 'THEORY_ONLY' || course.componentType === 'INTEGRATED_THEORY' || course.componentType === 'MANDATORY' || course.componentType === 'ADDITIONAL') &&
+      r.weeklyLabPeriods > 0
+    ) {
+      conflicts.push({
+        type: 'INVALID_INPUT',
+        message: `Course ${r.courseId} is ${course.componentType} but has lab periods requested -- split lab into its own INTEGRATED_LAB row`,
         courseId: r.courseId,
         sectionId: r.sectionId,
       })

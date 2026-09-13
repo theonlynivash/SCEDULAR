@@ -6,13 +6,16 @@ import {
   type Assignment,
   type Conflict,
   type Course,
+  type CourseRequirement,
   type Faculty,
   type Lab,
   type RunDetail,
   type ScheduleConfig,
   type Section,
+  type TeacherAssignment,
   type TimetableStatus,
 } from '../api'
+import { useScope, matchesScope } from '../scope'
 
 function BackBtn({ navigate }: { navigate: (p: Page) => void }) {
   return (
@@ -331,11 +334,14 @@ function colorForCourse(courseId: string): string {
 }
 
 export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
+  const { scope } = useScope()
   const [tab, setTab] = useState(0)
   const [sections, setSections] = useState<Section[]>([])
   const [facultyList, setFacultyList] = useState<Faculty[]>([])
   const [labs, setLabs] = useState<Lab[]>([])
   const [courses, setCourses] = useState<Course[]>([])
+  const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([])
+  const [requirements, setRequirements] = useState<CourseRequirement[]>([])
   const [config, setConfig] = useState<ScheduleConfig | null>(null)
   const [selectedFaculty, setSelectedFaculty] = useState('')
   const [selectedSection, setSelectedSection] = useState('')
@@ -345,16 +351,48 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
   const tabs = ['Faculty Timetable', 'Class Timetable', 'Lab Timetable']
 
   useEffect(() => {
-    Promise.all([api.sections.list(), api.faculty.list(), api.labs.list(), api.courses.list(), api.config.get()])
-      .then(([s, f, l, c, cfg]) => {
+    Promise.all([
+      api.sections.list(),
+      api.faculty.list(),
+      api.labs.list(),
+      api.courses.list(),
+      api.config.get(),
+      api.workload.listTeacherAssignments(),
+      api.workload.listRequirements(),
+    ])
+      .then(([s, f, l, c, cfg, ta, req]) => {
         setSections(s)
         setFacultyList(f)
         setLabs(l)
         setCourses(c)
         setConfig(cfg)
+        setTeacherAssignments(ta)
+        setRequirements(req)
       })
       .catch(e => setError(e instanceof Error ? e.message : 'Failed to load timetable data'))
   }, [])
+
+  // Scoped-in sections: only what the global Dept/Year/Semester selector
+  // (TopBar) currently covers -- picking "Yr I" here must not still offer
+  // a Yr II teacher or lab in the dropdown below.
+  const scopedSections = sections.filter(s => matchesScope(scope, s.year, s.semester))
+  const scopedSectionIds = new Set(scopedSections.map(s => s.id))
+
+  const scopedFaculty = facultyList.filter(f =>
+    scope.year === 'ALL' || teacherAssignments.some(a => a.facultyId === f.id && scopedSectionIds.has(a.sectionId))
+  )
+
+  const scopedCourseIds = new Set(requirements.filter(r => scopedSectionIds.has(r.sectionId)).map(r => r.courseId))
+  const scopedLabs = labs.filter(l => scope.year === 'ALL' || l.courseIds.some(cid => scopedCourseIds.has(cid)))
+
+  // If the scope changed out from under a selection, drop it rather than
+  // keep showing an out-of-scope entity's timetable.
+  useEffect(() => {
+    if (selectedFaculty && !scopedFaculty.some(f => f.id === selectedFaculty)) setSelectedFaculty('')
+    if (selectedSection && !scopedSectionIds.has(selectedSection)) setSelectedSection('')
+    if (selectedLab && !scopedLabs.some(l => l.id === selectedLab)) setSelectedLab('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope.year, scope.semester])
 
   useEffect(() => {
     setError(null)
@@ -405,20 +443,20 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
 
         {tab === 0 && (
           <select value={selectedFaculty} onChange={e => setSelectedFaculty(e.target.value)} className={selectCls} style={selectStyle}>
-            <option value="">Select Faculty…</option>
-            {facultyList.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+            <option value="">{scopedFaculty.length === 0 ? 'No faculty in this scope' : 'Select Faculty…'}</option>
+            {scopedFaculty.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
         )}
         {tab === 1 && (
           <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)} className={selectCls} style={selectStyle}>
-            <option value="">Select Section…</option>
-            {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <option value="">{scopedSections.length === 0 ? 'No sections in this scope' : 'Select Section…'}</option>
+            {scopedSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
         {tab === 2 && (
           <select value={selectedLab} onChange={e => setSelectedLab(e.target.value)} className={selectCls} style={selectStyle}>
-            <option value="">Select Lab…</option>
-            {labs.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            <option value="">{scopedLabs.length === 0 ? 'No labs in this scope' : 'Select Lab…'}</option>
+            {scopedLabs.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         )}
       </div>

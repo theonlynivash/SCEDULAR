@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard'
 import FacultyManagement from './components/FacultyManagement'
 import SubjectManagement from './components/SubjectManagement'
 import DataHub from './components/DataHub'
+import LabManagement from './components/LabManagement'
 import { UploadCurriculum, UploadWorkload, ConstraintManagement } from './components/UploadPages'
 import { GenerateTimetable, TimetableResult, ViewTimetable, EditTimetable } from './components/TimetablePages'
 import { Reports } from './components/ReportsSettings'
@@ -43,6 +44,7 @@ export default function App() {
               {page === 'faculty' && <FacultyManagement navigate={navigate} />}
               {page === 'subjects' && <SubjectManagement navigate={navigate} />}
               {page === 'data-hub' && <DataHub navigate={navigate} />}
+              {page === 'lab-management' && <LabManagement navigate={navigate} />}
               {page === 'upload-curriculum' && <UploadCurriculum navigate={navigate} />}
               {page === 'upload-workload' && <UploadWorkload navigate={navigate} />}
               {page === 'constraints' && <ConstraintManagement navigate={navigate} />}

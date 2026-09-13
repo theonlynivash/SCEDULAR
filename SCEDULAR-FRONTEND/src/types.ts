@@ -4,6 +4,7 @@ export type Page =
   | 'faculty'
   | 'subjects'
   | 'data-hub'
+  | 'lab-management'
   | 'upload-curriculum'
   | 'upload-workload'
   | 'constraints'

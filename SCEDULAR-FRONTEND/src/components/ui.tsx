@@ -67,6 +67,7 @@ export function Section({ title, children, actions }: { title: string; desc?: st
 
 export function Field({
   label,
+  hint,
   ...props
 }: { label: string; hint?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -76,6 +77,7 @@ export function Field({
         {...props}
         className="w-full glass-input rounded-xl px-3.5 py-2.5 text-sm text-slate-800 transition placeholder:text-slate-400"
       />
+      {hint && <p className="text-[11px] text-slate-500 mt-1 leading-snug">{hint}</p>}
     </div>
   )
 }
@@ -90,7 +92,7 @@ export function Select({
       <label className="block text-xs font-600 text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>
       <select
         {...props}
-        className="w-full glass-input rounded-xl px-3.5 py-2.5 text-sm text-slate-800 transition appearance-none bg-[length:16px] bg-[right_0.9rem_center] bg-no-repeat"
+        className="w-full glass-input rounded-xl pl-3.5 pr-9 py-2.5 text-sm text-slate-800 transition appearance-none bg-[length:16px] bg-[right_0.9rem_center] bg-no-repeat"
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23636b8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",

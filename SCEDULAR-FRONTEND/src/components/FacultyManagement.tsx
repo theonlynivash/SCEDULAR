@@ -140,7 +140,8 @@ export default function FacultyManagement({ navigate }: { navigate: (p: Page) =>
       </GlassPanel>
 
       <GlassPanel className="overflow-hidden">
-        <table className="tbl text-sm">
+        <div className="overflow-x-auto">
+        <table className="tbl text-sm" style={{ minWidth: 760 }}>
           <thead>
             <tr className="border-b border-white/40 bg-white/25">
               {['Faculty', 'Designation', 'Teaching (in scope)', 'Years', 'Max Daily', 'Max Weekly', ''].map(h => (
@@ -192,6 +193,7 @@ export default function FacultyManagement({ navigate }: { navigate: (p: Page) =>
             })}
           </tbody>
         </table>
+        </div>
         <div className="px-4 py-3 border-t border-white/30">
           <p className="text-xs text-slate-500">Showing {filtered.length} of {faculty.length} faculty</p>
         </div>
@@ -215,13 +217,14 @@ export default function FacultyManagement({ navigate }: { navigate: (p: Page) =>
               <Field label="Designation" placeholder="e.g. Asst. Professor" value={form.designation} onChange={e => setForm({ ...form, designation: e.target.value })} />
               <Field
                 label="Maximum Periods per Day"
+                hint="Normally comes from the Load spreadsheet's MaxDailyPeriods column — only set it here for a one-off manual addition."
                 type="number"
                 value={form.maxDailyPeriods}
                 onChange={e => setForm({ ...form, maxDailyPeriods: Number(e.target.value) })}
               />
               <Field
                 label="Maximum Periods per Week"
-                hint="Their TRUE total across every year they teach, not just this scope."
+                hint="Their TRUE total across every year they teach, not just this scope — normally comes from the Load spreadsheet's MaxWeeklyPeriods column."
                 type="number"
                 value={form.maxWeeklyPeriods}
                 onChange={e => setForm({ ...form, maxWeeklyPeriods: Number(e.target.value) })}

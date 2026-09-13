@@ -182,3 +182,22 @@ body {
 .tbl th, .tbl td {
   border: 1px solid rgba(15, 23, 42, 0.14);
 }
+
+/* About page hero: a slow-drifting conic glow behind the SCEDULAR
+   wordmark, purely decorative so it's guarded by reduced-motion. */
+.about-hero-glow {
+  position: absolute;
+  inset: -40%;
+  z-index: 0;
+  background: conic-gradient(from 0deg, rgba(14, 37, 79, 0.16), rgba(243, 195, 38, 0.16), rgba(14, 37, 79, 0.16));
+  filter: blur(40px);
+  animation: about-glow-spin 18s linear infinite;
+  pointer-events: none;
+}
+@keyframes about-glow-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .about-hero-glow { animation: none; }
+}

@@ -41,7 +41,7 @@ interface CourseDef {
   id: string
   code: string
   name: string
-  componentType: 'INTEGRATED' | 'NON_INTEGRATED' | 'MANDATORY' | 'LAB_ONLY'
+  componentType: 'INTEGRATED_THEORY' | 'INTEGRATED_LAB' | 'LAB_ONLY' | 'THEORY_ONLY' | 'MANDATORY' | 'ADDITIONAL'
   theory: number
   lab: number
   labBlockLength: number
@@ -81,16 +81,26 @@ async function main() {
   // -- Courses -------------------------------------------------------------
   // weeklyTheory / weeklyLab / labBlockLength are constant across all 12
   // sections (confirmed identical "Hours Allocated" on every section's page).
+  // Every subject with a lab component is two paired course rows -- an
+  // INTEGRATED_THEORY row (theory periods only) and an INTEGRATED_LAB row
+  // (lab periods only), e.g. OOP + OOP_LAB -- never one row carrying both
+  // counts, whether or not the same faculty teaches both halves. TSP has
+  // no theory counterpart at all, so it stays a standalone LAB_ONLY row.
+  // SCD and LIB are non-mandatory extra periods (ADDITIONAL), distinct
+  // from the genuinely compulsory COI/QAP (MANDATORY).
   const COURSES: CourseDef[] = [
-    { id: 'MFAI', code: '23MA1304', name: 'Mathematical Foundations for Artificial Intelligence', componentType: 'NON_INTEGRATED', theory: 5, lab: 0, labBlockLength: 3 },
-    { id: 'INT', code: '23AD1301', name: 'Internals of Computer Systems', componentType: 'NON_INTEGRATED', theory: 4, lab: 0, labBlockLength: 3 },
-    { id: 'AIES', code: '23AD1311', name: 'Artificial Intelligence and Expert Systems', componentType: 'INTEGRATED', theory: 5, lab: 3, labBlockLength: 3 },
-    { id: 'OOP', code: '23AD1312', name: 'Object Oriented Programming Paradigm', componentType: 'INTEGRATED', theory: 5, lab: 3, labBlockLength: 3 },
-    { id: 'DBMS', code: '23CS1312', name: 'Database Management Systems', componentType: 'INTEGRATED', theory: 5, lab: 3, labBlockLength: 3 },
+    { id: 'MFAI', code: '23MA1304', name: 'Mathematical Foundations for Artificial Intelligence', componentType: 'THEORY_ONLY', theory: 5, lab: 0, labBlockLength: 3 },
+    { id: 'INT', code: '23AD1301', name: 'Internals of Computer Systems', componentType: 'THEORY_ONLY', theory: 4, lab: 0, labBlockLength: 3 },
+    { id: 'AIES', code: '23AD1311', name: 'Artificial Intelligence and Expert Systems', componentType: 'INTEGRATED_THEORY', theory: 5, lab: 0, labBlockLength: 3 },
+    { id: 'AIES_LAB', code: '23AD1311L', name: 'Artificial Intelligence and Expert Systems Laboratory', componentType: 'INTEGRATED_LAB', theory: 0, lab: 3, labBlockLength: 3 },
+    { id: 'OOP', code: '23AD1312', name: 'Object Oriented Programming Paradigm', componentType: 'INTEGRATED_THEORY', theory: 5, lab: 0, labBlockLength: 3 },
+    { id: 'OOP_LAB', code: '23AD1312L', name: 'Object Oriented Programming Paradigm Laboratory', componentType: 'INTEGRATED_LAB', theory: 0, lab: 3, labBlockLength: 3 },
+    { id: 'DBMS', code: '23CS1312', name: 'Database Management Systems', componentType: 'INTEGRATED_THEORY', theory: 5, lab: 0, labBlockLength: 3 },
+    { id: 'DBMS_LAB', code: '23CS1312L', name: 'Database Management Systems Laboratory', componentType: 'INTEGRATED_LAB', theory: 0, lab: 3, labBlockLength: 3 },
     { id: 'COI', code: '23MC1002', name: 'Constitution of India', componentType: 'MANDATORY', theory: 1, lab: 0, labBlockLength: 3 },
     { id: 'QAP', code: '23HS1302', name: 'Quantitative Aptitude Practices III', componentType: 'MANDATORY', theory: 1, lab: 0, labBlockLength: 3 },
-    { id: 'SCD', code: '23HS1301', name: 'Skills for Career Building and Development I', componentType: 'MANDATORY', theory: 2, lab: 0, labBlockLength: 3 },
-    { id: 'LIB', code: 'LIBRARY', name: 'Library', componentType: 'MANDATORY', theory: 1, lab: 0, labBlockLength: 3 },
+    { id: 'SCD', code: '23HS1301', name: 'Skills for Career Building and Development I', componentType: 'ADDITIONAL', theory: 2, lab: 0, labBlockLength: 3 },
+    { id: 'LIB', code: 'LIBRARY', name: 'Library', componentType: 'ADDITIONAL', theory: 1, lab: 0, labBlockLength: 3 },
     { id: 'TSP', code: '23ES1311', name: 'Technical Skill Practices II', componentType: 'LAB_ONLY', theory: 0, lab: 2, labBlockLength: 2 },
   ]
   for (const c of COURSES) {
@@ -105,9 +115,9 @@ async function main() {
   await upsertLab({ id: 'LAB_DBMS_1', name: 'DBMS Lab 1' })
   await upsertLab({ id: 'LAB_DBMS_2', name: 'DBMS Lab 2' })
   await upsertLab({ id: 'LAB_TSP', name: 'TSP Lab' })
-  for (const l of ['LAB_AIES_1', 'LAB_AIES_2']) await setLabCourseMapping(l, 'AIES')
-  for (const l of ['LAB_OOP_1', 'LAB_OOP_2']) await setLabCourseMapping(l, 'OOP')
-  for (const l of ['LAB_DBMS_1', 'LAB_DBMS_2']) await setLabCourseMapping(l, 'DBMS')
+  for (const l of ['LAB_AIES_1', 'LAB_AIES_2']) await setLabCourseMapping(l, 'AIES_LAB')
+  for (const l of ['LAB_OOP_1', 'LAB_OOP_2']) await setLabCourseMapping(l, 'OOP_LAB')
+  for (const l of ['LAB_DBMS_1', 'LAB_DBMS_2']) await setLabCourseMapping(l, 'DBMS_LAB')
   await setLabCourseMapping('LAB_TSP', 'TSP')
 
   // -- Faculty ----------------------------------------------------------------
@@ -175,46 +185,33 @@ async function main() {
     await upsertCourseRequirement({ courseId, sectionId: section, weeklyTheoryPeriods: theory, weeklyLabPeriods: lab })
   }
 
-  // A handful of sections (II-D AIES, II-E DBMS, II-F DBMS) have their lab
-  // taught by someone other than the theory teacher. The data model seats
-  // one faculty per (course, section), so representing that split honestly
-  // -- rather than collapsing both onto one already-busy teacher, which
-  // makes their week artificially tighter than reality -- means giving that
-  // section's lab its own LAB_ONLY sibling course, sharing the same physical
-  // lab pool as the parent integrated course.
-  await upsertCourse({ id: 'AIES_LAB_ONLY', code: '23AD1311L', name: 'Artificial Intelligence and Expert Systems Laboratory', componentType: 'LAB_ONLY', labBlockLength: 3 })
-  await upsertCourse({ id: 'DBMS_LAB_ONLY', code: '23CS1312L', name: 'Database Management Systems Laboratory', componentType: 'LAB_ONLY', labBlockLength: 3 })
-  await setLabCourseMapping('LAB_AIES_1', 'AIES_LAB_ONLY')
-  await setLabCourseMapping('LAB_AIES_2', 'AIES_LAB_ONLY')
-  await setLabCourseMapping('LAB_DBMS_1', 'DBMS_LAB_ONLY')
-  await setLabCourseMapping('LAB_DBMS_2', 'DBMS_LAB_ONLY')
-
   for (const letter of SECTION_LETTERS) {
     const section = `II-${letter}`
     const p = PLAN[letter]
     const mfai = courseById.get('MFAI')!, int = courseById.get('INT')!
-    const aies = courseById.get('AIES')!, oop = courseById.get('OOP')!, dbms = courseById.get('DBMS')!
+    const aies = courseById.get('AIES')!, aiesLab = courseById.get('AIES_LAB')!
+    const oop = courseById.get('OOP')!, oopLab = courseById.get('OOP_LAB')!
+    const dbms = courseById.get('DBMS')!, dbmsLab = courseById.get('DBMS_LAB')!
     const coi = courseById.get('COI')!, qap = courseById.get('QAP')!, scd = courseById.get('SCD')!
     const tsp = courseById.get('TSP')!, lib = courseById.get('LIB')!
 
     await assign(section, 'MFAI', p.MFAI, mfai.theory, 0)
     await assign(section, 'INT', p.INT, int.theory, 0)
 
-    if (p.AIES_LAB) {
-      await assign(section, 'AIES', p.AIES, aies.theory, 0)
-      await assign(section, 'AIES_LAB_ONLY', p.AIES_LAB, 0, aies.lab)
-    } else {
-      await assign(section, 'AIES', p.AIES, aies.theory, aies.lab)
-    }
+    // Theory and lab are always separate (course, section) requirement
+    // rows now -- p.AIES_LAB/p.OOP_LAB/p.DBMS_LAB (set only for the
+    // handful of sections whose lab is taught by someone other than the
+    // theory teacher) just pick which faculty the lab row is assigned to;
+    // when unset, the SAME faculty teaches both rows, which is the common
+    // case (e.g. every OOP section: no OOP_LAB override anywhere in PLAN).
+    await assign(section, 'AIES', p.AIES, aies.theory, 0)
+    await assign(section, 'AIES_LAB', p.AIES_LAB ?? p.AIES, 0, aiesLab.lab)
 
-    await assign(section, 'OOP', p.OOP_LAB ?? p.OOP, oop.theory, oop.lab) // no section has an OOP theory/lab split
+    await assign(section, 'OOP', p.OOP, oop.theory, 0)
+    await assign(section, 'OOP_LAB', p.OOP_LAB ?? p.OOP, 0, oopLab.lab)
 
-    if (p.DBMS_LAB) {
-      await assign(section, 'DBMS', p.DBMS, dbms.theory, 0)
-      await assign(section, 'DBMS_LAB_ONLY', p.DBMS_LAB, 0, dbms.lab)
-    } else {
-      await assign(section, 'DBMS', p.DBMS, dbms.theory, dbms.lab)
-    }
+    await assign(section, 'DBMS', p.DBMS, dbms.theory, 0)
+    await assign(section, 'DBMS_LAB', p.DBMS_LAB ?? p.DBMS, 0, dbmsLab.lab)
 
     await assign(section, 'COI', p.COI, coi.theory, 0)
     await assign(section, 'QAP', p.QAP, qap.theory, 0)
@@ -223,7 +220,7 @@ async function main() {
     await assign(section, 'LIB', p.LIB, lib.theory, 0)
   }
 
-  console.log(`Seeded ${SECTION_LETTERS.length} sections, ${COURSES.length + 2} courses, 7 lab rooms, ${Object.keys(FACULTY).length} faculty.`)
+  console.log(`Seeded ${SECTION_LETTERS.length} sections, ${COURSES.length} courses, 7 lab rooms, ${Object.keys(FACULTY).length} faculty.`)
   await pool.end()
 }
 

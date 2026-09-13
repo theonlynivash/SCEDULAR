@@ -156,6 +156,10 @@ export async function setLabCourseMapping(labId: string, courseId: string): Prom
   )
 }
 
+export async function deleteLabCourseMapping(labId: string, courseId: string): Promise<void> {
+  await pool.query('DELETE FROM lab_course_mapping WHERE lab_id = $1 AND course_id = $2', [labId, courseId])
+}
+
 export async function labsForCourse(courseId: string): Promise<string[]> {
   const { rows } = await pool.query('SELECT lab_id FROM lab_course_mapping WHERE course_id = $1', [courseId])
   return rows.map(r => r.lab_id)

@@ -30,6 +30,7 @@ interface SolveContext {
   facultyWeeklyCount: Map<string, number>
   sectionDailyCount: Map<string, number> // `${sectionId}:${day}`
   sectionCourseDailyCount: Map<string, number> // `${sectionId}:${courseId}:${day}`
+  sectionCoursePeriodCount: Map<string, number> // `${sectionId}:${courseId}:${periodIndex}` -- column balance
   labBusy: Map<string, Set<string>>
   groups: number[][]
   // Every course's lab options, fetched once by the pipeline before the
@@ -63,6 +64,7 @@ function buildContext(
     facultyWeeklyCount: new Map(),
     sectionDailyCount: new Map(),
     sectionCourseDailyCount: new Map(),
+    sectionCoursePeriodCount: new Map(),
     labBusy: new Map(),
     groups: contiguousGroups(config.periods),
     labsByCourse,
@@ -106,6 +108,15 @@ function getDomain(unit: SchedulableUnit, ctx: SolveContext): Candidate[] {
         if (getSet(ctx.sectionBusy, unit.sectionId).has(key)) continue
         if (getSet(ctx.facultyBusy, unit.facultyId).has(key)) continue
         const sectionDayCount = ctx.sectionDailyCount.get(`${unit.sectionId}:${day}`) ?? 0
+        // Column balance: how many times THIS subject already sits in THIS
+        // exact period slot on some other day this week (e.g. always
+        // period 1 on every day it occurs). Without this a timetable can
+        // satisfy every day-balance rule and the hard 2/day cap yet still
+        // look robotic -- same subject, same clock position, day after
+        // day. Weighted below the day-balance term so day-spread is still
+        // the dominant preference, but strong enough to break ties toward
+        // a genuinely different period once a day is already used.
+        const columnCount = ctx.sectionCoursePeriodCount.get(`${unit.sectionId}:${unit.courseId}:${p.index}`) ?? 0
         domain.push({
           day,
           startPeriod: p.index,
@@ -115,7 +126,7 @@ function getDomain(unit: SchedulableUnit, ctx: SolveContext): Candidate[] {
           // even while both are still under the hard cap above -- this is
           // what actually spreads a subject across the week instead of
           // just barely staying under 2/day.
-          score: courseDayCount * 5 + sectionDayCount * 2 + dailyCount,
+          score: courseDayCount * 5 + columnCount * columnCount * 6 + sectionDayCount * 2 + dailyCount,
         })
       }
     } else {
@@ -164,6 +175,8 @@ function place(unit: SchedulableUnit, c: Candidate, ctx: SolveContext) {
   if (unit.blockType === 'THEORY') {
     const key = `${unit.sectionId}:${unit.courseId}:${c.day}`
     ctx.sectionCourseDailyCount.set(key, (ctx.sectionCourseDailyCount.get(key) ?? 0) + 1)
+    const pkey = `${unit.sectionId}:${unit.courseId}:${c.startPeriod}`
+    ctx.sectionCoursePeriodCount.set(pkey, (ctx.sectionCoursePeriodCount.get(pkey) ?? 0) + 1)
   }
 }
 
@@ -181,6 +194,8 @@ function unplace(unit: SchedulableUnit, c: Candidate, ctx: SolveContext) {
   if (unit.blockType === 'THEORY') {
     const key = `${unit.sectionId}:${unit.courseId}:${c.day}`
     ctx.sectionCourseDailyCount.set(key, (ctx.sectionCourseDailyCount.get(key) ?? 0) - 1)
+    const pkey = `${unit.sectionId}:${unit.courseId}:${c.startPeriod}`
+    ctx.sectionCoursePeriodCount.set(pkey, (ctx.sectionCoursePeriodCount.get(pkey) ?? 0) - 1)
   }
 }
 

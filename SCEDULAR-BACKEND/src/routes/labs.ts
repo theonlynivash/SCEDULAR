@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { deleteLab, listLabCourseMappings, listLabs, setLabCourseMapping, upsertLab } from '../db/repo.js'
+import { deleteLab, deleteLabCourseMapping, listLabCourseMappings, listLabs, setLabCourseMapping, upsertLab } from '../db/repo.js'
 
 export const labsRouter = Router()
 
@@ -27,24 +27,38 @@ labsRouter.post('/', async (req, res, next) => {
   }
 })
 
-labsRouter.delete('/:id', async (req, res, next) => {
-  try {
-    await deleteLab(req.params.id)
-    res.status(204).end()
-  } catch (err) {
-    next(err)
-  }
-})
-
 // Global lab <-> course mapping, e.g. OOP + DBMS sharing one physical lab
 // (Section 7 of the report). A lab may host more than one course; a course
-// may be hostable in more than one lab.
+// may be hostable in more than one lab. Registered BEFORE the generic
+// '/:id' delete route below -- Express matches routes in registration
+// order, and '/:id' would otherwise swallow "DELETE /mapping" by binding
+// id="mapping" and silently deleting nothing.
 labsRouter.post('/mapping', async (req, res, next) => {
   try {
     const parsed = mappingSchema.safeParse(req.body)
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
     await setLabCourseMapping(parsed.data.labId, parsed.data.courseId)
     res.status(201).json(parsed.data)
+  } catch (err) {
+    next(err)
+  }
+})
+
+labsRouter.delete('/mapping', async (req, res, next) => {
+  try {
+    const parsed = mappingSchema.safeParse(req.query)
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
+    await deleteLabCourseMapping(parsed.data.labId, parsed.data.courseId)
+    res.status(204).end()
+  } catch (err) {
+    next(err)
+  }
+})
+
+labsRouter.delete('/:id', async (req, res, next) => {
+  try {
+    await deleteLab(req.params.id)
+    res.status(204).end()
   } catch (err) {
     next(err)
   }

@@ -3,18 +3,29 @@ import { PageHeader, Btn, Field, Select, GlassPanel, Chip, IconBtn } from './ui'
 import type { Page } from '../types'
 import { api, type ComponentType, type Course } from '../api'
 
+// An "integrated" subject (theory + lab, e.g. OOP + OOP_LAB) is always two
+// paired course rows -- one Integrated Theory row, one Integrated Lab row
+// -- never a single row carrying both counts, whether or not the same
+// faculty teaches both halves. Lab Only has no theory counterpart at all
+// (e.g. TSP). Mandatory (Constitution of India, Aptitude) and Additional
+// (Skills for Career Development, Library) are both theory-only but kept
+// distinct since Additional periods are not compulsory curriculum.
 const componentTypeLabels: Record<ComponentType, string> = {
-  INTEGRATED: 'Integrated (Theory + Lab)',
-  NON_INTEGRATED: 'Theory Only',
-  MANDATORY: 'Mandatory',
+  INTEGRATED_THEORY: 'Integrated Theory',
+  INTEGRATED_LAB: 'Integrated Lab',
   LAB_ONLY: 'Lab Only',
+  THEORY_ONLY: 'Theory Only',
+  MANDATORY: 'Mandatory',
+  ADDITIONAL: 'Additional (Non-Mandatory)',
 }
 
 const componentTypeTones: Record<ComponentType, 'accent' | 'neutral' | 'warning' | 'success'> = {
-  INTEGRATED: 'accent',
-  NON_INTEGRATED: 'neutral',
-  MANDATORY: 'warning',
+  INTEGRATED_THEORY: 'accent',
+  INTEGRATED_LAB: 'success',
   LAB_ONLY: 'success',
+  THEORY_ONLY: 'neutral',
+  MANDATORY: 'warning',
+  ADDITIONAL: 'neutral',
 }
 
 export default function SubjectManagement({ navigate }: { navigate: (p: Page) => void }) {
@@ -23,7 +34,7 @@ export default function SubjectManagement({ navigate }: { navigate: (p: Page) =>
   const [error, setError] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ id: '', code: '', name: '', componentType: 'NON_INTEGRATED' as ComponentType, labBlockLength: 3 })
+  const [form, setForm] = useState({ id: '', code: '', name: '', componentType: 'THEORY_ONLY' as ComponentType, labBlockLength: 3 })
 
   async function load() {
     setLoading(true)
@@ -48,7 +59,7 @@ export default function SubjectManagement({ navigate }: { navigate: (p: Page) =>
     try {
       await api.courses.create(form)
       setDrawerOpen(false)
-      setForm({ id: '', code: '', name: '', componentType: 'NON_INTEGRATED', labBlockLength: 3 })
+      setForm({ id: '', code: '', name: '', componentType: 'THEORY_ONLY', labBlockLength: 3 })
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save course')
@@ -88,7 +99,8 @@ export default function SubjectManagement({ navigate }: { navigate: (p: Page) =>
       )}
 
       <GlassPanel className="overflow-hidden">
-        <table className="tbl text-sm">
+        <div className="overflow-x-auto">
+        <table className="tbl text-sm" style={{ minWidth: 640 }}>
           <thead>
             <tr className="bg-white/25 border-b border-white/40">
               {['Course ID', 'Code', 'Name', 'Component Type', 'Lab Block', ''].map(h => (
@@ -123,6 +135,7 @@ export default function SubjectManagement({ navigate }: { navigate: (p: Page) =>
             ))}
           </tbody>
         </table>
+        </div>
         <div className="px-4 py-3 border-t border-white/30">
           <p className="text-xs text-slate-500">Showing {courses.length} course{courses.length !== 1 ? 's' : ''}</p>
         </div>
@@ -149,7 +162,7 @@ export default function SubjectManagement({ navigate }: { navigate: (p: Page) =>
                   <option key={k} value={k}>{label}</option>
                 ))}
               </Select>
-              {form.componentType !== 'NON_INTEGRATED' && form.componentType !== 'MANDATORY' && (
+              {(form.componentType === 'LAB_ONLY' || form.componentType === 'INTEGRATED_LAB') && (
                 <Field
                   label="Lab Block Length (periods)"
                   hint="Normal labs are 3 contiguous periods; exceptions like Technical Skill Practices use their own configured length."

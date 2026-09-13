@@ -3,7 +3,16 @@
 // (FACULTY, COURSES, SECTIONS, COURSE_REQUIREMENTS, LABS, SCHEDULE_CONFIG,
 // ASSIGNMENTS, CONFLICTS).
 
-export type ComponentType = 'INTEGRATED' | 'NON_INTEGRATED' | 'MANDATORY' | 'LAB_ONLY'
+// A subject with both theory and lab hours (e.g. OOP + OOP_LAB, AIES +
+// AIES_LAB) is always modeled as TWO course rows, never one row carrying
+// both counts -- INTEGRATED_THEORY takes the theory periods,
+// INTEGRATED_LAB the lab periods, whether or not the same faculty teaches
+// both halves. LAB_ONLY is reserved for a subject with no theory
+// counterpart at all (e.g. TSP). MANDATORY (e.g. Constitution of India,
+// Quantitative Aptitude) and ADDITIONAL (e.g. Skills for Career
+// Development, Library -- non-mandatory extra periods) are both
+// theory-only but distinguished for reporting.
+export type ComponentType = 'INTEGRATED_THEORY' | 'INTEGRATED_LAB' | 'LAB_ONLY' | 'THEORY_ONLY' | 'MANDATORY' | 'ADDITIONAL'
 
 export interface Faculty {
   id: string

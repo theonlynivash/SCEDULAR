@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { PageHeader, Btn, Section, Field, Select, Chip, GlassPanel } from './ui'
+import { PageHeader, Btn, Section, Field, Select, Chip, GlassPanel, IconBtn } from './ui'
 import type { Page } from '../types'
-import { api, type Lab } from '../api'
+import { api, type Lab, type Section as SectionRow } from '../api'
 import { YEARS, SEMESTERS_BY_YEAR } from '../scope'
 
 function BackBtn({ navigate }: { navigate: (p: Page) => void }) {
@@ -27,9 +27,14 @@ const TEMPLATE_HEADERS = [
 ]
 
 const TEMPLATE_SAMPLE_ROWS = [
-  ['FAC_GIRIYASAKTHI', 'Mrs. D. K. Giriyasakthi', 'Asst. Professor', 'II', 'III', 'II-K', 'OOP', '23AD1312', 'Object Oriented Programming Paradigm', 'INTEGRATED', '3', '5', '3', '8', '24'],
-  ['FAC_GIRIYASAKTHI', 'Mrs. D. K. Giriyasakthi', 'Asst. Professor', 'III', 'V', 'III-B', 'KEIS', '23AD1507', 'Knowledge Engineering and Intelligent Systems', 'INTEGRATED', '3', '3', '2', '8', '24'],
-  ['FAC_KAVITHA_MATH', 'Dr. M. Kavitha', 'Professor', 'II', 'III', 'II-I', 'MFAI', '23MA1304', 'Mathematical Foundations for Artificial Intelligence', 'NON_INTEGRATED', '3', '5', '0', '8', '24'],
+  // An integrated subject is always TWO rows -- theory and lab never share
+  // one row, even when (as here) the same faculty teaches both.
+  ['FAC_GIRIYASAKTHI', 'Mrs. D. K. Giriyasakthi', 'Asst. Professor', 'II', 'III', 'II-K', 'OOP', '23AD1312', 'Object Oriented Programming Paradigm', 'INTEGRATED_THEORY', '3', '5', '0', '8', '24'],
+  ['FAC_GIRIYASAKTHI', 'Mrs. D. K. Giriyasakthi', 'Asst. Professor', 'II', 'III', 'II-K', 'OOP_LAB', '23AD1312L', 'Object Oriented Programming Paradigm Laboratory', 'INTEGRATED_LAB', '3', '0', '3', '8', '24'],
+  // Same faculty, same subject, a different section -- one more row, not a
+  // new faculty record. This is how one teacher covers 3-4 sections.
+  ['FAC_GIRIYASAKTHI', 'Mrs. D. K. Giriyasakthi', 'Asst. Professor', 'II', 'III', 'II-L', 'OOP', '23AD1312', 'Object Oriented Programming Paradigm', 'INTEGRATED_THEORY', '3', '5', '0', '8', '24'],
+  ['FAC_KAVITHA_MATH', 'Dr. M. Kavitha', 'Professor', 'II', 'III', 'II-I', 'MFAI', '23MA1304', 'Mathematical Foundations for Artificial Intelligence', 'THEORY_ONLY', '3', '5', '0', '8', '24'],
 ]
 
 function downloadTemplate() {
@@ -57,6 +62,7 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const [sections, setSections] = useState<SectionRow[]>([])
   const [sectionForm, setSectionForm] = useState({ id: '', year: 'II', semester: 'III' })
   const [sectionSaving, setSectionSaving] = useState(false)
   const [sectionMsg, setSectionMsg] = useState<string | null>(null)
@@ -65,8 +71,13 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
   const [labForm, setLabForm] = useState({ id: '', name: '' })
   const [labSaving, setLabSaving] = useState(false)
 
-  useEffect(() => {
+  function loadSectionsAndLabs() {
+    api.sections.list().then(setSections).catch(() => setSections([]))
     api.labs.list().then(setLabs).catch(() => setLabs([]))
+  }
+
+  useEffect(() => {
+    loadSectionsAndLabs()
   }, [])
 
   async function handleFile(file: File) {
@@ -92,10 +103,21 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
       await api.sections.create({ id: sectionForm.id, name: sectionForm.id, year: sectionForm.year, semester: sectionForm.semester })
       setSectionMsg(`Section ${sectionForm.id} created.`)
       setSectionForm({ ...sectionForm, id: '' })
+      setSections(await api.sections.list())
     } catch (e) {
       setSectionMsg(e instanceof Error ? e.message : 'Failed to create section')
     } finally {
       setSectionSaving(false)
+    }
+  }
+
+  async function handleDeleteSection(id: string) {
+    if (!confirm(`Remove section ${id}? This also removes its course requirements and teacher assignments.`)) return
+    try {
+      await api.sections.remove(id)
+      setSections(await api.sections.list())
+    } catch (e) {
+      setSectionMsg(e instanceof Error ? e.message : 'Failed to delete section')
     }
   }
 
@@ -118,6 +140,17 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
       <PageHeader title="Data & Import Hub">
         <BackBtn navigate={navigate} />
       </PageHeader>
+
+      <GlassPanel className="p-5">
+        <p className="text-sm font-500 text-slate-700 mb-1.5">How this feeds a balanced timetable</p>
+        <ul className="text-xs text-slate-500 space-y-1 leading-relaxed list-disc pl-4">
+          <li>Import the workload spreadsheet for bulk faculty + course + section + requirement rows, or add sections/labs manually below.</li>
+          <li>A subject with both theory and lab (e.g. OOP) is always <strong className="text-slate-600 font-600">two rows</strong> — one Integrated Theory row, one Integrated Lab row (e.g. OOP + OOP_LAB) — never one combined row, even when the same faculty teaches both.</li>
+          <li>One faculty teaching the same subject to several sections (commonly 3-4) is just <strong className="text-slate-600 font-600">one row per section</strong> — same FacultyId + CourseId, different SectionId each time.</li>
+          <li>Faculty max daily/weekly period caps always travel <strong className="text-slate-600 font-600">with this spreadsheet</strong> (MaxDailyPeriods/MaxWeeklyPeriods columns) — they're not meant to be typed in one at a time elsewhere.</li>
+          <li>Every lab-hosted course must be mapped to at least one physical lab in <button onClick={() => navigate('lab-management')} className="text-[#0e254f] font-600 underline underline-offset-2">Lab Management</button> — two subjects sharing one room is fine, just map both.</li>
+        </ul>
+      </GlassPanel>
 
       <Section
         title="Workload Spreadsheet"
@@ -202,13 +235,43 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
           </div>
           <Btn onClick={handleAddSection} disabled={sectionSaving || !sectionForm.id}>{sectionSaving ? 'Adding…' : 'Add Section'}</Btn>
           {sectionMsg && <p className="text-xs text-slate-500">{sectionMsg}</p>}
+
+          <div>
+            <p className="text-xs font-600 text-slate-500 uppercase tracking-wider mb-2">Sections already added ({sections.length})</p>
+            {sections.length === 0 && <p className="text-xs text-slate-400">No sections configured yet.</p>}
+            <div className="max-h-56 overflow-y-auto rounded-xl border border-white/50 divide-y divide-white/40">
+              {sections.map(s => (
+                <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-white/30 transition">
+                  <span className="font-500 text-slate-700">{s.name}</span>
+                  <div className="flex items-center gap-2">
+                    <Chip tone="neutral">Yr {s.year} · Sem {s.semester}</Chip>
+                    <IconBtn tone="danger" title="Delete section" onClick={() => handleDeleteSection(s.id)}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </IconBtn>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </Section>
 
         {/* Labs quick-add */}
-        <Section title="Labs & Physical Rooms">
-          <div className="flex flex-wrap gap-2">
+        <Section title="Labs & Physical Rooms" actions={<Btn variant="secondary" onClick={() => navigate('lab-management')}>Manage Course Mapping →</Btn>}>
+          <div>
+            <p className="text-xs font-600 text-slate-500 uppercase tracking-wider mb-2">Labs already added ({labs.length})</p>
             {labs.length === 0 && <p className="text-xs text-slate-400">No labs configured yet.</p>}
-            {labs.map(l => <Chip key={l.id}>{l.name}</Chip>)}
+            <div className="max-h-40 overflow-y-auto rounded-xl border border-white/50 divide-y divide-white/40">
+              {labs.map(l => (
+                <div key={l.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-white/30 transition">
+                  <span className="font-500 text-slate-700">{l.name}</span>
+                  <Chip tone={l.courseIds.length > 0 ? 'accent' : 'warning'}>
+                    {l.courseIds.length === 0 ? 'No courses mapped' : `${l.courseIds.length} course${l.courseIds.length !== 1 ? 's' : ''}`}
+                  </Chip>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Lab ID" placeholder="e.g. LAB_AIES_3" value={labForm.id} onChange={e => setLabForm({ ...labForm, id: e.target.value })} />

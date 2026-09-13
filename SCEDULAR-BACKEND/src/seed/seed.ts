@@ -28,17 +28,23 @@ async function main() {
     await upsertSection({ id: s, name: s, year: 'II', semester: 'III' })
   }
 
-  await upsertCourse({ id: 'INT', code: '23AD1XXX', name: 'Internals of Computer Systems', componentType: 'NON_INTEGRATED', labBlockLength: 3 })
-  await upsertCourse({ id: 'AIES', code: '23AD1311', name: 'Artificial Intelligence and Expert Systems', componentType: 'INTEGRATED', labBlockLength: 3 })
-  await upsertCourse({ id: 'OOP', code: '23AD1312', name: 'Object Oriented Programming Paradigm', componentType: 'INTEGRATED', labBlockLength: 3 })
-  await upsertCourse({ id: 'DBMS', code: '23CS1312', name: 'Database Management Systems', componentType: 'INTEGRATED', labBlockLength: 3 })
+  // Every subject with a lab component is two paired rows -- an
+  // INTEGRATED_THEORY course (theory only) and an INTEGRATED_LAB course
+  // (lab only), e.g. AIES + AIES_LAB -- never one row carrying both counts.
+  await upsertCourse({ id: 'INT', code: '23AD1XXX', name: 'Internals of Computer Systems', componentType: 'THEORY_ONLY', labBlockLength: 3 })
+  await upsertCourse({ id: 'AIES', code: '23AD1311', name: 'Artificial Intelligence and Expert Systems', componentType: 'INTEGRATED_THEORY', labBlockLength: 3 })
+  await upsertCourse({ id: 'AIES_LAB', code: '23AD1311L', name: 'Artificial Intelligence and Expert Systems Laboratory', componentType: 'INTEGRATED_LAB', labBlockLength: 3 })
+  await upsertCourse({ id: 'OOP', code: '23AD1312', name: 'Object Oriented Programming Paradigm', componentType: 'INTEGRATED_THEORY', labBlockLength: 3 })
+  await upsertCourse({ id: 'OOP_LAB', code: '23AD1312L', name: 'Object Oriented Programming Paradigm Laboratory', componentType: 'INTEGRATED_LAB', labBlockLength: 3 })
+  await upsertCourse({ id: 'DBMS', code: '23CS1312', name: 'Database Management Systems', componentType: 'INTEGRATED_THEORY', labBlockLength: 3 })
+  await upsertCourse({ id: 'DBMS_LAB', code: '23CS1312L', name: 'Database Management Systems Laboratory', componentType: 'INTEGRATED_LAB', labBlockLength: 3 })
 
   await upsertLab({ id: 'LAB_AIES', name: 'AIES Lab' })
   await upsertLab({ id: 'LAB_OOP_DBMS', name: 'OOP + DBMS Shared Lab' })
   await upsertLab({ id: 'LAB_TSP', name: 'TSP Lab' })
-  await setLabCourseMapping('LAB_AIES', 'AIES')
-  await setLabCourseMapping('LAB_OOP_DBMS', 'OOP')
-  await setLabCourseMapping('LAB_OOP_DBMS', 'DBMS')
+  await setLabCourseMapping('LAB_AIES', 'AIES_LAB')
+  await setLabCourseMapping('LAB_OOP_DBMS', 'OOP_LAB')
+  await setLabCourseMapping('LAB_OOP_DBMS', 'DBMS_LAB')
 
   const faculty = [
     { id: 'FAC_ANNAPOORANI', name: 'Mrs. C. Annapoorani', designation: 'Asst. Professor' },
@@ -70,20 +76,32 @@ async function main() {
     { section: 'II-C', course: 'INT', faculty: 'FAC_ANNAPOORANI', theory: 4, lab: 0 },
     { section: 'II-D', course: 'INT', faculty: 'FAC_VETRISELVAN', theory: 4, lab: 0 },
 
-    { section: 'II-A', course: 'AIES', faculty: 'FAC_RAVEENA', theory: 5, lab: 3 },
-    { section: 'II-B', course: 'AIES', faculty: 'FAC_RAVEENA', theory: 5, lab: 3 },
-    { section: 'II-C', course: 'AIES', faculty: 'FAC_SELVABANUPRIYA', theory: 5, lab: 3 },
-    { section: 'II-D', course: 'AIES', faculty: 'FAC_BABISHA', theory: 5, lab: 3 },
+    { section: 'II-A', course: 'AIES', faculty: 'FAC_RAVEENA', theory: 5, lab: 0 },
+    { section: 'II-A', course: 'AIES_LAB', faculty: 'FAC_RAVEENA', theory: 0, lab: 3 },
+    { section: 'II-B', course: 'AIES', faculty: 'FAC_RAVEENA', theory: 5, lab: 0 },
+    { section: 'II-B', course: 'AIES_LAB', faculty: 'FAC_RAVEENA', theory: 0, lab: 3 },
+    { section: 'II-C', course: 'AIES', faculty: 'FAC_SELVABANUPRIYA', theory: 5, lab: 0 },
+    { section: 'II-C', course: 'AIES_LAB', faculty: 'FAC_SELVABANUPRIYA', theory: 0, lab: 3 },
+    { section: 'II-D', course: 'AIES', faculty: 'FAC_BABISHA', theory: 5, lab: 0 },
+    { section: 'II-D', course: 'AIES_LAB', faculty: 'FAC_BABISHA', theory: 0, lab: 3 },
 
-    { section: 'II-A', course: 'OOP', faculty: 'FAC_KALIAPPAN', theory: 5, lab: 3 },
-    { section: 'II-B', course: 'OOP', faculty: 'FAC_SARANYA', theory: 5, lab: 3 },
-    { section: 'II-C', course: 'OOP', faculty: 'FAC_SHYAMALA', theory: 5, lab: 3 },
-    { section: 'II-D', course: 'OOP', faculty: 'FAC_KALIAPPAN', theory: 5, lab: 3 },
+    { section: 'II-A', course: 'OOP', faculty: 'FAC_KALIAPPAN', theory: 5, lab: 0 },
+    { section: 'II-A', course: 'OOP_LAB', faculty: 'FAC_KALIAPPAN', theory: 0, lab: 3 },
+    { section: 'II-B', course: 'OOP', faculty: 'FAC_SARANYA', theory: 5, lab: 0 },
+    { section: 'II-B', course: 'OOP_LAB', faculty: 'FAC_SARANYA', theory: 0, lab: 3 },
+    { section: 'II-C', course: 'OOP', faculty: 'FAC_SHYAMALA', theory: 5, lab: 0 },
+    { section: 'II-C', course: 'OOP_LAB', faculty: 'FAC_SHYAMALA', theory: 0, lab: 3 },
+    { section: 'II-D', course: 'OOP', faculty: 'FAC_KALIAPPAN', theory: 5, lab: 0 },
+    { section: 'II-D', course: 'OOP_LAB', faculty: 'FAC_KALIAPPAN', theory: 0, lab: 3 },
 
-    { section: 'II-A', course: 'DBMS', faculty: 'FAC_SANDHIYA', theory: 5, lab: 3 },
-    { section: 'II-B', course: 'DBMS', faculty: 'FAC_SANDHIYA', theory: 5, lab: 3 },
-    { section: 'II-C', course: 'DBMS', faculty: 'FAC_MAHAVAISHNAVI', theory: 5, lab: 3 },
-    { section: 'II-D', course: 'DBMS', faculty: 'FAC_MAHAVAISHNAVI', theory: 5, lab: 3 },
+    { section: 'II-A', course: 'DBMS', faculty: 'FAC_SANDHIYA', theory: 5, lab: 0 },
+    { section: 'II-A', course: 'DBMS_LAB', faculty: 'FAC_SANDHIYA', theory: 0, lab: 3 },
+    { section: 'II-B', course: 'DBMS', faculty: 'FAC_SANDHIYA', theory: 5, lab: 0 },
+    { section: 'II-B', course: 'DBMS_LAB', faculty: 'FAC_SANDHIYA', theory: 0, lab: 3 },
+    { section: 'II-C', course: 'DBMS', faculty: 'FAC_MAHAVAISHNAVI', theory: 5, lab: 0 },
+    { section: 'II-C', course: 'DBMS_LAB', faculty: 'FAC_MAHAVAISHNAVI', theory: 0, lab: 3 },
+    { section: 'II-D', course: 'DBMS', faculty: 'FAC_MAHAVAISHNAVI', theory: 5, lab: 0 },
+    { section: 'II-D', course: 'DBMS_LAB', faculty: 'FAC_MAHAVAISHNAVI', theory: 0, lab: 3 },
   ]
 
   for (const p of plan) {
