@@ -17,6 +17,8 @@ Generates a complete, hard-constraint-free weekly timetable from real faculty, s
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](#license)
 ![Status](https://img.shields.io/badge/status-active--development-brightgreen?style=flat-square)
 
+**[CLICK TO VISIT THE WEBSAPP](https://scedular-web.vercel.app)**
+
 </div>
 
 <br/>
