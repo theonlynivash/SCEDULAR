@@ -1,0 +1,26 @@
+{
+  "title": "SCEDULAR",
+  "description": "College timetable scheduler dashboard",
+  "language": "en",
+  "robots": {
+    "index": true
+  },
+  "icons": {
+    "icon": ""
+  },
+  "openGraph": {
+    "image": ""
+  },
+  "analytics": {
+    "googleAnalyticsId": ""
+  },
+  "customScripts": {
+    "headStart": "",
+    "headEnd": "",
+    "bodyStart": "",
+    "bodyEnd": ""
+  },
+  "accessibility": {
+    "addBypassLinks": true
+  }
+}

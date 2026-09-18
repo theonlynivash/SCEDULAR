@@ -1,0 +1,38 @@
+{
+  "name": "scedular-backend",
+  "version": "1.0.0",
+  "description": "SCEDULAR - deterministic constraint-based college timetable scheduler backend",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "seed": "tsx src/seed/seed.ts",
+    "seed:full": "tsx src/seed/seed_full.ts",
+    "migrate": "tsx src/db/migrate.ts",
+    "test": "tsx tests/stage6.test.ts",
+    "test:solver": "tsx tests/stage6.test.ts",
+    "test:live": "node scripts/live_smoke.mjs ../SCEDULAR_REAL_DATA_FROM_PDFS_STAGE8.xlsx",
+    "preflight": "node scripts/final_preflight.mjs"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.23.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^20.14.10",
+    "@types/pg": "^8.23.1",
+    "@vercel/node": "^3.2.29",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}
