@@ -15,9 +15,46 @@ import { teachingAssignmentsRouter } from './routes/teachingAssignments.js'
 
 import { facultyAllocationRouter } from './routes/facultyAllocation.js'
 
+function buildCorsOriginList(): (string | RegExp)[] {
+  const origins: (string | RegExp)[] = []
+  const vercelUrl = process.env.VERCEL_URL || process.env.VITE_VERCEL_URL
+  if (vercelUrl) {
+    origins.push(`https://${vercelUrl}`)
+    origins.push(/\.vercel\.app$/)
+  }
+  const extra = process.env.CORS_ORIGINS?.split(',') ?? []
+  for (const raw of extra) {
+    const v = raw.trim()
+    if (!v) continue
+    if (v.startsWith('/') && v.endsWith('/')) {
+      try { origins.push(new RegExp(v.slice(1, -1))) } catch { /* ignore */ }
+    } else {
+      origins.push(v)
+    }
+  }
+  origins.push(/^https?:\/\/localhost(:\d+)?$/)
+  origins.push(/^https?:\/\/127\.0\.0\.1(:\d+)?$/)
+  origins.push(/^https?:\/\/0\.0\.0\.0(:\d+)?$/)
+  return origins
+}
+const corsOrigins = buildCorsOriginList()
+
 export const app = express()
-app.use(cors())
-app.use(express.json())
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true)
+    const ok = corsOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin))
+    if (ok) return cb(null, true)
+    if (process.env.NODE_ENV !== 'production') console.warn(`[CORS] unexpected origin: ${origin}`)
+    cb(null, true)
+  },
+  credentials: true,
+  allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'X-Requested-With'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  maxAge: 86400,
+}))
+app.use(express.json({ limit: '25mb' }))
+app.use(express.urlencoded({ extended: true, limit: '25mb' }))
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'scedular-backend' }))
 

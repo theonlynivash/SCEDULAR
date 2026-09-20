@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express'
+import bcrypt from 'bcryptjs'
 import {
   getFacultyPreferences,
   saveFacultyPreferences,
@@ -21,8 +22,11 @@ import {
   getCurrentAcademicCycle,
   setCurrentAcademicCycle,
   clearAllFacultyAllocationExperience,
+  upsertFacultyPasswordHash,
+  getFacultyPasswordHash,
 } from '../db/repo.js'
-import type { Subject } from '../types.js'
+import type { Subject, Faculty } from '../types.js'
+import { REAL_FACULTY_ROSTER } from '../seed/facultyRoster.js'
 import { getAllocationPolicy, type AllocationConfig } from '../utils/allocationPolicy.js'
 import {
   ALL_SEMESTERS,
@@ -43,9 +47,32 @@ import { requireAuth, requireRole } from '../auth/middleware.js'
 
 export const facultyAllocationRouter = Router()
 
-// Shared development password. Identity and role ALWAYS come from the faculty
-// table — this secret only proves the request is a local/dev login attempt.
-const DEVELOPMENT_PASSWORD = 'SCEDULAR_AIDS'
+function resolveMasterPassword(): string {
+  const v = process.env.SCEDULAR_MASTER_PASSWORD
+  if (v && v.trim().length > 0) return v.trim()
+  return 'SCEDULAR_AIDS'
+}
+const MASTER_PASSWORD = resolveMasterPassword()
+const RESET_PASSKEY = process.env.SCEDULAR_RESET_PASSKEY?.trim() || 'SCEDULAR_RESET'
+
+async function verifyFacultyPassword(facultyId: string, plain: string): Promise<boolean> {
+  try {
+    const stored = await getFacultyPasswordHash(facultyId)
+    if (stored) {
+      const ok = await bcrypt.compare(plain, stored)
+      if (ok) return true
+    }
+  } catch { /* fall through */ }
+  return plain === MASTER_PASSWORD
+}
+
+function findFacultyByIdOrEmail(input: string): (Faculty & { passwordHash?: string | null }) | undefined {
+  const id = String(input || '').trim().toLowerCase()
+  const roster = REAL_FACULTY_ROSTER as Array<Faculty & { passwordHash?: string | null }>
+  return roster.find(
+    f => f.id.toLowerCase() === id || (f.email && String(f.email).toLowerCase() === id)
+  )
+}
 
 // ── Faculty Subject Allocation (Phase 3) ───────────────────────────────────
 // A preference always targets ONE specific semester (I..VIII) taken from the
@@ -256,6 +283,9 @@ function identityMismatch(req: Request, sessionFacultyId: string): boolean {
 }
 
 // POST /api/auth/login - authenticate against the canonical faculty table
+// FAILSAFE: if listFaculty() is empty on first Vercel cold start (Neon seed
+// pending), fall back to the compiled REAL_FACULTY_ROSTER so login works
+// immediately on the very first request.
 facultyAllocationRouter.post('/auth/login', async (req: Request, res: Response) => {
   const { facultyId, username, password } = req.body ?? {}
   const idInput = String(facultyId || username || '').trim()
@@ -265,21 +295,33 @@ facultyAllocationRouter.post('/auth/login', async (req: Request, res: Response) 
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Faculty ID and password are required.' })
   }
 
-  if (passInput !== DEVELOPMENT_PASSWORD) {
-    return res.status(401).json({ error: 'AUTHENTICATION_FAILED', message: 'Invalid Faculty ID or password.' })
+  // 1. Primary: live DB (Neon / local JSON)
+  let found: (Faculty & { passwordHash?: string | null }) | undefined
+  try {
+    const allFaculty = await listFaculty()
+    found = allFaculty.find(
+      f => f.id.toLowerCase() === idInput.toLowerCase() ||
+           (f.email && String(f.email).toLowerCase() === idInput.toLowerCase())
+    ) as any
+  } catch {
+    found = undefined
   }
 
-  const allFaculty = await listFaculty()
-  const found = allFaculty.find(
-    f => f.id.toLowerCase() === idInput.toLowerCase() ||
-         (f.email && f.email.toLowerCase() === idInput.toLowerCase())
-  )
+  // 2. Failsafe: compiled roster (critical for first Vercel cold start)
+  if (!found) {
+    found = findFacultyByIdOrEmail(idInput)
+  }
 
   if (!found) {
     return res.status(401).json({ error: 'AUTHENTICATION_FAILED', message: 'Invalid Faculty ID or password.' })
   }
 
-  // Role is taken from the database record, never hardcoded per-id.
+  // 3. Password verification (per-faculty bcrypt → env master → local default)
+  const passwordOk = await verifyFacultyPassword(found.id, passInput)
+  if (!passwordOk) {
+    return res.status(401).json({ error: 'AUTHENTICATION_FAILED', message: 'Invalid Faculty ID or password.' })
+  }
+
   const role: 'HOD' | 'FACULTY' = found.role || 'FACULTY'
   const token = await createSession(found.id)
 
@@ -294,6 +336,30 @@ facultyAllocationRouter.post('/auth/login', async (req: Request, res: Response) 
       role,
     },
   })
+})
+
+// POST /api/auth/set-password - (HOD only) set a per-faculty bcrypt password
+facultyAllocationRouter.post('/auth/set-password', requireAuth, requireRole('HOD'), async (req: Request, res: Response) => {
+  const { targetFacultyId, password, confirmPassword } = req.body ?? {}
+  const targetId = String(targetFacultyId || '').trim()
+  const pw = String(password || '')
+  const cpw = String(confirmPassword || '')
+  if (!targetId || !pw) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'targetFacultyId and password are required.' })
+  }
+  if (pw.length < 6) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Password must be at least 6 characters.' })
+  }
+  if (pw !== cpw) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Password and confirm password do not match.' })
+  }
+  const target = await getFaculty(targetId) ?? findFacultyByIdOrEmail(targetId)
+  if (!target) {
+    return res.status(404).json({ error: 'FACULTY_NOT_FOUND', message: 'Target faculty does not exist.' })
+  }
+  const hash = await bcrypt.hash(pw, 10)
+  await upsertFacultyPasswordHash(targetId, hash)
+  return res.json({ success: true, message: `Password set for ${target.name} (${targetId}).` })
 })
 
 // POST /api/auth/logout - invalidate the presented session
@@ -925,7 +991,8 @@ facultyAllocationRouter.get('/hod/academic-cycle', requireAuth, requireRole('HOD
 // teachers pick from the wrong semester's subject list entirely.
 facultyAllocationRouter.post('/hod/academic-cycle', requireAuth, requireRole('HOD'), async (req: Request, res: Response) => {
   const { cycle, password } = req.body ?? {}
-  if (String(password || '') !== DEVELOPMENT_PASSWORD) {
+  const passwordOk = await verifyFacultyPassword(req.auth!.facultyId, String(password || ''))
+  if (!passwordOk) {
     return res.status(401).json({ error: 'INVALID_PASSWORD', message: 'Incorrect password. Academic cycle was not changed.' })
   }
   if (!isAcademicCycle(cycle)) {
@@ -946,10 +1013,11 @@ facultyAllocationRouter.post('/hod/academic-cycle', requireAuth, requireRole('HO
 // closed, and only a HOD session can call it at all.
 facultyAllocationRouter.post('/hod/reset-allocation-cycle', requireAuth, requireRole('HOD'), async (req: Request, res: Response) => {
   const { password, passkey } = req.body ?? {}
-  if (String(password || '') !== DEVELOPMENT_PASSWORD) {
+  const passwordOk = await verifyFacultyPassword(req.auth!.facultyId, String(password || ''))
+  if (!passwordOk) {
     return res.status(401).json({ error: 'RESET_CONFIRMATION_FAILED', message: 'Password is incorrect.' })
   }
-  if (String(passkey || '') !== 'SCEDULAR_RESET') {
+  if (String(passkey || '') !== RESET_PASSKEY) {
     return res.status(401).json({ error: 'RESET_CONFIRMATION_FAILED', message: 'Reset passkey is incorrect.' })
   }
   const result = await resetWorkflowStateRepo()

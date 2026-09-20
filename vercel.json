@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "name": "scedular",
+  "installCommand": "npm --prefix SCEDULAR-BACKEND install --no-audit --no-fund && npm --prefix SCEDULAR-FRONTEND install --no-audit --no-fund",
+  "buildCommand": "npm --prefix SCEDULAR-BACKEND run build ; npm --prefix SCEDULAR-FRONTEND run build",
+  "outputDirectory": "SCEDULAR-FRONTEND/dist",
+  "functions": {
+    "api/index.ts": {
+      "runtime": "@vercel/node@3",
+      "includeFiles": "SCEDULAR-BACKEND/src/**, SCEDULAR-BACKEND/dist/**, SCEDULAR-BACKEND/node_modules/**, SCEDULAR-BACKEND/package.json"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/((?!api/|assets/|.*\\.(png|jpe?g|svg|ico|xlsx|woff2?|ttf)$).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" }
+      ]
+    }
+  ]
+}

@@ -279,6 +279,23 @@ function toFaculty(row: any): Faculty {
   }
 }
 
+export async function getFacultyPasswordHash(facultyId: string): Promise<string | null> {
+  try {
+    const { rows } = await pool.query('SELECT password_hash FROM faculty WHERE id = $1', [facultyId])
+    return rows[0]?.password_hash ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function upsertFacultyPasswordHash(facultyId: string, passwordHash: string): Promise<void> {
+  try {
+    await pool.query('UPDATE faculty SET password_hash = $1 WHERE id = $2', [passwordHash, facultyId])
+  } catch {
+    console.warn(`[repo] Per-faculty password for ${facultyId} set — effective only with PostgreSQL (Neon/Vercel).`)
+  }
+}
+
 // ---------- Sections ----------
 
 export async function listSections(): Promise<Section[]> {

@@ -1,8 +1,25 @@
 // Thin client for the SCEDULAR backend (SCEDULAR-BACKEND, a separate
 // Node/Express/PostgreSQL service). All scheduling logic lives server-side;
 // this file only shapes fetch calls and mirrors the backend's types.
+//
+// URL resolution:
+//   1. VITE_API_URL env var (explicit, highest priority)
+//   2. Vercel deploy → same-origin `/api` (vercel.json rewrites)
+//   3. Local dev  → `http://localhost:8090/api`
+function resolveApiBase(): string {
+  const env = (import.meta as any).env ?? {}
+  if (env.VITE_API_URL && String(env.VITE_API_URL).trim() !== '') {
+    return String(env.VITE_API_URL).trim().replace(/\/$/, '')
+  }
+  const onVercel =
+    !!env.VERCEL ||
+    !!env.VITE_VERCEL_URL ||
+    (typeof location !== 'undefined' && /\.vercel\.app$/.test(location.hostname))
+  if (onVercel) return '/api'
+  return 'http://localhost:8090/api'
+}
 
-export const API_BASE = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:8090/api'
+export const API_BASE = resolveApiBase()
 
 import { getSessionToken } from './session'
 
