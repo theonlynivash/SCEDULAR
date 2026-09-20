@@ -2,12 +2,22 @@
 
 ## 1. PostgreSQL
 
-Create a PostgreSQL database named `scedular` and set `DATABASE_URL` in `SCEDULAR-BACKEND/.env`.
+Local development uses the JSON database. Set `USE_LOCAL_DB=true` in `SCEDULAR-BACKEND/.env`.
+The local database is stored in `SCEDULAR-BACKEND/data/scedular_local_db.json`.
+
+For the deployed web host, set these environment variables in the host dashboard instead:
+
+```env
+USE_LOCAL_DB=false
+DATABASE_URL=your-cloud-postgresql-connection-string
+```
+
+Never commit the cloud connection string or API keys. Do not change the local `.env` to cloud mode.
 
 Example:
 
 ```env
-DATABASE_URL=postgresql://scedular:scedular@localhost:5432/scedular
+USE_LOCAL_DB=true
 PORT=8090
 PG_POOL_MAX=5
 ```
