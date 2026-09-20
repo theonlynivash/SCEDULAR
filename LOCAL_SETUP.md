@@ -62,7 +62,34 @@ npm run build
 npm run dev
 ```
 
-## 4. Real dataset
+## 5. Vercel deployment
+
+Deploy the frontend and backend as separate Vercel projects from this repository:
+
+### Frontend project
+
+- Root Directory: `SCEDULAR-FRONTEND`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Environment variable: `VITE_API_URL=https://<backend-project>.vercel.app/api`
+
+### Backend project
+
+- Root Directory: `SCEDULAR-BACKEND`
+- The `api/index.ts` entry point exposes the Express app as a Vercel function.
+- Environment variables:
+
+```env
+USE_LOCAL_DB=false
+DATABASE_URL=your-cloud-postgresql-connection-string
+PG_POOL_MAX=5
+```
+
+Run `npm run migrate` once against the cloud database before using the deployed backend. Keep the local `.env` on `USE_LOCAL_DB=true`.
+
+The frontend logos are binary files under `SCEDULAR-FRONTEND/public` and are served at `/SCEDULAR_LOGO.png`, `/PEC_LOGO.png`, and `/PEC_ICON.jpeg` by Vite/Vercel.
+
+## 6. Real dataset
 
 Use `SCEDULAR_REAL_DATA_FROM_PDFS_STAGE8.xlsx` as the reconstructed II-Year / III-Sem dataset.
 
