@@ -18,24 +18,80 @@ import type {
   TeachingAssignment,
   TeachingComponent,
   TimetableStatus,
+  FacultySubjectPreference,
+  FacultySubjectHistory,
+  SubjectDemandItem,
+  PreferenceStatus,
+  SessionRecord,
 } from '../types.js'
+import { DEFAULT_ALLOCATION_CONFIG, type AllocationConfig } from '../utils/allocationPolicy.js'
+import { normalizeCycle, DEFAULT_CURRENT_CYCLE, type AcademicCycle } from '../utils/academicCycle.js'
+import { REAL_FACULTY_ROSTER } from '../seed/facultyRoster.js'
+import { REGULATION_2024_CURRICULUM } from '../seed/curriculumRoster.js'
+import { KNOWN_SECTIONS_ROSTER, KNOWN_LABS_ROSTER, KNOWN_LAB_MAPPINGS } from '../seed/resourceRoster.js'
 
-// In-memory fallback state for offline / database-unreachable development
-const mem = {
-  faculty: [] as Faculty[],
-  sections: [] as Section[],
-  subjects: [] as Subject[],
-  sectionSubjects: [] as SectionSubject[],
-  teachingAssignments: [] as TeachingAssignment[],
-  labs: [] as Lab[],
-  labMappings: [] as Array<{ labId: string; subjectId: string; sectionId: string | null }>,
-  facultyUnavailability: [] as FacultyUnavailability[],
-  scheduleConfig: defaultScheduleConfig(),
-  generationRuns: [] as Array<{ id: number; status: TimetableStatus; generatedAt: string; warnings: string[] }>,
-  assignments: [] as Array<Assignment & { runId: number }>,
-  conflicts: [] as Array<Conflict & { runId: number }>,
-  unscheduled: [] as Array<SchedulableUnit & { runId: number }>,
-  nextRunId: 1,
+import { getLocalDb, saveLocalDb, saveLocalDbSync } from './localDb.js'
+
+// Live database state (backed by local JSON database file or PostgreSQL)
+const mem = getLocalDb()
+
+export interface WorkflowResetResult {
+  before: Record<string, number>
+  after: Record<string, number>
+}
+
+export async function resetWorkflowStateRepo(): Promise<WorkflowResetResult> {
+  const getCounts = () => ({
+    faculty: mem.faculty.length,
+    subjects: mem.subjects.length,
+    sections: mem.sections.length,
+    labs: mem.labs.length,
+    labMappings: mem.labMappings.length,
+    sectionSubjects: mem.sectionSubjects.length,
+    facultyPreferences: mem.facultyPreferences.length,
+    teachingAssignments: mem.teachingAssignments.length,
+    generationRuns: mem.generationRuns.length,
+    assignments: mem.assignments.length,
+    conflicts: mem.conflicts.length,
+    unscheduled: mem.unscheduled.length,
+  })
+
+  const before = getCounts()
+
+  mem.facultyPreferences = []
+  mem.teachingAssignments = []
+  mem.generationRuns = []
+  mem.assignments = []
+  mem.conflicts = []
+  mem.unscheduled = []
+  mem.nextPreferenceId = 1
+  mem.nextRunId = 1
+  mem.nextTeachingAssignmentId = 1
+  saveLocalDb()
+
+  try {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('DELETE FROM unscheduled')
+      await client.query('DELETE FROM conflicts')
+      await client.query('DELETE FROM assignments')
+      await client.query('DELETE FROM generation_runs')
+      await client.query('DELETE FROM teaching_assignments')
+      await client.query('DELETE FROM faculty_subject_preferences')
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch {
+    // operating in memory mode or DB offline
+  }
+
+  const after = getCounts()
+  return { before, after }
 }
 
 export async function clearAllData(): Promise<void> {
@@ -131,11 +187,34 @@ export async function getFaculty(id: string): Promise<Faculty | undefined> {
 export async function upsertFaculty(f: Faculty): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO faculty (id, name, designation, max_daily_periods, max_weekly_periods)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, designation = EXCLUDED.designation,
-         max_daily_periods = EXCLUDED.max_daily_periods, max_weekly_periods = EXCLUDED.max_weekly_periods`,
-      [f.id, f.name, f.designation, f.maxDailyPeriods, f.maxWeeklyPeriods]
+      `INSERT INTO faculty (id, name, designation, department, previous_experience, current_experience, allocation_experience, email, phone, role, max_daily_periods, max_weekly_periods)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         designation = EXCLUDED.designation,
+         department = EXCLUDED.department,
+         previous_experience = EXCLUDED.previous_experience,
+         current_experience = EXCLUDED.current_experience,
+         allocation_experience = EXCLUDED.allocation_experience,
+         email = EXCLUDED.email,
+         phone = EXCLUDED.phone,
+         role = EXCLUDED.role,
+         max_daily_periods = EXCLUDED.max_daily_periods,
+         max_weekly_periods = EXCLUDED.max_weekly_periods`,
+      [
+        f.id,
+        f.name,
+        f.designation ?? null,
+        f.department ?? 'AI & DS',
+        f.previousExperience ?? null,
+        f.currentExperience ?? null,
+        f.allocationExperience ?? null,
+        f.email ?? null,
+        f.phone ?? null,
+        f.role ?? 'FACULTY',
+        f.maxDailyPeriods ?? 6,
+        f.maxWeeklyPeriods ?? 24,
+      ]
     )
   } catch {
     const idx = mem.faculty.findIndex(x => x.id === f.id)
@@ -188,6 +267,13 @@ function toFaculty(row: any): Faculty {
     id: row.id,
     name: row.name,
     designation: row.designation,
+    department: row.department ?? 'AI & DS',
+    previousExperience: row.previous_experience ?? undefined,
+    currentExperience: row.current_experience ?? undefined,
+    allocationExperience: row.allocation_experience ?? undefined,
+    email: row.email ?? undefined,
+    phone: row.phone ?? undefined,
+    role: row.role ?? 'FACULTY',
     maxDailyPeriods: row.max_daily_periods,
     maxWeeklyPeriods: row.max_weekly_periods,
   }
@@ -198,7 +284,15 @@ function toFaculty(row: any): Faculty {
 export async function listSections(): Promise<Section[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM sections ORDER BY name')
-    return rows.map(r => ({ id: r.id, name: r.name, year: r.year, semester: r.semester, studentCount: r.student_count ?? null }))
+    return rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      year: r.year,
+      semester: r.semester,
+      department: r.department ?? 'AI & DS',
+      studentCount: r.student_count ?? null,
+      active: r.active ?? true,
+    }))
   } catch {
     return mem.sections
   }
@@ -207,9 +301,16 @@ export async function listSections(): Promise<Section[]> {
 export async function upsertSection(s: Section): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO sections (id, name, year, semester, student_count) VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, year = EXCLUDED.year, semester = EXCLUDED.semester, student_count = EXCLUDED.student_count`,
-      [s.id, s.name, s.year, s.semester, s.studentCount ?? null]
+      `INSERT INTO sections (id, name, year, semester, department, student_count, active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         year = EXCLUDED.year,
+         semester = EXCLUDED.semester,
+         department = EXCLUDED.department,
+         student_count = EXCLUDED.student_count,
+         active = EXCLUDED.active`,
+      [s.id, s.name, s.year, s.semester, s.department ?? 'AI & DS', s.studentCount ?? null, s.active ?? true]
     )
   } catch {
     const idx = mem.sections.findIndex(x => x.id === s.id)
@@ -277,6 +378,12 @@ function toSubject(row: any): Subject {
     name: row.name,
     deliveryType: row.delivery_type,
     category: row.category,
+    credits: row.credits ?? 0,
+    year: row.year ?? undefined,
+    semester: row.semester ?? undefined,
+    theoryPeriods: row.theory_periods ?? 3,
+    labPeriods: row.lab_periods ?? 0,
+    vertical: row.vertical ?? null,
   }
 }
 
@@ -368,6 +475,32 @@ export async function removeTeachingAssignment(id: number): Promise<void> {
     await pool.query('DELETE FROM teaching_assignments WHERE id = $1', [id])
   } catch {
     mem.teachingAssignments = mem.teachingAssignments.filter(x => x.id !== id)
+  }
+}
+
+export async function bulkReplaceTeachingAssignments(
+  sectionSubjectIds: number[],
+  assignments: Array<Omit<TeachingAssignment, 'id'>>
+): Promise<number[]> {
+  try {
+    if (sectionSubjectIds.length > 0) {
+      await pool.query('DELETE FROM teaching_assignments WHERE section_subject_id = ANY($1::int[])', [sectionSubjectIds])
+    }
+    const createdIds: number[] = []
+    for (const a of assignments) {
+      const id = await addTeachingAssignment(a)
+      createdIds.push(id)
+    }
+    return createdIds
+  } catch {
+    mem.teachingAssignments = mem.teachingAssignments.filter(x => !sectionSubjectIds.includes(x.sectionSubjectId))
+    const createdIds: number[] = []
+    for (const a of assignments) {
+      const id = mem.teachingAssignments.length + 1
+      mem.teachingAssignments.push({ id, ...a } as TeachingAssignment)
+      createdIds.push(id)
+    }
+    return createdIds
   }
 }
 
@@ -561,15 +694,54 @@ export async function replaceCanonicalImport(dataset: import('../import/types.js
   }
 }
 
-// ---------- Courses ----------
+function subjectsToCourses(subjects: Subject[]): Course[] {
+  const converted: Course[] = []
+  for (const s of subjects) {
+    if (s.deliveryType === 'INTEGRATED') {
+      converted.push({
+        id: s.code,
+        code: s.code,
+        name: s.name,
+        componentType: 'INTEGRATED_THEORY',
+        labBlockLength: s.labPeriods || 3,
+      })
+      converted.push({
+        id: `${s.code}_LAB`,
+        code: `${s.code}_LAB`,
+        name: `${s.name} Laboratory`,
+        componentType: 'INTEGRATED_LAB',
+        labBlockLength: s.labPeriods || 3,
+      })
+    } else if (s.deliveryType === 'LAB') {
+      converted.push({
+        id: s.code,
+        code: s.code,
+        name: s.name,
+        componentType: 'LAB_ONLY',
+        labBlockLength: s.labPeriods || 3,
+      })
+    } else {
+      const comp = s.category === 'MANDATORY' ? 'MANDATORY' : s.category === 'ADDITIONAL' ? 'ADDITIONAL' : 'THEORY_ONLY'
+      converted.push({
+        id: s.code,
+        code: s.code,
+        name: s.name,
+        componentType: comp,
+        labBlockLength: 3,
+      })
+    }
+  }
+  return converted
+}
 
 export async function listCourses(): Promise<Course[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM courses ORDER BY name')
-    return rows.map(toCourse)
-  } catch {
-    return []
-  }
+    if (rows.length > 0) return rows.map(toCourse)
+  } catch {}
+
+  const subjects = await listSubjects()
+  return subjectsToCourses(subjects)
 }
 
 export async function getCourse(id: string): Promise<Course | undefined> {
@@ -613,8 +785,17 @@ function toCourse(row: any): Course {
 
 export async function listLabs(): Promise<Lab[]> {
   try {
-    const { rows } = await pool.query('SELECT * FROM labs ORDER BY name')
-    return rows.map(r => ({ id: r.id, name: r.name, capacity: r.capacity ?? null }))
+    const { rows } = await pool.query('SELECT * FROM labs ORDER BY id')
+    return rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      room: r.room ?? r.id,
+      department: r.department ?? 'AI & DS',
+      capacity: r.capacity ?? null,
+      capacitySource: r.capacity_source ?? 'NOT_SPECIFIED',
+      active: r.active ?? true,
+      notes: r.notes ?? undefined,
+    }))
   } catch {
     return mem.labs
   }
@@ -623,9 +804,17 @@ export async function listLabs(): Promise<Lab[]> {
 export async function upsertLab(l: Lab): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO labs (id, name, capacity) VALUES ($1, $2, $3)
-       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, capacity = EXCLUDED.capacity`,
-      [l.id, l.name, l.capacity ?? null]
+      `INSERT INTO labs (id, name, room, department, capacity, capacity_source, active, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         room = EXCLUDED.room,
+         department = EXCLUDED.department,
+         capacity = EXCLUDED.capacity,
+         capacity_source = EXCLUDED.capacity_source,
+         active = EXCLUDED.active,
+         notes = EXCLUDED.notes`,
+      [l.id, l.name, l.room ?? l.id, l.department ?? 'AI & DS', l.capacity ?? null, l.capacitySource ?? 'NOT_SPECIFIED', l.active ?? true, l.notes ?? null]
     )
   } catch {
     const idx = mem.labs.findIndex(x => x.id === l.id)
@@ -963,5 +1152,633 @@ export async function getUnscheduledForRun(runId: number): Promise<SchedulableUn
       batch: r.batch ?? null,
       length: r.length,
     }))
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Faculty Allocation & Preference Repository Methods
+// ---------------------------------------------------------------------------
+
+export async function getAllocationSettings(): Promise<AllocationConfig> {
+  try {
+    const { rows } = await pool.query('SELECT config_json FROM allocation_settings WHERE id = 1')
+    if (rows.length > 0 && rows[0].config_json) {
+      return JSON.parse(rows[0].config_json)
+    }
+  } catch {
+    // fallback
+  }
+  return mem.allocationSettings
+}
+
+export async function saveAllocationSettings(config: AllocationConfig): Promise<AllocationConfig> {
+  try {
+    const jsonStr = JSON.stringify(config)
+    await pool.query(
+      'INSERT INTO allocation_settings (id, config_json) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET config_json = EXCLUDED.config_json',
+      [jsonStr]
+    )
+  } catch {
+    // fallback
+  }
+  mem.allocationSettings = config
+  return config
+}
+
+// ---------------------------------------------------------------------------
+// Academic cycle configuration (ODD | EVEN | BOTH). The current cycle is
+// persisted (DB-configurable), never hardcoded in the frontend. Falls back to
+// the in-memory/local JSON DB when Postgres is unavailable, matching the
+// dual-mode pattern used by every other config accessor here.
+// ---------------------------------------------------------------------------
+
+export async function getCurrentAcademicCycle(): Promise<AcademicCycle> {
+  try {
+    const { rows } = await pool.query('SELECT current_cycle FROM academic_cycle_config WHERE id = 1')
+    if (rows.length > 0 && rows[0].current_cycle) {
+      return normalizeCycle(rows[0].current_cycle)
+    }
+  } catch {
+    // fallback to local DB state
+  }
+  return normalizeCycle(mem.currentAcademicCycle, DEFAULT_CURRENT_CYCLE)
+}
+
+export async function setCurrentAcademicCycle(cycle: AcademicCycle): Promise<AcademicCycle> {
+  const normalized = normalizeCycle(cycle)
+  try {
+    await pool.query(
+      'INSERT INTO academic_cycle_config (id, current_cycle) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET current_cycle = EXCLUDED.current_cycle',
+      [normalized]
+    )
+  } catch {
+    // fallback to local DB state
+  }
+  mem.currentAcademicCycle = normalized
+  saveLocalDbSync()
+  return normalized
+}
+
+export async function getFacultyPreferences(facultyId?: string): Promise<FacultySubjectPreference[]> {
+  try {
+    let sql = 'SELECT * FROM faculty_subject_preferences'
+    const params: any[] = []
+    if (facultyId) {
+      sql += ' WHERE faculty_id = $1'
+      params.push(facultyId)
+    }
+    sql += ' ORDER BY academic_year, preference_rank'
+    const { rows } = await pool.query(sql, params)
+    if (rows.length > 0) {
+      return rows.map(r => ({
+        id: r.id,
+        facultyId: r.faculty_id,
+        subjectId: r.subject_id,
+        academicYear: r.academic_year,
+        semester: r.semester,
+        preferenceRank: r.preference_rank,
+        requestedSections: r.requested_sections,
+        labConfirmed: Boolean(r.lab_confirmed),
+        status: r.status,
+        submittedAt: r.submitted_at ?? undefined,
+        reviewedAt: r.reviewed_at ?? undefined,
+        reviewedBy: r.reviewed_by ?? undefined,
+        hodComment: r.hod_comment ?? undefined,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      }))
+    }
+  } catch {
+    // fallback
+  }
+
+  if (facultyId) {
+    return mem.facultyPreferences.filter(p => p.facultyId === facultyId)
+  }
+  return mem.facultyPreferences
+}
+
+export async function saveFacultyPreferences(
+  facultyId: string,
+  items: Array<{
+    subjectId: string
+    academicYear: string
+    semester: string
+    preferenceRank: number
+    requestedSections: number
+    labConfirmed: boolean
+  }>,
+  status: PreferenceStatus
+): Promise<FacultySubjectPreference[]> {
+  const now = new Date().toISOString()
+
+  // A SUBMITTED or APPROVED batch is locked: the faculty may not overwrite it.
+  // Editing resumes only when the HOD releases it (e.g. CHANGES_REQUESTED) or the
+  // workflow is reset. Enforced here so no caller can bypass the route guard.
+  const lockedExisting = mem.facultyPreferences.find(
+    p => p.facultyId === facultyId && (p.status === 'SUBMITTED' || p.status === 'APPROVED')
+  )
+  if (lockedExisting) {
+    throw new Error(`PREFERENCES_LOCKED: existing ${lockedExisting.status} preference cannot be edited`)
+  }
+
+  // Remove existing DRAFT/CHANGES_REQUESTED/REJECTED preferences for this faculty if overwriting
+  mem.facultyPreferences = mem.facultyPreferences.filter(
+    p => p.facultyId !== facultyId || p.status === 'APPROVED'
+  )
+
+  const created: FacultySubjectPreference[] = []
+  for (const item of items) {
+    const pref: FacultySubjectPreference = {
+      id: mem.nextPreferenceId++,
+      facultyId,
+      subjectId: item.subjectId,
+      academicYear: item.academicYear,
+      semester: item.semester,
+      preferenceRank: item.preferenceRank,
+      requestedSections: item.requestedSections || 1,
+      labConfirmed: Boolean(item.labConfirmed),
+      status,
+      submittedAt: status === 'SUBMITTED' ? now : undefined,
+      createdAt: now,
+      updatedAt: now,
+    }
+    mem.facultyPreferences.push(pref)
+    created.push(pref)
+
+    try {
+      await pool.query(
+        `INSERT INTO faculty_subject_preferences 
+         (faculty_id, subject_id, academic_year, semester, preference_rank, requested_sections, lab_confirmed, status, submitted_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          facultyId,
+          item.subjectId,
+          item.academicYear,
+          item.semester,
+          item.preferenceRank,
+          item.requestedSections || 1,
+          item.labConfirmed,
+          status,
+          status === 'SUBMITTED' ? now : null,
+        ]
+      )
+    } catch {
+      // fallback to memory
+    }
+  }
+
+  return created
+}
+
+export async function reviewFacultyPreference(
+  preferenceId: number,
+  status: PreferenceStatus,
+  comment?: string,
+  reviewerId?: string
+): Promise<FacultySubjectPreference | null> {
+  const now = new Date().toISOString()
+
+  const pref = mem.facultyPreferences.find(p => p.id === preferenceId)
+  if (!pref) return null
+
+  if (pref.status === 'APPROVED') {
+    throw new Error('Cannot modify an APPROVED preference')
+  }
+
+  pref.status = status
+  pref.hodComment = comment
+  pref.reviewedBy = reviewerId
+  pref.reviewedAt = now
+  pref.updatedAt = now
+
+  try {
+    await pool.query(
+      `UPDATE faculty_subject_preferences
+       SET status = $1, hod_comment = $2, reviewed_by = $3, reviewed_at = $4, updated_at = $4
+       WHERE id = $5 AND status != 'APPROVED'`,
+      [status, comment ?? null, reviewerId ?? null, now, preferenceId]
+    )
+  } catch {
+    // fallback
+  }
+
+  saveLocalDb()
+  return pref
+}
+
+export interface FacultyPreferenceEdit {
+  subjectId?: string
+  academicYear?: string
+  semester?: string
+  preferenceRank?: number
+  requestedSections?: number
+  labConfirmed?: boolean
+}
+
+/**
+ * HOD edit of a submitted preference BEFORE approval. An APPROVED preference is
+ * locked and can never be mutated here (Section 6: "Do NOT silently mutate
+ * approved records"). Returns the updated preference, or null when not found.
+ */
+export async function editFacultyPreference(
+  preferenceId: number,
+  patch: FacultyPreferenceEdit
+): Promise<FacultySubjectPreference | null> {
+  const pref = mem.facultyPreferences.find(p => p.id === preferenceId)
+  if (!pref) return null
+
+  if (pref.status === 'APPROVED') {
+    throw new Error('Cannot edit an APPROVED preference')
+  }
+
+  if (patch.subjectId !== undefined) pref.subjectId = patch.subjectId
+  if (patch.academicYear !== undefined) pref.academicYear = patch.academicYear
+  if (patch.semester !== undefined) pref.semester = patch.semester
+  if (patch.preferenceRank !== undefined) pref.preferenceRank = patch.preferenceRank
+  if (patch.requestedSections !== undefined) pref.requestedSections = patch.requestedSections
+  if (patch.labConfirmed !== undefined) pref.labConfirmed = patch.labConfirmed
+  pref.updatedAt = new Date().toISOString()
+
+  try {
+    await pool.query(
+      `UPDATE faculty_subject_preferences
+       SET subject_id = $1, academic_year = $2, semester = $3, preference_rank = $4,
+           requested_sections = $5, lab_confirmed = $6, updated_at = $7
+       WHERE id = $8 AND status != 'APPROVED'`,
+      [
+        pref.subjectId,
+        pref.academicYear,
+        pref.semester,
+        pref.preferenceRank,
+        pref.requestedSections,
+        pref.labConfirmed,
+        pref.updatedAt,
+        preferenceId,
+      ]
+    )
+  } catch {
+    // local/in-memory mode
+  }
+
+  saveLocalDb()
+  return pref
+}
+
+export async function updateFacultyExperience(
+  facultyId: string,
+  allocationExperience: number
+): Promise<void> {
+  const f = mem.faculty.find(x => x.id === facultyId)
+  if (f) {
+    f.allocationExperience = allocationExperience
+  }
+  try {
+    await pool.query('UPDATE faculty SET allocation_experience = $1 WHERE id = $2', [
+      allocationExperience,
+      facultyId,
+    ])
+  } catch {
+    // fallback
+  }
+}
+
+export interface FacultyExperienceUpdate {
+  previousExperience?: number
+  currentExperience?: number
+  allocationExperience?: number
+}
+
+/**
+ * Persist faculty experience fields independently. Previous, current and
+ * allocation experience are distinct concepts and are never inferred from each
+ * other (or from designation). Returns the freshly-read faculty record, or
+ * undefined when the faculty id does not exist.
+ */
+export async function updateFacultyExperienceFields(
+  facultyId: string,
+  fields: FacultyExperienceUpdate
+): Promise<Faculty | undefined> {
+  const existing = await getFaculty(facultyId)
+  if (!existing) return undefined
+
+  const target = mem.faculty.find(x => x.id === facultyId)
+  if (target) {
+    if (fields.previousExperience !== undefined) target.previousExperience = fields.previousExperience
+    if (fields.currentExperience !== undefined) target.currentExperience = fields.currentExperience
+    if (fields.allocationExperience !== undefined) target.allocationExperience = fields.allocationExperience
+  }
+
+  try {
+    const sets: string[] = []
+    const params: any[] = []
+    let i = 1
+    if (fields.previousExperience !== undefined) { sets.push(`previous_experience = $${i++}`); params.push(fields.previousExperience) }
+    if (fields.currentExperience !== undefined) { sets.push(`current_experience = $${i++}`); params.push(fields.currentExperience) }
+    if (fields.allocationExperience !== undefined) { sets.push(`allocation_experience = $${i++}`); params.push(fields.allocationExperience) }
+    if (sets.length > 0) {
+      params.push(facultyId)
+      await pool.query(`UPDATE faculty SET ${sets.join(', ')} WHERE id = $${i}`, params)
+    }
+  } catch {
+    // local/in-memory mode
+  }
+
+  saveLocalDb()
+  return getFaculty(facultyId)
+}
+
+/**
+ * Clear allocationExperience for every faculty member (set to null/undefined),
+ * so each teacher must complete their own profile again before the next
+ * allocation cycle. Used only by the HOD-authenticated, passkey-gated reset
+ * flow -- never called from client-supplied data.
+ */
+export async function clearAllFacultyAllocationExperience(): Promise<void> {
+  for (const f of mem.faculty) {
+    delete (f as any).allocationExperience
+  }
+  try {
+    await pool.query('UPDATE faculty SET allocation_experience = NULL')
+  } catch {
+    // local/in-memory mode
+  }
+  saveLocalDb()
+}
+
+export async function getFacultySubjectHistory(facultyId: string): Promise<FacultySubjectHistory[]> {
+  try {
+    const { rows } = await pool.query('SELECT * FROM faculty_subject_history WHERE faculty_id = $1', [
+      facultyId,
+    ])
+    if (rows.length > 0) {
+      return rows.map(r => ({
+        id: r.id,
+        facultyId: r.faculty_id,
+        academicYear: r.academic_year,
+        semester: r.semester,
+        subjectName: r.subject_name,
+        subjectCode: r.subject_code ?? undefined,
+        type: r.type ?? 'THEORY',
+        sectionsHandled: r.sections_handled,
+      }))
+    }
+  } catch {
+    // fallback
+  }
+
+  return mem.facultySubjectHistory.filter(h => h.facultyId === facultyId)
+}
+
+export async function getSubjectDemand(semesterFilter?: string, academicYearFilter?: string): Promise<SubjectDemandItem[]> {
+  const subjects = await listSubjects()
+  const sections = await listSections()
+  const secSubs = await listSectionSubjects()
+  const allPrefs = await getFacultyPreferences()
+  const allFaculty = await listFaculty()
+  const facultyMap = new Map(allFaculty.map(f => [f.id, f]))
+
+  const activeSections = sections.filter(s => s.active !== false)
+
+  let filteredSubjects = subjects
+  if (semesterFilter) {
+    filteredSubjects = filteredSubjects.filter(s => s.semester === semesterFilter)
+  }
+  if (academicYearFilter) {
+    filteredSubjects = filteredSubjects.filter(s => s.year === academicYearFilter)
+  }
+
+  const demandMap = new Map<string, SubjectDemandItem>()
+
+  for (const s of filteredSubjects) {
+    if (!s.year || !s.semester) continue
+
+    const activeSecsForSub = activeSections.filter(sec => sec.year === s.year && sec.semester === s.semester)
+    const matchingSecSubs = secSubs.filter(ss => ss.subjectId === s.id)
+
+    const requiredSections = activeSecsForSub.length > 0 ? activeSecsForSub.length : matchingSecSubs.length
+
+    const theoryP = s.theoryPeriods ?? 0
+    const labP = s.labPeriods ?? 0
+    const requiredTheoryPeriods = theoryP
+    const requiredLabPeriods = labP
+    const requiredPeriodsWeekly = requiredSections * (theoryP + labP)
+
+    const prefsForSub = allPrefs.filter(p => p.subjectId === s.id && p.status !== 'REJECTED')
+    const submittedCount = prefsForSub.filter(p => p.status === 'SUBMITTED').length
+    const approvedCount = prefsForSub.filter(p => p.status === 'APPROVED').length
+
+    let reqSectionTot = 0
+    let appSectionTot = 0
+
+    const interestedList = prefsForSub.map(p => {
+      reqSectionTot += p.requestedSections || 1
+      if (p.status === 'APPROVED') {
+        appSectionTot += p.requestedSections || 1
+      }
+      const fac = facultyMap.get(p.facultyId)
+      return {
+        preferenceId: p.id,
+        facultyId: p.facultyId,
+        facultyName: fac?.name ?? p.facultyId,
+        designation: fac?.designation ?? 'Faculty',
+        allocationExperience: fac?.allocationExperience ?? 0,
+        preferenceRank: p.preferenceRank,
+        requestedSections: p.requestedSections || 1,
+        status: p.status,
+        submittedAt: p.submittedAt ?? undefined,
+      }
+    })
+
+    demandMap.set(s.id, {
+      subjectId: s.id,
+      subjectCode: s.code,
+      subjectName: s.name,
+      academicCategory: String(s.category || 'CORE'),
+      deliveryType: s.deliveryType || 'THEORY',
+      academicYear: s.year,
+      semester: s.semester,
+      requiredSections,
+      requiredTheoryPeriods,
+      requiredLabPeriods,
+      requiredPeriodsWeekly,
+      facultyInterestedCount: prefsForSub.length,
+      submittedCount,
+      approvedCount,
+      requestedSectionTotal: reqSectionTot,
+      approvedSectionTotal: appSectionTot,
+      interestedFacultyList: interestedList,
+    })
+  }
+
+  return Array.from(demandMap.values())
+}
+
+export async function getSemesterReadinessStatus(): Promise<import('../utils/readinessPolicy.js').SemesterReadiness[]> {
+  const { computeSemesterReadiness, getSemesterLabel, ALL_YEAR_SEMESTER_PAIRS } = await import('../utils/readinessPolicy.js')
+  const sections = await listSections()
+  const subjects = await listSubjects()
+  const labs = await listLabs()
+  const faculty = await listFaculty()
+  const sectionSubjectsList = await listSectionSubjects()
+  const teachingAssignmentsList = await listTeachingAssignments()
+  const config = await getScheduleConfig()
+  const prefs = await getFacultyPreferences()
+  const labsBySectionSubject = await getAllLabsBySectionSubject()
+
+  const hasConfiguredSchedule = config.workingDays.length > 0 &&
+    config.periods.some(p => p.schedulable)
+
+  const academicYear = '2026-27'
+
+  return ALL_YEAR_SEMESTER_PAIRS.map(({ year, isOdd }) => {
+    const semester = getSemesterLabel(year, isOdd)
+    const yearSubjects = subjects.filter(s => s.year === year && s.semester === semester)
+    const yearSections = sections.filter(s => s.year === year && s.semester === semester && s.active !== false)
+    const yearSectionSubjects = sectionSubjectsList.filter(ss =>
+      yearSections.some(sec => sec.id === ss.sectionId)
+    )
+    const yearPrefs = prefs.filter(p => p.academicYear === year && p.semester === semester && p.status === 'APPROVED')
+
+    // 1. DeliveryType-based Weekly Weightage Check
+    let weightageMissingCount = 0
+    for (const ss of yearSectionSubjects) {
+      const subj = subjects.find(s => s.id === ss.subjectId)
+      if (!subj) continue
+      const dt = subj.deliveryType
+      if (dt === 'THEORY' && ss.theoryPeriods <= 0) weightageMissingCount++
+      else if (dt === 'LAB' && ss.labPeriods <= 0) weightageMissingCount++
+      else if (dt === 'INTEGRATED' && (ss.theoryPeriods <= 0 || ss.labPeriods <= 0)) weightageMissingCount++
+    }
+    const weightageValid = yearSectionSubjects.length > 0 && weightageMissingCount === 0
+
+    // 2. DeliveryType-based Teaching Assignment Check & Shortage Details
+    const shortageDetails: string[] = []
+    let unallocatedCount = 0
+
+    const ssBySubject = new Map<string, typeof yearSectionSubjects>()
+    for (const ss of yearSectionSubjects) {
+      const arr = ssBySubject.get(ss.subjectId) ?? []
+      arr.push(ss)
+      ssBySubject.set(ss.subjectId, arr)
+    }
+
+    for (const subj of yearSubjects) {
+      const offerings = ssBySubject.get(subj.id) ?? []
+      if (offerings.length === 0) {
+        shortageDetails.push(`${subj.name} (${subj.code}): Section offerings not configured`)
+        unallocatedCount++
+        continue
+      }
+
+      let unassignedSectionsForSubj = 0
+      for (const ss of offerings) {
+        const assigned = teachingAssignmentsList.filter(ta => ta.sectionSubjectId === ss.id)
+        const dt = subj.deliveryType
+        const hasTheory = assigned.some(ta => ta.component === 'THEORY')
+        const hasLab = assigned.some(ta => ta.component === 'LAB')
+
+        if (dt === 'THEORY' && !hasTheory) unassignedSectionsForSubj++
+        else if (dt === 'LAB' && !hasLab) unassignedSectionsForSubj++
+        else if (dt === 'INTEGRATED' && (!hasTheory || !hasLab)) unassignedSectionsForSubj++
+      }
+
+      if (unassignedSectionsForSubj > 0) {
+        unallocatedCount++
+        shortageDetails.push(`${subj.name} (${subj.code}): Faculty allocation shortage (${unassignedSectionsForSubj}/${offerings.length} sections unassigned)`)
+      }
+    }
+
+    // 3. Lab mapping check — evaluated per (section, subject) offering, not
+    // just per subject overall, since real lab mappings here are almost
+    // always section-specific rather than global. A subject with a global
+    // mapping is covered for every section; otherwise each offering needs
+    // its own `${sectionId}::${subjectId}` mapping.
+    let labsMapped = true
+    for (const ss of yearSectionSubjects) {
+      const subj = subjects.find(s => s.id === ss.subjectId)
+      if (!subj || (subj.deliveryType !== 'LAB' && subj.deliveryType !== 'INTEGRATED')) continue
+      const globalLabs = labsBySectionSubject.get(`GLOBAL::${ss.subjectId}`) ?? []
+      const specificLabs = labsBySectionSubject.get(`${ss.sectionId}::${ss.subjectId}`) ?? []
+      if (globalLabs.length === 0 && specificLabs.length === 0) {
+        labsMapped = false
+        shortageDetails.push(`${subj.name} (${subj.code}): No lab mapped for section ${ss.sectionId}`)
+      }
+    }
+
+    const allocationValid = yearSubjects.length > 0 && unallocatedCount === 0 && labsMapped
+
+    return computeSemesterReadiness({
+      year,
+      semester,
+      isOdd,
+      academicYear,
+      subjectCount: yearSubjects.length,
+      sectionCount: yearSections.length,
+      totalFacultyCount: faculty.length,
+      sectionSubjectCount: yearSectionSubjects.length,
+      totalLabCount: labs.length,
+      hasConfiguredSchedule,
+      approvedPreferenceCount: yearPrefs.length,
+      weightageValid,
+      weightageMissingCount,
+      allocationValid,
+      unallocatedSubjectCount: unallocatedCount,
+      shortageDetails,
+      labsMapped,
+    })
+  })
+}
+
+/**
+ * Legacy alias — kept for backward compatibility with the /api/readiness
+ * endpoint that was wired up in the previous session.
+ * @deprecated Use getSemesterReadinessStatus() which returns 8 entries.
+ */
+export async function getYearReadinessStatus(): Promise<import('../utils/readinessPolicy.js').SemesterReadiness[]> {
+  return getSemesterReadinessStatus()
+}
+
+// --- Sessions -------------------------------------------------------------
+// Persisted (Postgres table, or the local JSON file) rather than an
+// in-memory Map, so logins survive a backend restart. Only the faculty id is
+// stored; the authoritative role is always re-read from the faculty table.
+
+export async function createSessionRecord(facultyId: string): Promise<SessionRecord> {
+  const record: SessionRecord = {
+    token: crypto.randomUUID(),
+    facultyId,
+    createdAt: new Date().toISOString(),
+  }
+  try {
+    await pool.query(
+      'INSERT INTO sessions (token, faculty_id, created_at) VALUES ($1, $2, $3)',
+      [record.token, record.facultyId, record.createdAt]
+    )
+  } catch {
+    mem.sessions.push(record)
+    saveLocalDb()
+  }
+  return record
+}
+
+export async function getSessionFacultyId(token?: string | null): Promise<string | null> {
+  if (!token) return null
+  try {
+    const { rows } = await pool.query('SELECT faculty_id FROM sessions WHERE token = $1', [token])
+    return rows.length ? (rows[0].faculty_id as string) : null
+  } catch {
+    return mem.sessions.find(s => s.token === token)?.facultyId ?? null
+  }
+}
+
+export async function destroySessionRecord(token?: string | null): Promise<void> {
+  if (!token) return
+  try {
+    await pool.query('DELETE FROM sessions WHERE token = $1', [token])
+  } catch {
+    const before = mem.sessions.length
+    mem.sessions = mem.sessions.filter(s => s.token !== token)
+    if (mem.sessions.length !== before) saveLocalDb()
   }
 }

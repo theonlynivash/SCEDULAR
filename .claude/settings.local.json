@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST http://localhost:8090/api/auth/login -H 'Content-Type: application/json' -d '{\"facultyId\":\"FAC-001\",\"password\":\"SCEDULAR_AIDS\"}' -o /tmp/login2.json -w \"HTTP %{http_code}\\\\n\")"
+    ]
+  }
+}

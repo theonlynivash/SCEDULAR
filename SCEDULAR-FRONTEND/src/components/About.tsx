@@ -370,7 +370,7 @@ export default function About({ navigate }: { navigate: (p: Page) => void }) {
               <Chip tone="accent">Department-Wide</Chip>
               <Chip tone="success">Any Year (I–IV) · Any Semester (I–VIII)</Chip>
               <Chip tone="warning">Zero Fabricated Results</Chip>
-              <Chip tone="info">MRV CSP Backtracking</Chip>
+              <Chip tone="neutral">MRV CSP Backtracking</Chip>
             </div>
           </Reveal>
         </div>

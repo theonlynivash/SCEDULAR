@@ -1,24 +1,53 @@
 import { useState, type FormEvent } from 'react'
 import CollegeLogo from './CollegeLogo'
+import type { UserRole } from '../types'
+import { api, type AuthUser } from '../api'
+import { setSession } from '../session'
 
-const VALID_USERNAME = 'malathi.s'
-const VALID_PASSWORD = 'SCEDULAR_AIDS'
+interface LoginPageProps {
+  onLogin: (userContext: {
+    role: UserRole
+    facultyId: string
+    name: string
+    designation: string
+  }) => void
+}
 
-export default function LoginPage({ onLogin }: { onLogin: () => void }) {
-  const [user, setUser] = useState('')
+export default function LoginPage({ onLogin }: LoginPageProps) {
+  const [facultyId, setFacultyId] = useState('')
   const [pass, setPass] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    const ok = user.trim().toLowerCase() === VALID_USERNAME && pass === VALID_PASSWORD
-    if (ok) {
-      setError(null)
-      onLogin()
-    } else {
-      setError('Incorrect username or password.')
+    setError(null)
+
+    const id = facultyId.trim()
+    const password = pass.trim()
+    if (!id || !password) {
+      setError('Faculty ID and password are required.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      // Authentication is performed by the backend against the faculty table.
+      const res = await api.auth.login(id, password)
+      const user: AuthUser = res.user
+      setSession({ token: res.token, user })
+      onLogin({
+        role: user.role as UserRole,
+        facultyId: user.facultyId,
+        name: user.name,
+        designation: user.designation || 'Faculty',
+      })
+    } catch {
+      setError('Invalid Faculty ID or password.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -37,12 +66,12 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
 
           <div className="px-8 pb-8">
             <div className="mb-4">
-              <label className="block text-xs font-600 text-slate-500 uppercase tracking-wider mb-1.5">Username</label>
+              <label className="block text-xs font-600 text-slate-500 uppercase tracking-wider mb-1.5">Faculty ID</label>
               <input
-                value={user}
-                onChange={e => { setUser(e.target.value); setError(null) }}
+                value={facultyId}
+                onChange={e => { setFacultyId(e.target.value); setError(null) }}
                 className="w-full glass-input rounded-xl px-4 py-2.5 text-sm text-slate-800 transition placeholder:text-slate-400"
-                placeholder="USERNAME"
+                placeholder="FAC-001"
                 autoComplete="username"
               />
             </div>
@@ -91,13 +120,14 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
                 />
                 <span className="text-sm text-slate-600">Remember me</span>
               </label>
-              <button type="button" className="text-sm text-[#0e254f] hover:text-[#081a38] font-500 transition">Forgot Password?</button>
+              <button type="button" onClick={() => alert('Please contact the HOD or Admin for password assistance.')} className="text-sm text-[#0e254f] hover:text-[#081a38] font-500 transition">Forgot Password?</button>
             </div>
             <button
               type="submit"
-              className="w-full text-white font-600 py-3 rounded-xl transition-all text-sm tracking-wide bg-gradient-to-br from-[#0e254f] to-[#081a38] ring-1 ring-[#f3c326]/60 shadow-[0_8px_24px_rgba(14,37,79,0.45)] hover:brightness-110"
+              disabled={submitting}
+              className="w-full text-white font-600 py-3 rounded-xl transition-all text-sm tracking-wide bg-gradient-to-br from-[#0e254f] to-[#081a38] ring-1 ring-[#f3c326]/60 shadow-[0_8px_24px_rgba(14,37,79,0.45)] hover:brightness-110 disabled:opacity-60"
             >
-              Sign In to Dashboard
+              {submitting ? 'Signing In…' : 'Sign In to SCEDULAR'}
             </button>
           </div>
         </form>
@@ -108,3 +138,4 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
     </div>
   )
 }
+

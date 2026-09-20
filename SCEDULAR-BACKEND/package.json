@@ -11,7 +11,12 @@
     "seed": "tsx src/seed/seed.ts",
     "seed:full": "tsx src/seed/seed_full.ts",
     "migrate": "tsx src/db/migrate.ts",
-    "test": "tsx tests/stage6.test.ts",
+    "test": "tsx tests/stage6.test.ts && npx vitest run tests/core_workflow.test.ts tests/rebuild_e2e.test.ts tests/phase1_reconciliation.test.ts tests/phase2_auth.test.ts tests/phase3_faculty_allocation.test.ts tests/phase4_5_hod_review_allocation.test.ts && npm run build && node tests/facultyAllocationPolicy.test.mjs",
+    "test:phase4_5": "npx vitest run tests/phase4_5_hod_review_allocation.test.ts",
+    "test:phase1": "npx vitest run tests/phase1_reconciliation.test.ts",
+    "test:phase2": "npx vitest run tests/phase2_auth.test.ts",
+    "test:phase3": "npx vitest run tests/phase3_faculty_allocation.test.ts",
+    "test:workflow": "npx vitest run tests/core_workflow.test.ts",
     "test:solver": "tsx tests/stage6.test.ts",
     "test:live": "node scripts/live_smoke.mjs ../SCEDULAR_REAL_DATA_FROM_PDFS_STAGE8.xlsx",
     "preflight": "node scripts/final_preflight.mjs"
@@ -33,6 +38,7 @@
     "@types/pg": "^8.23.1",
     "@vercel/node": "^3.2.29",
     "tsx": "^4.16.2",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9"
   }
 }

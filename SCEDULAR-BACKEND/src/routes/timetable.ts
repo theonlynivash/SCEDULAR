@@ -6,14 +6,55 @@ import {
   getLatestValidRun,
   getRun,
   getUnscheduledForRun,
+  getSemesterReadinessStatus,
 } from '../db/repo.js'
 
 export const timetableRouter = Router()
 
-// Kicks off the full pipeline (Section 11 / 19) and persists the run.
-// Always returns a definite status -- GREEN or RED -- never a fake success.
-timetableRouter.post('/generate', async (_req, res, next) => {
+// Kicks off the full pipeline and persists the run.
+// The backend is authoritative: readiness is re-checked here even if the
+// frontend button was disabled. Forged POST /generate requests are rejected.
+//
+// An optional { year, semester } body scopes generation to exactly that
+// semester (e.g. so Year 2 / Semester III can be generated on its own once
+// it's genuinely ready, without every other semester in the department also
+// needing to be configured). The client-supplied scope is only ever used to
+// pick WHICH semester's readiness to check -- the readiness check itself,
+// and the pipeline's own re-derivation of that semester's real data, remain
+// fully server-side authoritative.
+timetableRouter.post('/generate', async (req, res, next) => {
   try {
+    const readiness = await getSemesterReadinessStatus()
+    const { year, semester } = req.body ?? {}
+
+    if (year !== undefined || semester !== undefined) {
+      const target = readiness.find(r => r.year === year && r.semester === semester)
+      if (!target) {
+        return res.status(400).json({ error: 'INVALID_SCOPE', message: `${year ?? '?'} Semester ${semester ?? '?'} is not a recognized (year, semester) context.` })
+      }
+      if (!target.canGenerate) {
+        return res.status(422).json({
+          error: 'READINESS_BLOCKED',
+          message: `${target.year} Semester ${target.semester} is not ready for generation.`,
+          blockedSemesters: [{ year: target.year, semester: target.semester, missingItems: target.missingItems }],
+        })
+      }
+      return res.json(await generateTimetable({ year: target.year, semester: target.semester }))
+    }
+
+    const eligible = readiness.filter(r => r.canGenerate)
+    if (eligible.length === 0) {
+      const blocked = readiness.map(r => ({
+        year: r.year,
+        semester: r.semester,
+        missingItems: r.missingItems,
+      }))
+      return res.status(422).json({
+        error: 'READINESS_BLOCKED',
+        message: 'No semester is ready for generation. Check the readiness dashboard.',
+        blockedSemesters: blocked,
+      })
+    }
     res.json(await generateTimetable())
   } catch (err) {
     next(err)

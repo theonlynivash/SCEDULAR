@@ -29,7 +29,13 @@ export interface Subject {
   code: string
   name: string
   deliveryType: SubjectDeliveryType
-  category: SubjectCategory
+  category: SubjectCategory | string
+  credits?: number
+  year?: string
+  semester?: string
+  theoryPeriods?: number
+  labPeriods?: number
+  vertical?: string | null
 }
 
 export interface SectionSubject {
@@ -51,12 +57,82 @@ export interface TeachingAssignment {
 
 export type ComponentType = 'INTEGRATED_THEORY' | 'INTEGRATED_LAB' | 'LAB_ONLY' | 'THEORY_ONLY' | 'MANDATORY' | 'ADDITIONAL'
 
+export type UserRole = 'FACULTY' | 'HOD'
+
 export interface Faculty {
   id: string
   name: string
   designation: string | null
+  department?: string
+  previousExperience?: number
+  currentExperience?: number
+  allocationExperience?: number
+  email?: string | null
+  phone?: string | null
+  role?: UserRole
   maxDailyPeriods: number
   maxWeeklyPeriods: number
+}
+
+export type PreferenceStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED'
+
+export interface FacultySubjectPreference {
+  id: number
+  facultyId: string
+  subjectId: string
+  academicYear: string // 'Year 1' | 'Year 2' | 'Year 3' | 'Year 4'
+  semester: string // 'I' | 'II' | 'III' | 'IV' | 'V' | 'VI' | 'VII' | 'VIII'
+  preferenceRank: number // 1 or 2
+  requestedSections: number
+  labConfirmed: boolean
+  status: PreferenceStatus
+  submittedAt?: string | null
+  reviewedAt?: string | null
+  reviewedBy?: string | null
+  hodComment?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface FacultySubjectHistory {
+  id: number
+  facultyId: string
+  academicYear: string
+  semester: string
+  subjectName: string
+  subjectCode?: string
+  type?: string
+  sectionsHandled: number
+}
+
+export interface SubjectDemandItem {
+  subjectId: string
+  subjectCode: string
+  subjectName: string
+  academicCategory: string
+  deliveryType: string
+  academicYear: string
+  semester: string
+  requiredSections: number
+  requiredTheoryPeriods?: number
+  requiredLabPeriods?: number
+  requiredPeriodsWeekly: number
+  facultyInterestedCount: number
+  submittedCount: number
+  approvedCount: number
+  requestedSectionTotal: number
+  approvedSectionTotal: number
+  interestedFacultyList?: Array<{
+    preferenceId: number
+    facultyId: string
+    facultyName: string
+    designation: string
+    allocationExperience: number
+    preferenceRank: number
+    requestedSections: number
+    status: PreferenceStatus
+    submittedAt?: string
+  }>
 }
 
 export interface FacultyUnavailability {
@@ -67,10 +143,12 @@ export interface FacultyUnavailability {
 
 export interface Section {
   id: string
-  name: string // e.g. "II-A"
+  name: string // e.g. "Y2-A"
   year: string | null
   semester: string | null
+  department?: string
   studentCount?: number | null
+  active?: boolean
 }
 
 export interface Course {
@@ -84,7 +162,12 @@ export interface Course {
 export interface Lab {
   id: string
   name: string
+  room?: string
+  department?: string
   capacity?: number | null
+  capacitySource?: 'OFFICIAL' | 'INFERRED' | 'NOT_SPECIFIED'
+  active?: boolean
+  notes?: string
 }
 
 export interface LabCourseMapping {
@@ -188,6 +271,29 @@ export interface Conflict {
 
 export type TimetableStatus = 'GREEN' | 'YELLOW' | 'RED'
 
+export interface InfeasibilityReportItem {
+  sectionId?: string
+  subjectId?: string
+  component?: string
+  requiredPeriods?: number
+  assignedPeriods?: number
+  facultyId?: string
+  labId?: string
+  violatedConstraint: string
+  severity: 'HIGH' | 'CRITICAL' | 'WARNING'
+  explanation: string
+  suggestedInputArea: string
+}
+
+export interface InfeasibilityReport {
+  generationRunId: number
+  academicYear: string
+  year: string
+  semester: string
+  items: InfeasibilityReportItem[]
+  summary: string
+}
+
 export interface GenerationResult {
   status: TimetableStatus
   runId: number
@@ -195,5 +301,15 @@ export interface GenerationResult {
   unscheduled: SchedulableUnit[]
   conflicts: Conflict[]
   warnings: string[]
+  infeasibilityReport?: InfeasibilityReport
   generatedAt: string
+}
+
+// A login session token. Only records WHICH faculty id authenticated -- the
+// authoritative role is always re-read from the faculty table, never cached
+// here. Persisted like every other entity so sessions survive a restart.
+export interface SessionRecord {
+  token: string
+  facultyId: string
+  createdAt: string
 }

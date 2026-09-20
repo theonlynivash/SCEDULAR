@@ -7,8 +7,57 @@ CREATE TABLE IF NOT EXISTS faculty (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   designation TEXT,
+  department TEXT DEFAULT 'AI & DS',
+  previous_experience INTEGER DEFAULT NULL,
+  current_experience INTEGER DEFAULT NULL,
+  allocation_experience INTEGER DEFAULT NULL,
+  email TEXT,
+  phone TEXT,
+  role TEXT NOT NULL DEFAULT 'FACULTY',
   max_daily_periods INTEGER NOT NULL DEFAULT 6,
   max_weekly_periods INTEGER NOT NULL DEFAULT 24
+);
+
+ALTER TABLE faculty ADD COLUMN IF NOT EXISTS department TEXT DEFAULT 'AI & DS';
+ALTER TABLE faculty ADD COLUMN IF NOT EXISTS previous_experience INTEGER DEFAULT NULL;
+ALTER TABLE faculty ADD COLUMN IF NOT EXISTS current_experience INTEGER DEFAULT NULL;
+ALTER TABLE faculty ADD COLUMN IF NOT EXISTS allocation_experience INTEGER DEFAULT NULL;
+ALTER TABLE faculty ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE faculty ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE faculty ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'FACULTY';
+
+CREATE TABLE IF NOT EXISTS allocation_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  config_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS faculty_subject_preferences (
+  id SERIAL PRIMARY KEY,
+  faculty_id TEXT NOT NULL REFERENCES faculty(id) ON DELETE CASCADE,
+  subject_id TEXT NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  academic_year TEXT NOT NULL,
+  semester TEXT NOT NULL,
+  preference_rank INTEGER NOT NULL,
+  requested_sections INTEGER NOT NULL DEFAULT 1,
+  lab_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+  status TEXT NOT NULL CHECK (status IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED')),
+  submitted_at TEXT,
+  reviewed_at TEXT,
+  reviewed_by TEXT,
+  hod_comment TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS faculty_subject_history (
+  id SERIAL PRIMARY KEY,
+  faculty_id TEXT NOT NULL REFERENCES faculty(id) ON DELETE CASCADE,
+  academic_year TEXT NOT NULL,
+  semester TEXT NOT NULL,
+  subject_name TEXT NOT NULL,
+  subject_code TEXT,
+  type TEXT DEFAULT 'THEORY',
+  sections_handled INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS faculty_unavailability (
@@ -22,8 +71,15 @@ CREATE TABLE IF NOT EXISTS sections (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   year TEXT,
-  semester TEXT
+  semester TEXT,
+  department TEXT DEFAULT 'AI & DS',
+  student_count INTEGER DEFAULT NULL,
+  active BOOLEAN DEFAULT TRUE
 );
+
+ALTER TABLE sections ADD COLUMN IF NOT EXISTS department TEXT DEFAULT 'AI & DS';
+ALTER TABLE sections ADD COLUMN IF NOT EXISTS student_count INTEGER DEFAULT NULL;
+ALTER TABLE sections ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
 
 CREATE TABLE IF NOT EXISTS courses (
   id TEXT PRIMARY KEY,
@@ -35,13 +91,33 @@ CREATE TABLE IF NOT EXISTS courses (
 
 CREATE TABLE IF NOT EXISTS labs (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL
+  name TEXT NOT NULL,
+  room TEXT,
+  department TEXT DEFAULT 'AI & DS',
+  capacity INTEGER DEFAULT NULL,
+  capacity_source TEXT DEFAULT 'NOT_SPECIFIED',
+  active BOOLEAN DEFAULT TRUE,
+  notes TEXT
 );
+
+ALTER TABLE labs ADD COLUMN IF NOT EXISTS room TEXT;
+ALTER TABLE labs ADD COLUMN IF NOT EXISTS department TEXT DEFAULT 'AI & DS';
+ALTER TABLE labs ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT NULL;
+ALTER TABLE labs ADD COLUMN IF NOT EXISTS capacity_source TEXT DEFAULT 'NOT_SPECIFIED';
+ALTER TABLE labs ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
+ALTER TABLE labs ADD COLUMN IF NOT EXISTS notes TEXT;
 
 CREATE TABLE IF NOT EXISTS lab_course_mapping (
   lab_id TEXT NOT NULL REFERENCES labs(id) ON DELETE CASCADE,
   course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   PRIMARY KEY (lab_id, course_id)
+);
+
+CREATE TABLE IF NOT EXISTS lab_course_mappings (
+  id SERIAL PRIMARY KEY,
+  lab_id TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  section_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS course_requirements (
@@ -112,18 +188,27 @@ CREATE TABLE IF NOT EXISTS unscheduled (
 -- ---------------------------------------------------------------------------
 -- Canonical scheduling model (Stage 1)
 -- ---------------------------------------------------------------------------
--- These tables are intentionally separate from the legacy workload tables
--- above during the migration window. New import/solver stages will make these
--- canonical tables the single source of truth and retire the legacy tables.
 
 CREATE TABLE IF NOT EXISTS subjects (
   id TEXT PRIMARY KEY,
   code TEXT NOT NULL,
   name TEXT NOT NULL,
-  delivery_type TEXT NOT NULL CHECK (delivery_type IN ('THEORY','LAB','INTEGRATED')),
-  category TEXT NOT NULL DEFAULT 'OTHER'
-    CHECK (category IN ('CORE','ELECTIVE','MANDATORY','ADDITIONAL','OTHER'))
+  delivery_type TEXT NOT NULL CHECK (delivery_type IN ('THEORY','LAB','INTEGRATED','PROJECT')),
+  category TEXT NOT NULL DEFAULT 'CORE',
+  credits INTEGER DEFAULT 0,
+  year TEXT,
+  semester TEXT,
+  theory_periods INTEGER DEFAULT 3,
+  lab_periods INTEGER DEFAULT 0,
+  vertical TEXT
 );
+
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS credits INTEGER DEFAULT 0;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS year TEXT;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS semester TEXT;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS theory_periods INTEGER DEFAULT 3;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS lab_periods INTEGER DEFAULT 0;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS vertical TEXT;
 
 -- A section declares its own academic demand here. Weekly counts therefore
 -- belong to the section+subject offering, not to the faculty workload row.
@@ -134,9 +219,14 @@ CREATE TABLE IF NOT EXISTS section_subjects (
   theory_periods INTEGER NOT NULL DEFAULT 0 CHECK (theory_periods >= 0),
   lab_periods INTEGER NOT NULL DEFAULT 0 CHECK (lab_periods >= 0),
   lab_block_length INTEGER CHECK (lab_block_length IS NULL OR lab_block_length > 0),
-  UNIQUE (section_id, subject_id),
-  CHECK (theory_periods > 0 OR lab_periods > 0)
+  UNIQUE (section_id, subject_id)
 );
+
+-- PROJECT-type offerings (e.g. Mini Project) legitimately carry zero fixed
+-- weekly periods, and the canonical section_subject rule includes every
+-- year+semester match. The former "theory>0 OR lab>0" table check is dropped
+-- so PostgreSQL and the local JSON DB derive an identical canonical set.
+ALTER TABLE section_subjects DROP CONSTRAINT IF EXISTS section_subjects_check;
 
 -- One offering may have multiple faculty assignments. Component and batch are
 -- explicit so theory/lab can have different teachers and parallel lab batches
@@ -214,4 +304,14 @@ ALTER TABLE unscheduled ADD COLUMN IF NOT EXISTS subject_id TEXT REFERENCES subj
 ALTER TABLE unscheduled ADD COLUMN IF NOT EXISTS section_subject_id INTEGER REFERENCES section_subjects(id) ON DELETE RESTRICT;
 ALTER TABLE unscheduled ADD COLUMN IF NOT EXISTS batch TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_unscheduled_section_subject ON unscheduled(section_subject_id);
+
+-- Login sessions. Only the faculty id is recorded here -- role is always
+-- re-read from the faculty table on every request, never cached in the
+-- session itself. Persisted (not in-memory) so logins survive a restart.
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  faculty_id TEXT NOT NULL REFERENCES faculty(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_faculty ON sessions(faculty_id);
 

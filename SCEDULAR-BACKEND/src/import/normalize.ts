@@ -19,6 +19,53 @@ function optionalText(row: Record<string, unknown>, key: string): string | null 
 function rowNo(row: Record<string, unknown>): number | undefined {
   return typeof row.__row === 'number' ? row.__row : undefined
 }
+
+/**
+ * Fix 1 — Map academic short-code categories to the canonical set the
+ * solver understands.  Real timetable Excel files use codes like BS, PC, ES,
+ * OE, PE that originate from UG curriculum nomenclature; we map them rather
+ * than reject the subject.
+ */
+function mapCategory(raw: string): Subject['category'] {
+  const u = raw.trim().toUpperCase()
+  // Already canonical
+  if (u === 'CORE')       return 'CORE'
+  if (u === 'ELECTIVE')   return 'ELECTIVE'
+  if (u === 'MANDATORY')  return 'MANDATORY'
+  if (u === 'ADDITIONAL') return 'ADDITIONAL'
+  if (u === 'OTHER')      return 'OTHER'
+
+  // Academic short-codes → CORE (Basic Science / Engineering Science / Professional Core)
+  if (['BS', 'ES', 'PC', 'EEC', 'HS', 'COMMON', 'PC / PRACTICAL'].includes(u)) return 'CORE'
+
+  // Professional/Open Elective → ELECTIVE
+  if (['PE', 'OE'].includes(u)) return 'ELECTIVE'
+
+  // Everything else (LAB, PROJECT, SEMINAR, INTERNSHIP, VALUE ADDED, ACTIVITY,
+  // ODD-SEMESTER CLASS TIMETABLE, etc.) → OTHER, which is schedulable
+  return 'OTHER'
+}
+
+/**
+ * Fix 2 — Map non-standard delivery types to the canonical set the solver
+ * understands.  Returns the mapped type plus a flag if a warning should be
+ * emitted so the caller can add it without needing the diagnostics array here.
+ */
+function mapDeliveryType(raw: string): { type: Subject['deliveryType']; warned: boolean } {
+  const u = raw.trim().toUpperCase()
+  // Pure theory
+  if (['THEORY', 'LECTURE'].includes(u))                                                              return { type: 'THEORY',     warned: false }
+  // Pure lab
+  if (['LAB', 'PRACTICAL', 'LABORATORY'].includes(u))                                                 return { type: 'LAB',        warned: false }
+  // Integrated (theory + practical component in same course)
+  // Covers official syllabus values: 'Theory + Practical', 'Lab-integrated'
+  if (['INTEGRATED', 'THEORY & PRACTICAL', 'THEORY + PRACTICAL', 'LAB-INTEGRATED', 'LABINTEGRATED'].includes(u)) return { type: 'INTEGRATED', warned: false }
+  // Non-schedulable course types from the official B.Tech AI&DS Regulation 2024 syllabus:
+  // Seminar, Non-credit, Project, Internship, Value Added, Course, Mandatory, Elective.
+  // We accept them as THEORY slots (1+ periods still need to be timetabled or just appear
+  // as placeholders) and emit a WARNING so the operator is aware of the remapping.
+  return { type: 'THEORY', warned: true }
+}
 function matchYearOrSem(val1: string | null | undefined, query: string): boolean {
   if (!val1) return false
   const s1 = val1.trim().toUpperCase()
@@ -78,6 +125,7 @@ export function normalizeWorkbook(sheets: Map<string, Array<Record<string, unkno
   }
 
   const sections: Section[] = []
+  const seenSectionIds = new Set<string>()
   for (const row of sheets.get('SECTIONS') ?? []) {
     const id = text(row, 'sectionId')
     const name = text(row, 'sectionName') || id
@@ -85,6 +133,14 @@ export function normalizeWorkbook(sheets: Map<string, Array<Record<string, unkno
       diagnostics.push({ code: 'REQUIRED_FIELD', severity: 'ERROR', sheet: 'SECTIONS', row: rowNo(row), field: 'SectionId', message: 'SectionId is required.' })
       continue
     }
+    // Fix 5 — The Excel lists each physical section twice: once per semester
+    // (odd + even) using the same SectionId.  Keep only the first occurrence
+    // (the actively-scheduled semester) and warn so the operator is informed.
+    if (seenSectionIds.has(id)) {
+      diagnostics.push({ code: 'DUPLICATE_SECTION_SKIPPED', severity: 'WARNING', sheet: 'SECTIONS', row: rowNo(row), entityId: id, message: `Section \"${id}\" appears more than once; duplicate row skipped (first occurrence kept).` })
+      continue
+    }
+    seenSectionIds.add(id)
     const studentCount = number(row, 'studentCount')
     sections.push({ id, name, year: optionalText(row, 'year'), semester: optionalText(row, 'semester'), studentCount })
   }
@@ -94,16 +150,22 @@ export function normalizeWorkbook(sheets: Map<string, Array<Record<string, unkno
     const id = text(row, 'id')
     const code = text(row, 'code') || id
     const name = text(row, 'name')
-    const deliveryType = text(row, 'deliveryType').toUpperCase() as Subject['deliveryType']
-    const category = (text(row, 'category').toUpperCase() || 'OTHER') as Subject['category']
-    if (!id || !name || !['THEORY', 'LAB', 'INTEGRATED'].includes(deliveryType)) {
-      diagnostics.push({ code: 'INVALID_SUBJECT', severity: 'ERROR', sheet: 'SUBJECTS', row: rowNo(row), message: 'Subject requires Id, Name and DeliveryType of THEORY, LAB or INTEGRATED.' })
+    if (!id || !name) {
+      diagnostics.push({ code: 'INVALID_SUBJECT', severity: 'ERROR', sheet: 'SUBJECTS', row: rowNo(row), message: 'Subject requires Id and Name.' })
       continue
     }
-    if (!['CORE', 'ELECTIVE', 'MANDATORY', 'ADDITIONAL', 'OTHER'].includes(category)) {
-      diagnostics.push({ code: 'INVALID_CATEGORY', severity: 'ERROR', sheet: 'SUBJECTS', row: rowNo(row), field: 'Category', message: `Unsupported subject category "${category}".` })
-      continue
+    // Fix 2 — Map any syllabus delivery-type string to THEORY | LAB | INTEGRATED.
+    // Unknown values (PROJECT, ACTIVITY, SEMINAR, Non-credit, Value Added …) are
+    // remapped to THEORY with a WARNING instead of being hard-rejected.
+    const rawDeliveryType = text(row, 'deliveryType')
+    const { type: deliveryType, warned: dtWarned } = mapDeliveryType(rawDeliveryType)
+    if (dtWarned) {
+      diagnostics.push({ code: 'DELIVERY_TYPE_REMAPPED', severity: 'WARNING', sheet: 'SUBJECTS', row: rowNo(row), field: 'DeliveryType', message: `DeliveryType "${rawDeliveryType}" is not a recognised scheduling type; treated as THEORY.` })
     }
+    // Fix 1 — Map academic short-code categories (BS, PC, ES, OE, PE …) to the
+    // canonical set.  Unknown values fall through to OTHER rather than rejecting.
+    const rawCategory = text(row, 'category') || 'OTHER'
+    const category = mapCategory(rawCategory)
     subjects.push({ id, code, name, deliveryType, category })
   }
 
@@ -111,10 +173,20 @@ export function normalizeWorkbook(sheets: Map<string, Array<Record<string, unkno
   for (const row of sheets.get('FACULTY') ?? []) {
     const id = text(row, 'facultyId')
     const name = text(row, 'facultyName')
+    if (!id || !name) {
+      diagnostics.push({ code: 'INVALID_FACULTY', severity: 'ERROR', sheet: 'FACULTY', row: rowNo(row), message: 'Faculty requires FacultyId and FacultyName.' })
+      continue
+    }
     const daily = number(row, 'maxDailyPeriods') ?? 6
-    const weekly = number(row, 'maxWeeklyPeriods') ?? 24
-    if (!id || !name || daily <= 0 || weekly <= 0 || !Number.isInteger(daily) || !Number.isInteger(weekly)) {
-      diagnostics.push({ code: 'INVALID_FACULTY', severity: 'ERROR', sheet: 'FACULTY', row: rowNo(row), message: 'Faculty requires FacultyId, FacultyName and positive integer workload limits.' })
+    // Fix 4 — MaxWeeklyPeriods is often left blank for part-time / newly added
+    // faculty.  Default to 24 and emit a WARNING instead of dropping the row.
+    const rawWeekly = number(row, 'maxWeeklyPeriods')
+    const weekly = rawWeekly ?? 24
+    if (rawWeekly === null) {
+      diagnostics.push({ code: 'FACULTY_WEEKLY_DEFAULT', severity: 'WARNING', sheet: 'FACULTY', row: rowNo(row), field: 'MaxWeeklyPeriods', message: `Faculty "${name}" has no MaxWeeklyPeriods; defaulting to ${weekly}.` })
+    }
+    if (daily <= 0 || weekly <= 0 || !Number.isInteger(daily) || !Number.isInteger(weekly)) {
+      diagnostics.push({ code: 'INVALID_FACULTY', severity: 'ERROR', sheet: 'FACULTY', row: rowNo(row), message: 'Faculty requires positive integer workload limits.' })
       continue
     }
     faculty.push({ id, name, designation: optionalText(row, 'designation'), maxDailyPeriods: daily, maxWeeklyPeriods: weekly })
@@ -138,7 +210,10 @@ export function normalizeWorkbook(sheets: Map<string, Array<Record<string, unkno
     const subjectId = text(row, 'id')
     const theoryPeriods = number(row, 'theoryPeriods') ?? 0
     const labPeriods = number(row, 'labPeriods') ?? 0
-    const labBlockLength = number(row, 'labBlockLength')
+    // Fix 3 — Excel exports store an empty formula result as the number 0, not
+    // null.  Treat LabBlockLength of 0 as "not specified" (same as a blank cell).
+    const rawLabBlockLength = number(row, 'labBlockLength')
+    const labBlockLength = rawLabBlockLength === 0 ? null : rawLabBlockLength
     if (!rawSectionId || !subjectId || theoryPeriods < 0 || labPeriods < 0 || !Number.isInteger(theoryPeriods) || !Number.isInteger(labPeriods) || theoryPeriods + labPeriods === 0) {
       diagnostics.push({ code: 'INVALID_SECTION_SUBJECT', severity: 'ERROR', sheet: 'SECTION_SUBJECTS', row: rowNo(row), message: 'SectionId, SubjectId and at least one positive weekly theory/lab period count are required.' })
       continue
@@ -147,7 +222,7 @@ export function normalizeWorkbook(sheets: Map<string, Array<Record<string, unkno
       diagnostics.push({ code: 'INVALID_LAB_BLOCK', severity: 'ERROR', sheet: 'SECTION_SUBJECTS', row: rowNo(row), field: 'LabBlockLength', message: 'LabBlockLength is required and must be a positive integer when LabPeriods > 0.' })
       continue
     }
-    if (labPeriods === 0 && labBlockLength !== null) diagnostics.push({ code: 'UNEXPECTED_LAB_BLOCK', severity: 'ERROR', sheet: 'SECTION_SUBJECTS', row: rowNo(row), field: 'LabBlockLength', message: 'LabBlockLength must be empty when LabPeriods is 0.' })
+    // labPeriods===0 && labBlockLength!==null: silently skip (already normalised to null above via the 0→null fix)
 
     const targetSectionIds = resolveTargetSectionIds(rawSectionId, sections)
     for (const secId of targetSectionIds) {

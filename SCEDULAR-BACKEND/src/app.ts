@@ -13,6 +13,8 @@ import { subjectsRouter } from './routes/subjects.js'
 import { sectionSubjectsRouter } from './routes/sectionSubjects.js'
 import { teachingAssignmentsRouter } from './routes/teachingAssignments.js'
 
+import { facultyAllocationRouter } from './routes/facultyAllocation.js'
+
 export const app = express()
 app.use(cors())
 app.use(express.json())
@@ -32,6 +34,7 @@ app.use(async (req, res, next) => {
   }
 })
 
+app.use('/api', facultyAllocationRouter)
 app.use('/api/faculty', facultyRouter)
 app.use('/api/sections', sectionsRouter)
 app.use('/api/courses', coursesRouter)

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { PageHeader, Btn, Field, Select, GlassPanel, Chip, IconBtn } from './ui'
 import type { Page } from '../types'
 import { api, type ComponentType, type Course } from '../api'
+import { CYCLE_LABELS, CYCLE_VALUES, isOddSemester } from '../academicCycle'
 import { Download, Upload } from 'lucide-react'
 
 // An "integrated" subject (theory + lab, e.g. OOP + OOP_LAB) is always two
@@ -46,23 +47,19 @@ function componentTypeTone(course: Course): 'accent' | 'neutral' | 'warning' | '
 }
 
 export default function SubjectManagement({ navigate }: { navigate: (p: Page) => void }) {
-  const [courses, setCourses] = useState<Course[]>([])
+  const [subjects, setSubjects] = useState<any[]>([])
+  const [semesterFilter, setSemesterFilter] = useState<'BOTH' | 'ODD' | 'EVEN'>('BOTH')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState<{ totalRows: number; imported: number; rejected: number; rejectedRows: { row: number; issues: unknown }[] } | null>(null)
-  const importInputRef = useRef<HTMLInputElement>(null)
-  const [form, setForm] = useState({ id: '', code: '', name: '', componentType: 'THEORY_ONLY' as ComponentType, labBlockLength: 3 })
 
   async function load() {
     setLoading(true)
     setError(null)
     try {
-      setCourses(await api.courses.list())
+      const data = await api.subjects.list()
+      setSubjects(Array.isArray(data) ? data : [])
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load courses from the backend')
+      setError(e instanceof Error ? e.message : 'Failed to load subjects from backend')
     } finally {
       setLoading(false)
     }
@@ -72,60 +69,16 @@ export default function SubjectManagement({ navigate }: { navigate: (p: Page) =>
     load()
   }, [])
 
-  function downloadSubjectTemplate() {
-    const csv = [SUBJECT_TEMPLATE_HEADERS.join(','), ...SUBJECT_TEMPLATE_ROWS.map(row => row.join(','))].join('\n')
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'scedular_subject_template.csv'
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
-  async function handleSubjectImport(file: File) {
-    setImporting(true)
-    setError(null)
-    setImportResult(null)
-    try {
-      setImportResult(await api.importSubjects(file))
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to import subjects')
-    } finally {
-      setImporting(false)
-      if (importInputRef.current) importInputRef.current.value = ''
-    }
-  }
-
-  async function handleSave() {
-    if (!form.id || !form.code || !form.name) return
-    setSaving(true)
-    setError(null)
-    try {
-      await api.courses.create(form)
-      setDrawerOpen(false)
-      setForm({ id: '', code: '', name: '', componentType: 'THEORY_ONLY', labBlockLength: 3 })
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save course')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm(`Remove course ${id}?`)) return
-    try {
-      await api.courses.remove(id)
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete course')
-    }
-  }
+  const filteredSubjects = subjects.filter(s => {
+    const isOdd = isOddSemester(s.semester)
+    if (semesterFilter === 'ODD') return isOdd
+    if (semesterFilter === 'EVEN') return !isOdd
+    return true
+  })
 
   return (
-    <div>
-      <PageHeader title="Subject Management" desc="The department-wide syllabus catalog — every course, any year, tagged by component type">
+    <div className="space-y-4">
+      <PageHeader title="Subject Management" desc="Canonical Department Syllabus Catalog (Regulation 2024 — B.Tech AI & DS)">
         <button
           onClick={() => navigate('dashboard')}
           className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-500 text-slate-600 glass-pill transition"
@@ -135,108 +88,101 @@ export default function SubjectManagement({ navigate }: { navigate: (p: Page) =>
           </svg>
           Back
         </button>
-        <Btn variant="secondary" onClick={downloadSubjectTemplate}><Download size={17} strokeWidth={1.8} />Subject Template</Btn>
-        <Btn variant="secondary" onClick={() => importInputRef.current?.click()} disabled={importing}><Upload size={17} strokeWidth={1.8} />{importing ? 'Importing…' : 'Import Subjects'}</Btn>
-        <Btn onClick={() => setDrawerOpen(true)}>+ Add Subject</Btn>
       </PageHeader>
 
-      <input ref={importInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => e.target.files?.[0] && handleSubjectImport(e.target.files[0])} />
+      {/* Semester Type Filter Bar */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-700 text-slate-700 uppercase tracking-wider">Semester Type Filter:</span>
+          <div className="inline-flex p-1 bg-slate-100 rounded-lg">
+            {CYCLE_VALUES.map(t => (
+              <button
+                key={t}
+                onClick={() => setSemesterFilter(t)}
+                className={`px-3 py-1 text-xs font-700 rounded-md transition ${
+                  semesterFilter === t ? 'bg-[#0F4C81] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {CYCLE_LABELS[t]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="text-xs text-slate-500 font-500">
+          Showing <span className="font-700 text-[#0F4C81]">{filteredSubjects.length}</span> of {subjects.length} Canonical Subjects
+        </div>
+      </div>
 
       {error && (
-        <div className="bg-rose-400/15 border border-rose-300/40 text-rose-700 text-sm rounded-xl px-4 py-2.5 mb-4">{error}</div>
-      )}
-
-      {importResult && (
-        <GlassPanel className="mb-4 overflow-hidden">
-          <div className={`px-5 py-3 text-sm font-500 ${importResult.rejected === 0 ? 'bg-emerald-400/15 text-emerald-700' : 'bg-amber-400/15 text-amber-700'}`}>
-            {importResult.imported} of {importResult.totalRows} subject rows imported{importResult.rejected > 0 ? `, ${importResult.rejected} rejected` : ''}.
-          </div>
-          {importResult.rejectedRows.length > 0 && (
-            <div className="divide-y divide-slate-200/70 text-xs text-slate-600">
-              {importResult.rejectedRows.map(row => <div key={row.row} className="px-5 py-2.5 font-mono">Row {row.row}: {JSON.stringify(row.issues)}</div>)}
-            </div>
-          )}
-        </GlassPanel>
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl p-3 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={load} className="underline font-600">Retry</button>
+        </div>
       )}
 
       <GlassPanel className="overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="tbl text-sm" style={{ minWidth: 640 }}>
-          <thead>
-            <tr className="bg-white/25 border-b border-white/40">
-              {['Course ID', 'Code', 'Name', 'Component Type', 'Lab Block', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-600 text-slate-500 uppercase tracking-wider">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">Loading courses…</td></tr>
-            )}
-            {!loading && courses.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">No courses configured yet.</td></tr>
-            )}
-            {!loading && courses.map((c, i) => (
-              <tr key={c.id} className={`border-b border-white/25 hover:bg-white/30 transition ${i % 2 === 0 ? '' : 'bg-white/10'}`}>
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.id}</td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.code}</td>
-                <td className="px-4 py-3 font-500 text-slate-800">{c.name}</td>
-                <td className="px-4 py-3">
-                  <Chip tone={componentTypeTone(c)}>{componentTypeLabels[c.componentType] ?? componentTypeValue(c)}</Chip>
-                </td>
-                <td className="px-4 py-3 text-center font-mono text-xs text-slate-600">{c.labBlockLength}</td>
-                <td className="px-4 py-3">
-                  <IconBtn tone="danger" title="Delete subject" onClick={() => handleDelete(c.id)}>
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </IconBtn>
-                </td>
+          <table className="tbl text-xs w-full min-w-[700px]">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-700 uppercase">
+                <th className="px-4 py-3 text-left">Code</th>
+                <th className="px-4 py-3 text-left">Subject Name</th>
+                <th className="px-4 py-3 text-left">Year / Semester</th>
+                <th className="px-4 py-3 text-left">Category</th>
+                <th className="px-4 py-3 text-center">Delivery Type</th>
+                <th className="px-4 py-3 text-center">Credits</th>
+                <th className="px-4 py-3 text-center">Theory / Lab Periods</th>
+                <th className="px-4 py-3 text-left">Elective Group / Vertical</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">Loading canonical syllabus...</td></tr>
+              )}
+              {!loading && filteredSubjects.length === 0 && (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">No subjects found for this semester filter.</td></tr>
+              )}
+              {!loading && filteredSubjects.map((s, i) => (
+                <tr key={s.id || s.code} className={`hover:bg-slate-50/80 transition ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
+                  <td className="px-4 py-3 font-mono font-700 text-[#0F4C81]">{s.code}</td>
+                  <td className="px-4 py-3 font-600 text-slate-800">{s.name}</td>
+                  <td className="px-4 py-3">
+                    <span className="font-600 text-slate-700">{s.year || 'Year 2'}</span>
+                    <span className="text-slate-400 ml-1">· Sem {s.semester || 'III'}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-600 text-[10px]">
+                      {String(s.category || 'CORE').replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`px-2 py-0.5 rounded font-700 text-[10px] ${
+                      s.deliveryType === 'INTEGRATED' ? 'bg-blue-100 text-blue-800' :
+                      s.deliveryType === 'LAB' ? 'bg-teal-100 text-teal-800' :
+                      s.deliveryType === 'PROJECT' ? 'bg-purple-100 text-purple-800' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>
+                      {s.deliveryType || 'THEORY'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center font-700 text-slate-700">{s.credits ?? 3}</td>
+                  <td className="px-4 py-3 text-center font-mono text-slate-600">
+                    {s.theoryPeriods ?? 3}T {s.labPeriods ? `+ ${s.labPeriods}L` : ''}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]" title={s.vertical || ''}>
+                    {s.vertical || '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div className="px-4 py-3 border-t border-white/30">
-          <p className="text-xs text-slate-500">Showing {courses.length} course{courses.length !== 1 ? 's' : ''}</p>
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
+          <span>Regulation 2024 Authoritative Curriculum</span>
+          <span>Total: {filteredSubjects.length} subjects</span>
         </div>
       </GlassPanel>
-
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-black/30 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
-          <div className="w-96 glass-strong overflow-y-auto rounded-l-[2rem]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/40 sticky top-0 glass-strong">
-              <h3 className="font-display font-700 text-slate-800">Add Subject</h3>
-              <button onClick={() => setDrawerOpen(false)} className="p-1 hover:bg-white/40 rounded-lg transition">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <Field label="Course ID" placeholder="e.g. AIES" value={form.id} onChange={e => setForm({ ...form, id: e.target.value })} />
-              <Field label="Subject Code" placeholder="e.g. 23AD1311" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
-              <Field label="Subject Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-              <Select label="Component Type" value={form.componentType} onChange={e => setForm({ ...form, componentType: e.target.value as ComponentType })}>
-                {Object.entries(componentTypeLabels).map(([k, label]) => (
-                  <option key={k} value={k}>{label}</option>
-                ))}
-              </Select>
-              {(form.componentType === 'LAB_ONLY' || form.componentType === 'INTEGRATED_LAB') && (
-                <Field
-                  label="Lab Block Length (periods)"
-                  hint="Normal labs are 3 contiguous periods; exceptions like Technical Skill Practices use their own configured length."
-                  type="number"
-                  value={form.labBlockLength}
-                  onChange={e => setForm({ ...form, labBlockLength: Number(e.target.value) })}
-                />
-              )}
-              <Btn onClick={handleSave} disabled={saving || !form.id || !form.code || !form.name}>{saving ? 'Saving…' : 'Save Subject'}</Btn>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

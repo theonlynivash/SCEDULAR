@@ -8,9 +8,17 @@ import {
   listFaculty,
   listFacultyUnavailability,
   upsertFaculty,
+  updateFacultyExperienceFields,
 } from '../db/repo.js'
+import { requireAuth } from '../auth/middleware.js'
 
 export const facultyRouter = Router()
+
+const experienceSchema = z.object({
+  previousExperience: z.number().int().min(0).optional(),
+  currentExperience: z.number().int().min(0).optional(),
+  allocationExperience: z.number().int().min(0).optional(),
+})
 
 const facultySchema = z.object({
   id: z.string().min(1),
@@ -64,6 +72,30 @@ facultyRouter.put('/:id', async (req, res, next) => {
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
     await upsertFaculty({ ...parsed.data, designation: parsed.data.designation ?? null })
     res.json(await getFaculty(req.params.id))
+  } catch (err) {
+    next(err)
+  }
+})
+
+// A faculty member may only edit their OWN experience fields (self-service
+// profile completion); the HOD may edit anyone's. facultyId always comes
+// from the authenticated session for the self-service case -- never trusted
+// from the client for someone else's record.
+facultyRouter.patch('/:id/experience', requireAuth, async (req, res, next) => {
+  try {
+    const isSelf = req.auth!.facultyId === req.params.id
+    const isHod = req.auth!.role === 'HOD'
+    if (!isSelf && !isHod) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'You may only edit your own experience.' })
+    }
+    const parsed = experienceSchema.safeParse(req.body)
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
+    if (Object.keys(parsed.data).length === 0) {
+      return res.status(400).json({ error: 'No experience fields provided' })
+    }
+    const updated = await updateFacultyExperienceFields(req.params.id, parsed.data)
+    if (!updated) return res.status(404).json({ error: 'Faculty not found' })
+    res.json(updated)
   } catch (err) {
     next(err)
   }
