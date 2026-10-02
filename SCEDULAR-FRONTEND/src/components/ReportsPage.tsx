@@ -281,7 +281,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
       {/* ───────── TEACHER WORKLOAD ───────── */}
       {tab === 'workload' && (
         <div className="grid gap-2 xl:grid-cols-12">
-          <Card className="xl:col-span-8" title="Weekly teaching load" sub="periods per week; the tick marks the weekly limit">
+          <Card className="xl:col-span-8" title="Weekly teaching load" sub="periods per week">
             <div className="space-y-2.5">
               {[...teachers].sort((a, b) => b.load / b.max - a.load / a.max).filter(t => t.load > 0).map(t => (
                 <div key={t.facultyId} className="text-[12px]">

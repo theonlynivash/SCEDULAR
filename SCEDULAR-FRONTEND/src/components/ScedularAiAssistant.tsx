@@ -163,6 +163,8 @@ function DraftCard({ draft }: { draft: Draft }) {
 
 export default function ScedularAiAssistant({ role = 'FACULTY' }: ScedularAiAssistantProps) {
   const [open, setOpen] = useState(false)
+  const [enabled, setEnabled] = useState(true)
+  useEffect(() => { api.assistant.status().then(r => setEnabled(r.enabled)).catch(() => {}) }, [])
   const [messages, setMessages] = useState<Array<{ sender: 'bot' | 'user'; text: string; id: number; drafts?: Draft[] }>>([
     {
       id: 0,
@@ -244,6 +246,8 @@ export default function ScedularAiAssistant({ role = 'FACULTY' }: ScedularAiAssi
   }, [sending])
 
   const handleSend = useCallback(() => { const t = input.trim(); if (!t) return; setInput(''); void ask(t) }, [input, ask])
+
+  if (!enabled) return null   // the HOD switched SCEDULAR AI off for faculty
 
   return (
     <>

@@ -1533,6 +1533,7 @@ export async function saveAllocationSettings(config: AllocationConfig): Promise<
     // fallback
   }
   mem.allocationSettings = config
+  saveLocalDb()   // local-database mode: keep the setting across restarts
   return config
 }
 

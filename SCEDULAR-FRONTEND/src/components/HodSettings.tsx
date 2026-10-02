@@ -248,21 +248,28 @@ function PolicyAndCycle() {
       </div>
 
       {/* 4. AI toggle */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#0F4C81]/10 text-[#0F4C81]"><Bot className="w-4.5 h-4.5" /></span>
-          <div>
-            <h2 className="text-sm font-700 text-slate-800">SCEDULAR AI for Faculty</h2>
+      {(() => {
+        const on = config.facultyAiEnabled ?? true
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#0F4C81]/10 text-[#0F4C81] shrink-0"><Bot className="w-4.5 h-4.5" /></span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-700 text-slate-800">SCEDULAR AI for Faculty</h2>
+                <p className="text-[11px] text-slate-500">{on ? 'Teachers can use the AI assistant.' : 'Hidden from teachers. The HOD can still use it.'}</p>
+              </div>
+            </div>
+            <button
+              type="button" role="switch" aria-checked={on} aria-label="SCEDULAR AI for faculty"
+              onClick={() => saveConfig({ ...config, facultyAiEnabled: !on })}
+              disabled={saving}
+              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 disabled:opacity-60 ${on ? 'bg-emerald-500' : 'bg-slate-300'}`}
+            >
+              <span className={`absolute left-0 top-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
-        </div>
-        <button
-          onClick={() => saveConfig({ ...config, facultyAiEnabled: !(config.facultyAiEnabled ?? true) })}
-          disabled={saving}
-          className={`relative w-12 h-7 rounded-full transition flex-shrink-0 ${(config.facultyAiEnabled ?? true) ? 'bg-emerald-500' : 'bg-slate-300'}`}
-        >
-          <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${(config.facultyAiEnabled ?? true) ? 'translate-x-6' : 'translate-x-1'}`} />
-        </button>
-      </div>
+        )
+      })()}
 
       {/* 5. Other info */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">

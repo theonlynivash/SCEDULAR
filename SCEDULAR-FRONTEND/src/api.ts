@@ -612,6 +612,7 @@ export const api = {
     send: (toId: string, text: string) => request<ChatMsg>('/messages', { method: 'POST', body: JSON.stringify({ toId, text }) }),
   },
   assistant: {
+    status: () => request<{ enabled: boolean }>('/assistant/status'),
     chat: (messages: { role: 'user' | 'assistant'; content: string }[]) =>
       request<{ reply: string; drafts: { facultyId: string; name: string; email: string | null; subject: string; body: string }[] }>('/assistant/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
   },

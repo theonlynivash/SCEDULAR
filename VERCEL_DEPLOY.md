@@ -25,6 +25,7 @@ Preset** as "Other"; `vercel.json` supplies the install/build commands and outpu
 | `GROQ_API_KEY` | for the AI assistant | Groq key starting with `gsk_` |
 | `GROQ_MODEL` | optional | model id, default `qwen/qwen3.8-27b` |
 | `LLM_PROVIDER` | optional | `groq` |
+| `SCEDULAR_RESET_PASSKEY` | recommended | Second secret for "Reset allocation cycle" (default `SCEDULAR_RESET` - change it) |
 | `PG_POOL_MAX` | optional | `3` is plenty for serverless |
 | `CORS_ORIGINS` | optional | extra allowed origins, comma separated (only if you also call the API from another domain) |
 
@@ -34,7 +35,7 @@ Preset** as "Other"; `vercel.json` supplies the install/build commands and outpu
 1. Deploy. Open `https://<your-app>.vercel.app/api/health` -> `{"ok":true,...}`.
 2. Sign in as `FAC-001` with `SCEDULAR_MASTER_PASSWORD` (or `SCEDULAR_AIDS`).
 3. Settings -> Dataset: choose the sample department or start empty and build it in the app.
-4. Settings -> Teachers: issue logins; Teachers -> mail composer -> "Check mail setup" confirms SMTP.
+4. Teachers page: issue logins; Teachers -> envelope icon -> "Check mail setup" confirms SMTP.
 
 ## Notes
 - Timetable generation runs inside one request (about 30 s for 28 sections on a laptop). `maxDuration` is 60 s; if
