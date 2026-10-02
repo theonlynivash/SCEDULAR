@@ -8,8 +8,13 @@ const subjectSchema = z.object({
   id: z.string().min(1),
   code: z.string().min(1),
   name: z.string().min(1),
-  deliveryType: z.enum(['THEORY', 'LAB', 'INTEGRATED']),
-  category: z.enum(['CORE', 'ELECTIVE', 'MANDATORY', 'ADDITIONAL', 'OTHER']),
+  deliveryType: z.enum(['THEORY', 'INTEGRATED', 'LAB', 'PROJECT']),
+  category: z.enum([
+    'CORE', 'BASIC_SCIENCE', 'ENGINEERING_SCIENCE', 'HUMANITIES',
+    'INTEGRATED', 'THEORY', 'LAB_ONLY', 'MANDATORY', 'ADDITIONAL',
+    'PROFESSIONAL_ELECTIVE', 'OPEN_ELECTIVE', 'PROJECT', 'TRAINING',
+    'VALUE_ADDED', 'OTHER',
+  ]),
 })
 
 subjectsRouter.get('/', async (_req, res, next) => { try { res.json(await listSubjects()) } catch (err) { next(err) } })

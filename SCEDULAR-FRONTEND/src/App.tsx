@@ -3,26 +3,27 @@ import type { Page, UserRole } from './types'
 import { ScopeProvider } from './scope'
 import { api } from './api'
 import { getSession, clearSession, type SessionUser } from './session'
-import { rollSessionQuote } from './quotes'
+import { fetchSessionQuote } from './quotes'
 import LoginPage from './components/LoginPage'
 import Sidebar from './components/Sidebar'
 import BottomNav from './components/BottomNav'
 import TopBar from './components/TopBar'
 import Dashboard from './components/Dashboard'
-import FacultyManagement from './components/FacultyManagement'
-import SubjectManagement from './components/SubjectManagement'
+import TeachersPage from './components/TeachersPage'
+import MailCompose from './components/MailCompose'
+import MobileDrawer from './components/MobileDrawer'
 import DataHub from './components/DataHub'
 import LabManagement from './components/LabManagement'
 import { UploadCurriculum, UploadWorkload, ConstraintManagement } from './components/UploadPages'
 import { GenerateTimetable, TimetableResult, ViewTimetable, EditTimetable } from './components/TimetablePages'
-import { Reports } from './components/ReportsSettings'
+import { ReportsPage } from './components/ReportsPage'
 import About from './components/About'
 import FacultyProfile from './components/FacultyProfile'
 import HodSettings from './components/HodSettings'
 
 // New Faculty Allocation System Components
 import FacultySubjectAllocation from './components/FacultySubjectAllocation'
-import HodAllocationReview from './components/HodAllocationReview'
+import HodAssignBoard from './components/HodAssignBoard'
 import HodFacultyManagement from './components/HodFacultyManagement'
 import ScedularAiAssistant from './components/ScedularAiAssistant'
 
@@ -33,6 +34,7 @@ export default function App() {
   const [user, setUser] = useState<SessionUser | null>(existing?.user ?? null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [lastRunId, setLastRunId] = useState<number | null>(null)
+  const [mailTarget, setMailTarget] = useState<string>('')
 
   // On load, re-validate any persisted session against the backend so a stale
   // or logged-out token cannot keep a previous identity active.
@@ -53,7 +55,7 @@ export default function App() {
 
   const handleLogin = (userCtx: { role: UserRole; facultyId: string; name: string; designation: string }) => {
     // Session already persisted by LoginPage from the backend response.
-    rollSessionQuote()
+    fetchSessionQuote() // async — caches in sessionStorage for the session
     setUser({
       facultyId: userCtx.facultyId,
       name: userCtx.name,
@@ -64,6 +66,7 @@ export default function App() {
     setPage('dashboard')
   }
 
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const handleLogout = () => {
     api.auth.logout().catch(() => {})
     clearSession()
@@ -85,7 +88,7 @@ export default function App() {
         <div className="fx-grid" aria-hidden="true" />
         <div className="fx-particles" aria-hidden="true" />
       </div>
-      <div className="relative z-10 flex h-screen overflow-hidden p-3 gap-3">
+      <div className="relative z-10 flex h-screen overflow-hidden p-2.5 gap-2.5">
         <Sidebar
           page={page}
           navigate={navigate}
@@ -94,22 +97,22 @@ export default function App() {
           userName={user.name}
           userDesignation={user.designation || 'Faculty'}
         />
-        <div className="flex flex-col flex-1 overflow-hidden gap-3 min-w-0">
+        <div className="flex flex-col flex-1 overflow-hidden gap-2.5 min-w-0">
           <TopBar
-            onToggleSidebar={() => setSidebarOpen(o => !o)}
+            onToggleSidebar={() => (window.matchMedia('(min-width: 768px)').matches ? setSidebarOpen(o => !o) : setDrawerOpen(true))}
             onLogout={handleLogout}
             navigate={navigate}
             role={role}
           />
-          <main className="glass flex-1 overflow-auto glass-scrollarea rounded-3xl">
-            <div key={page} className="page-transition p-6 pb-24 md:pb-6 min-h-full">
+          <main className="glass-main flex-1 overflow-auto glass-scrollarea rounded-2xl">
+            <div key={page} className="page-transition p-5 pb-24 md:pb-5 min-h-full">
               {page === 'dashboard' && <Dashboard navigate={navigate} role={role} userName={user.name} />}
               {page === 'faculty-allocation' && <FacultySubjectAllocation facultyId={facultyId} />}
-              {page === 'hod-allocation-review' && <HodAllocationReview />}
+              {page === 'hod-allocation-review' && <HodAssignBoard />}
               {page === 'hod-faculty-management' && <HodFacultyManagement />}
               {page === 'profile' && <FacultyProfile facultyId={facultyId} />}
-              {page === 'faculty' && <FacultyManagement navigate={navigate} />}
-              {page === 'subjects' && <SubjectManagement navigate={navigate} />}
+              {page === 'faculty' && <TeachersPage onMail={id => { setMailTarget(id); setPage('mail') }} />}
+              {page === 'mail' && role === 'HOD' && <MailCompose facultyId={mailTarget} onBack={() => setPage('faculty')} />}
               {page === 'data-hub' && <DataHub navigate={navigate} />}
               {page === 'lab-management' && <LabManagement navigate={navigate} />}
               {page === 'upload-curriculum' && <UploadCurriculum navigate={navigate} />}
@@ -117,16 +120,17 @@ export default function App() {
               {page === 'constraints' && <ConstraintManagement navigate={navigate} />}
               {page === 'generate' && <GenerateTimetable navigate={navigate} onGenerated={setLastRunId} />}
               {page === 'timetable-result' && <TimetableResult navigate={navigate} runId={lastRunId} />}
-              {page === 'view-timetable' && <ViewTimetable navigate={navigate} />}
+              {page === 'view-timetable' && <ViewTimetable navigate={navigate} role={role} />}
               {page === 'edit-timetable' && <EditTimetable navigate={navigate} />}
-              {page === 'reports' && <Reports navigate={navigate} />}
-              {page === 'settings' && role === 'HOD' && <HodSettings />}
+              {page === 'reports' && <ReportsPage navigate={navigate} />}
+              {page === 'settings' && role === 'HOD' && <HodSettings navigate={navigate} />}
               {page === 'about' && <About navigate={navigate} />}
             </div>
           </main>
         </div>
       </div>
-      <BottomNav page={page} navigate={navigate} role={role} />
+      <BottomNav page={page} navigate={navigate} role={role} onMore={() => setDrawerOpen(true)} />
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} page={page} navigate={navigate} role={role} userName={user.name} userDesignation={user.designation || 'Faculty'} onLogout={handleLogout} />
       <ScedularAiAssistant role={role} />
     </ScopeProvider>
   )

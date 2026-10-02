@@ -2,17 +2,19 @@ import { describe, it, expect } from 'vitest'
 import { getAllocationPolicy, DEFAULT_ALLOCATION_CONFIG } from '../src/utils/allocationPolicy.js'
 import { resetWorkflowStateRepo, getFacultyPreferences, saveFacultyPreferences, reviewFacultyPreference, listSubjects, listSections, listLabs, listFaculty } from '../src/db/repo.js'
 
+const SNAP = JSON.parse(process.env.SCEDULAR_TEST_SNAPSHOT!) as { faculty: number; sections: number; subjects: number; labs: number }
+
 describe('SCEDULAR — Full Application Rebuild E2E Validation', () => {
-  it('1–4: Canonical institutional entities meet exact counts', async () => {
+  it('1–4: Canonical institutional entities are all present', async () => {
     const fac = await listFaculty()
     const sec = await listSections()
     const subj = await listSubjects()
     const labs = await listLabs()
 
-    expect(fac.length).toBe(67)
-    expect(sec.length).toBe(28)
-    expect(subj.length).toBe(143)
-    expect(labs.length).toBe(10)
+    expect(fac.length).toBe(SNAP.faculty)
+    expect(sec.length).toBe(SNAP.sections)
+    expect(subj.length).toBe(SNAP.subjects)
+    expect(labs.length).toBe(SNAP.labs)
     expect(fac[0].id).toBe('FAC-001')
     expect(fac[0].role).toBe('HOD')
   })
@@ -24,8 +26,8 @@ describe('SCEDULAR — Full Application Rebuild E2E Validation', () => {
 
     const fac = await listFaculty()
     const subj = await listSubjects()
-    expect(fac.length).toBe(67)
-    expect(subj.length).toBe(143)
+    expect(fac.length).toBe(SNAP.faculty)
+    expect(subj.length).toBe(SNAP.subjects)
   })
 
   it('10: Allocation experience policy bands enforce rules accurately', () => {

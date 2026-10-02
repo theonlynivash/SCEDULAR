@@ -1,26 +1,37 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "name": "scedular",
+  "framework": null,
   "installCommand": "npm --prefix SCEDULAR-BACKEND install --no-audit --no-fund && npm --prefix SCEDULAR-FRONTEND install --no-audit --no-fund",
-  "buildCommand": "npm --prefix SCEDULAR-BACKEND run build ; npm --prefix SCEDULAR-FRONTEND run build",
+  "buildCommand": "npm --prefix SCEDULAR-FRONTEND run build",
   "outputDirectory": "SCEDULAR-FRONTEND/dist",
   "functions": {
     "api/index.ts": {
-      "runtime": "@vercel/node@3",
-      "includeFiles": "SCEDULAR-BACKEND/src/**, SCEDULAR-BACKEND/dist/**, SCEDULAR-BACKEND/node_modules/**, SCEDULAR-BACKEND/package.json"
+      "memory": 1024,
+      "maxDuration": 60,
+      "includeFiles": "{SCEDULAR-BACKEND/src/**,SCEDULAR-BACKEND/assets/**,SCEDULAR-BACKEND/node_modules/pdfkit/js/data/**}"
     }
   },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/((?!api/|assets/|.*\\.(png|jpe?g|svg|ico|xlsx|woff2?|ttf)$).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|assets/|.*\\.(?:png|jpe?g|svg|ico|webp|xlsx|woff2?|ttf|otf|json|txt|map)$).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Access-Control-Allow-Credentials", "value": "true" }
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" }
       ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
     }
   ]
 }

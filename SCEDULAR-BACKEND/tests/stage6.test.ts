@@ -10,7 +10,7 @@ const faculty = [
   {id:'F2',name:'Lab',designation:null,maxDailyPeriods:8,maxWeeklyPeriods:40},
 ]
 const sections = [{id:'Y2A',name:'II-A',year:'2',semester:'3',studentCount:30}]
-const subjects = [{id:'DBMS',code:'DBMS',name:'Database',deliveryType:'INTEGRATED',category:'CORE'}]
+const subjects = [{id:'DBMS',code:'DBMS',name:'Database',deliveryType:'INTEGRATED',category:'PROFESSIONAL CORE'}]
 const sectionSubjects = [{id:1,sectionId:'Y2A',subjectId:'DBMS',theoryPeriods:2,labPeriods:3,labBlockLength:3}]
 const teachingAssignments = [
   {id:1,facultyId:'F1',sectionSubjectId:1,component:'THEORY',batch:null},

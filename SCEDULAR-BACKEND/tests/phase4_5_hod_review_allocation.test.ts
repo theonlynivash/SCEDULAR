@@ -56,7 +56,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await resetWorkflowStateRepo()
-  await setCurrentAcademicCycle('EVEN')
+  await setCurrentAcademicCycle('ODD')
   await new Promise<void>((resolve) => {
     if (server) server.close(() => resolve())
     else resolve()
@@ -223,18 +223,86 @@ describe('Phase 4 — HOD Faculty Subject Preference Review', () => {
     expect(mine.requestedSections).toBe(2)
   })
 
-  it('6d: the HOD review summary is DB-derived (total/submitted/pending/not submitted)', async () => {
+  it('6d: the HOD review summary is DB-derived (submitted/approved/changes/rejected/not submitted)', async () => {
     const token = await hodToken()
     const pristine = await authed('/api/hod/preferences?semester=IV', token)
-    expect(pristine.body.summary).toEqual({ totalFaculty: 67, submitted: 0, pending: 0, notSubmitted: 67 })
+    expect(pristine.body.summary).toEqual({ totalFaculty: 69, submitted: 0, approved: 0, changesRequested: 0, rejected: 0, notSubmitted: 69 })
 
     await seedPref(FACULTY, EVEN_SEM4_THEORY, 'Year 2', 'IV', 1, 'SUBMITTED')
     await seedPref(FACULTY2, EVEN_SEM4_ALT_THEORY, 'Year 2', 'IV', 1, 'DRAFT')
     const after = await authed('/api/hod/preferences?semester=IV', token)
-    expect(after.body.summary.totalFaculty).toBe(67)
+    expect(after.body.summary.totalFaculty).toBe(69)
     expect(after.body.summary.submitted).toBe(1)
-    expect(after.body.summary.pending).toBe(1)
-    expect(after.body.summary.notSubmitted).toBe(65)
+    expect(after.body.summary.approved).toBe(0)
+    expect(after.body.summary.changesRequested).toBe(0)
+    expect(after.body.summary.rejected).toBe(0)
+    expect(after.body.summary.notSubmitted).toBe(67)
+  })
+
+  it('6e: APPROVAL updates the summary + demand approved capacity live, creates NO teaching assignments', async () => {
+    await seedPref(FACULTY, EVEN_SEM4_THEORY, 'Year 2', 'IV', 2, 'SUBMITTED')
+    const token = await hodToken()
+
+    // Before: SUBMITTED is reviewable, approved capacity is 0, no shortage relief.
+    const before = await authed('/api/hod/preferences?semester=IV', token)
+    expect(before.body.summary.submitted).toBe(1)
+    expect(before.body.summary.approved).toBe(0)
+    const demandBefore = before.body.demand.find((d: any) => d.subjectId === EVEN_SEM4_THEORY)
+    expect(demandBefore.approvedSectionTotal).toBe(0)
+    expect(demandBefore.approvedCapacity).toBe(0)
+    expect(demandBefore.shortage).toBe(Math.max(0, demandBefore.requiredSections - 0))
+    expect(demandBefore.assignedSections).toBe(0)
+
+    // Row option carries the reviewer audit fields needed by the [View] action.
+    const row = before.body.facultyRows.find((r: any) => r.facultyId === FACULTY)
+    expect(row.options[0].reviewedBy).toBeUndefined()
+
+    // Approve via the real review endpoint (reviewer identity from the session).
+    const pref = before.body.preferences.find((p: any) => p.facultyId === FACULTY)
+    const res = await authed(`/api/hod/preferences/${pref.id}/review`, token, {
+      method: 'POST',
+      body: JSON.stringify({ status: 'APPROVED' }),
+    })
+    expect(res.status).toBe(200)
+    expect(res.body.preference.status).toBe('APPROVED')
+    expect(res.body.preference.reviewedBy).toBe(HOD)
+    expect(res.body.preference.reviewedAt).toBeTruthy()
+
+    // After: APPROVED counts 1, submitted drops to 0, approved capacity = 2,
+    // shortage reduced accordingly, no section is auto-assigned.
+    const after = await authed('/api/hod/preferences?semester=IV', token)
+    expect(after.body.summary.submitted).toBe(0)
+    expect(after.body.summary.approved).toBe(1)
+    const demandAfter = after.body.demand.find((d: any) => d.subjectId === EVEN_SEM4_THEORY)
+    expect(demandAfter.approvedSectionTotal).toBe(2)
+    expect(demandAfter.approvedCapacity).toBe(2)
+    expect(demandAfter.shortage).toBe(Math.max(0, demandAfter.requiredSections - 2))
+    expect(demandAfter.assignedSections).toBe(0)
+
+    // The row now surfaces the reviewer audit fields for the [View] action.
+    const rowAfter = after.body.facultyRows.find((r: any) => r.facultyId === FACULTY)
+    expect(rowAfter.options[0].status).toBe('APPROVED')
+    expect(rowAfter.options[0].reviewedBy).toBe(HOD)
+    expect(rowAfter.options[0].reviewedAt).toBeTruthy()
+
+    // Approval alone must NOT create teaching assignments (Section Allocation is separate).
+    const tas = await authed('/api/teaching-assignments', token)
+    expect(tas.status).toBe(200)
+    expect(tas.body.length).toBe(0)
+  })
+
+  it('6f: APPROVED capacity flows into Section Allocation without any assignment', async () => {
+    await setCurrentAcademicCycle('ODD')
+    await seedPref(FACULTY, ODD_SEM3_THEORY, 'Year 2', 'III', 2, 'APPROVED')
+    const token = await hodToken()
+    const view = await authed('/api/teaching-assignments/section-allocation?semester=III&year=Year%202', token)
+    const subj = view.body.subjects.find((s: any) => s.subjectId === ODD_SEM3_THEORY)
+    // The approved pool carries the requested capacity, but no section is assigned.
+    expect(subj.totalApprovedCapacity).toBe(2)
+    expect(subj.approvedFacultyPool.find((f: any) => f.facultyId === FACULTY).approvedSectionsCapacity).toBe(2)
+    expect(subj.approvedFacultyPool.find((f: any) => f.facultyId === FACULTY).assignedSections).toBe(0)
+    expect(subj.assignedSections).toBe(0)
+    await setCurrentAcademicCycle('EVEN')
   })
 
   it('7: a FACULTY cannot approve their own preference (403)', async () => {

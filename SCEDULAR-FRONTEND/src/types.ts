@@ -18,6 +18,7 @@ export type Page =
   | 'edit-timetable'
   | 'reports'
   | 'settings'
+  | 'mail'
   | 'about'
 
 export type UserRole = 'FACULTY' | 'HOD'

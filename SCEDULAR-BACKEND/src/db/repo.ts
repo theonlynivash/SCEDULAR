@@ -1,5 +1,6 @@
 import { pool } from './client.js'
 import { defaultScheduleConfig } from '../utils/grid.js'
+import { deriveComponentType } from '../subjectConfig.js'
 import type {
   Assignment,
   Conflict,
@@ -23,6 +24,11 @@ import type {
   SubjectDemandItem,
   PreferenceStatus,
   SessionRecord,
+  WorkloadTemplate,
+  FacultyWorkloadAllocation,
+  FacultyResult,
+  MailLogEntry,
+  ChatMessage,
 } from '../types.js'
 import { DEFAULT_ALLOCATION_CONFIG, type AllocationConfig } from '../utils/allocationPolicy.js'
 import { normalizeCycle, DEFAULT_CURRENT_CYCLE, type AcademicCycle } from '../utils/academicCycle.js'
@@ -64,9 +70,12 @@ export async function resetWorkflowStateRepo(): Promise<WorkflowResetResult> {
   mem.assignments = []
   mem.conflicts = []
   mem.unscheduled = []
+  if (!Array.isArray(mem.facultyWorkloadAllocations)) mem.facultyWorkloadAllocations = []
+  mem.facultyWorkloadAllocations = []
   mem.nextPreferenceId = 1
   mem.nextRunId = 1
   mem.nextTeachingAssignmentId = 1
+  mem.nextWorkloadAllocationId = 1
   saveLocalDb()
 
   try {
@@ -223,6 +232,154 @@ export async function upsertFaculty(f: Faculty): Promise<void> {
   }
 }
 
+// ---------- Teacher results & mail log ----------
+
+export async function listFacultyResults(facultyId?: string): Promise<FacultyResult[]> {
+  try {
+    const { rows } = facultyId
+      ? await pool.query('SELECT * FROM faculty_results WHERE faculty_id = $1 ORDER BY academic_year DESC, id DESC', [facultyId])
+      : await pool.query('SELECT * FROM faculty_results ORDER BY academic_year DESC, id DESC')
+    return rows.map(r => ({
+      id: r.id, facultyId: r.faculty_id, academicYear: r.academic_year, semester: r.semester,
+      subjectId: r.subject_id, subjectCode: r.subject_code, subjectName: r.subject_name,
+      sectionsHandled: r.sections_handled, studentsAppeared: r.students_appeared,
+      passPercent: Number(r.pass_percent), createdAt: new Date(r.created_at).toISOString(),
+    }))
+  } catch {
+    const all = mem.facultyResults ?? []
+    return (facultyId ? all.filter(x => x.facultyId === facultyId) : all).slice().sort((a, b) => b.academicYear.localeCompare(a.academicYear) || b.id - a.id)
+  }
+}
+
+export async function addFacultyResult(r: Omit<FacultyResult, 'id' | 'createdAt'>): Promise<FacultyResult> {
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO faculty_results (faculty_id, academic_year, semester, subject_id, subject_code, subject_name, sections_handled, students_appeared, pass_percent)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, created_at`,
+      [r.facultyId, r.academicYear, r.semester, r.subjectId ?? null, r.subjectCode ?? null, r.subjectName, r.sectionsHandled ?? null, r.studentsAppeared ?? null, r.passPercent]
+    )
+    return { ...r, id: rows[0].id, createdAt: new Date(rows[0].created_at).toISOString() }
+  } catch {
+    mem.facultyResults = mem.facultyResults ?? []
+    const id = Math.max(0, mem.nextResultId ?? 1, ...mem.facultyResults.map(x => x.id + 1))
+    mem.nextResultId = id + 1
+    const row: FacultyResult = { ...r, id, createdAt: new Date().toISOString() }
+    mem.facultyResults.push(row)
+    saveLocalDb()
+    return row
+  }
+}
+
+export async function deleteFacultyResult(id: number): Promise<boolean> {
+  try {
+    const { rowCount } = await pool.query('DELETE FROM faculty_results WHERE id = $1', [id])
+    return (rowCount ?? 0) > 0
+  } catch {
+    const before = (mem.facultyResults ?? []).length
+    mem.facultyResults = (mem.facultyResults ?? []).filter(x => x.id !== id)
+    saveLocalDb()
+    return mem.facultyResults.length < before
+  }
+}
+
+export async function listMailLog(facultyId?: string): Promise<MailLogEntry[]> {
+  try {
+    const { rows } = facultyId
+      ? await pool.query('SELECT * FROM mail_log WHERE faculty_id = $1 ORDER BY id DESC LIMIT 50', [facultyId])
+      : await pool.query('SELECT * FROM mail_log ORDER BY id DESC LIMIT 200')
+    return rows.map(r => ({ id: r.id, facultyId: r.faculty_id, to: r.to_email, subject: r.subject, credentials: r.credentials, sentBy: r.sent_by, sentAt: new Date(r.sent_at).toISOString() }))
+  } catch {
+    const all = (mem.mailLog ?? []).slice().sort((a, b) => b.id - a.id)
+    return (facultyId ? all.filter(x => x.facultyId === facultyId) : all).slice(0, 200)
+  }
+}
+
+export async function addMailLog(e: Omit<MailLogEntry, 'id' | 'sentAt'>): Promise<void> {
+  try {
+    await pool.query('INSERT INTO mail_log (faculty_id, to_email, subject, credentials, sent_by) VALUES ($1,$2,$3,$4,$5)', [e.facultyId, e.to, e.subject, e.credentials, e.sentBy])
+  } catch {
+    mem.mailLog = mem.mailLog ?? []
+    const id = Math.max(0, mem.nextMailId ?? 1, ...mem.mailLog.map(x => x.id + 1))
+    mem.nextMailId = id + 1
+    mem.mailLog.push({ ...e, id, sentAt: new Date().toISOString() })
+    if (mem.mailLog.length > 500) mem.mailLog = mem.mailLog.slice(-500)
+    saveLocalDb()
+  }
+}
+
+// ── HOD <-> teacher short messages: plain text, removed 30 days after they were sent ──
+export const MESSAGE_TTL_DAYS = 30
+
+export async function pruneMessages(now = Date.now()): Promise<void> {
+  const cutoff = new Date(now - MESSAGE_TTL_DAYS * 86_400_000).toISOString()
+  try { await pool.query('DELETE FROM chat_messages WHERE sent_at < $1', [cutoff]) }
+  catch {
+    const before = (mem.messages ?? []).length
+    mem.messages = (mem.messages ?? []).filter(m => m.sentAt >= cutoff)
+    if (mem.messages.length !== before) saveLocalDb()
+  }
+}
+
+const toMsg = (r: any): ChatMessage => ({ id: r.id, fromId: r.from_id, toId: r.to_id, text: r.text, sentAt: new Date(r.sent_at).toISOString(), readAt: r.read_at ? new Date(r.read_at).toISOString() : null })
+
+/** Every message the user sent or received, oldest first. */
+export async function listMessagesFor(userId: string): Promise<ChatMessage[]> {
+  await pruneMessages()
+  try {
+    const { rows } = await pool.query('SELECT * FROM chat_messages WHERE from_id = $1 OR to_id = $1 ORDER BY id', [userId])
+    return rows.map(toMsg)
+  } catch {
+    return (mem.messages ?? []).filter(m => m.fromId === userId || m.toId === userId).sort((a, b) => a.id - b.id)
+  }
+}
+
+export async function addMessage(fromId: string, toId: string, text: string): Promise<ChatMessage> {
+  await pruneMessages()
+  try {
+    const { rows } = await pool.query('INSERT INTO chat_messages (from_id, to_id, text) VALUES ($1,$2,$3) RETURNING *', [fromId, toId, text])
+    return toMsg(rows[0])
+  } catch {
+    mem.messages = mem.messages ?? []
+    const id = Math.max(1, mem.nextMessageId ?? 1, ...mem.messages.map(x => x.id + 1))
+    mem.nextMessageId = id + 1
+    const m: ChatMessage = { id, fromId, toId, text, sentAt: new Date().toISOString(), readAt: null }
+    mem.messages.push(m)
+    saveLocalDb()
+    return m
+  }
+}
+
+/** Mark everything `fromId` sent to `toId` as read. */
+export async function markMessagesRead(fromId: string, toId: string): Promise<void> {
+  try { await pool.query('UPDATE chat_messages SET read_at = now() WHERE from_id = $1 AND to_id = $2 AND read_at IS NULL', [fromId, toId]) }
+  catch {
+    let changed = false
+    for (const m of mem.messages ?? []) if (m.fromId === fromId && m.toId === toId && !m.readAt) { m.readAt = new Date().toISOString(); changed = true }
+    if (changed) saveLocalDb()
+  }
+}
+
+/** Remove a teacher together with their assignments, preferences, history and login. */
+export async function deleteFacultyCascade(id: string): Promise<void> {
+  mem.teachingAssignments = mem.teachingAssignments.filter(t => t.facultyId !== id)
+  mem.facultyPreferences = mem.facultyPreferences.filter(p => p.facultyId !== id)
+  mem.facultySubjectHistory = mem.facultySubjectHistory.filter(h => h.facultyId !== id)
+  mem.facultyUnavailability = mem.facultyUnavailability.filter(u => u.facultyId !== id)
+  mem.facultyWorkloadAllocations = (mem.facultyWorkloadAllocations ?? []).filter(a => a.facultyId !== id)
+  mem.facultyResults = (mem.facultyResults ?? []).filter(r => r.facultyId !== id)
+  mem.mailLog = (mem.mailLog ?? []).filter(m => m.facultyId !== id)
+  mem.messages = (mem.messages ?? []).filter(m => m.fromId !== id && m.toId !== id)
+  mem.sessions = mem.sessions.filter(x => x.facultyId !== id)
+  if (mem.facultyPasswords) delete mem.facultyPasswords[id]
+  try {
+    await pool.query('DELETE FROM faculty WHERE id = $1', [id])
+  } catch {
+    // local mode
+  }
+  mem.faculty = mem.faculty.filter(f => f.id !== id)
+  saveLocalDb()
+}
+
 export async function deleteFaculty(id: string): Promise<void> {
   try {
     await pool.query('DELETE FROM faculty WHERE id = $1', [id])
@@ -284,7 +441,7 @@ export async function getFacultyPasswordHash(facultyId: string): Promise<string 
     const { rows } = await pool.query('SELECT password_hash FROM faculty WHERE id = $1', [facultyId])
     return rows[0]?.password_hash ?? null
   } catch {
-    return null
+    return mem.facultyPasswords?.[facultyId] ?? null
   }
 }
 
@@ -292,7 +449,8 @@ export async function upsertFacultyPasswordHash(facultyId: string, passwordHash:
   try {
     await pool.query('UPDATE faculty SET password_hash = $1 WHERE id = $2', [passwordHash, facultyId])
   } catch {
-    console.warn(`[repo] Per-faculty password for ${facultyId} set — effective only with PostgreSQL (Neon/Vercel).`)
+    mem.facultyPasswords = { ...(mem.facultyPasswords ?? {}), [facultyId]: passwordHash }
+    saveLocalDb()
   }
 }
 
@@ -309,6 +467,7 @@ export async function listSections(): Promise<Section[]> {
       department: r.department ?? 'AI & DS',
       studentCount: r.student_count ?? null,
       active: r.active ?? true,
+      classIncharge: r.class_incharge ?? null,
     }))
   } catch {
     return mem.sections
@@ -318,25 +477,136 @@ export async function listSections(): Promise<Section[]> {
 export async function upsertSection(s: Section): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO sections (id, name, year, semester, department, student_count, active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO sections (id, name, year, semester, department, student_count, active, class_incharge)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          year = EXCLUDED.year,
          semester = EXCLUDED.semester,
          department = EXCLUDED.department,
          student_count = EXCLUDED.student_count,
-         active = EXCLUDED.active`,
-      [s.id, s.name, s.year, s.semester, s.department ?? 'AI & DS', s.studentCount ?? null, s.active ?? true]
+         active = EXCLUDED.active,
+         class_incharge = EXCLUDED.class_incharge`,
+      [s.id, s.name, s.year, s.semester, s.department ?? 'AI & DS', s.studentCount ?? null, s.active ?? true, s.classIncharge ?? null]
     )
   } catch {
     const idx = mem.sections.findIndex(x => x.id === s.id)
     if (idx >= 0) mem.sections[idx] = s
     else mem.sections.push(s)
   }
+
+  // Auto-derive sectionSubjects for the new section: for every subject in the
+  // section's (year, semester), create a sectionSubject entry if one doesn't
+  // already exist. This ensures the readiness gate sees the new section's
+  // course requirements immediately, without requiring a full re-import.
+  if (s.year && s.semester && s.active !== false) {
+    await deriveSectionSubjectsForSection(s.id, s.year, s.semester)
+  }
+}
+
+/**
+ * Derive sectionSubject entries for a single section, creating rows for every
+ * subject in the given (year, semester) that doesn't already have one.
+ * This is idempotent — calling it for a section that already has entries is
+ * a no-op.
+ */
+async function deriveSectionSubjectsForSection(
+  sectionId: string,
+  year: string,
+  semester: string,
+): Promise<void> {
+  // Fetch the semester's subjects
+  let semesterSubjects: Subject[]
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM subjects WHERE year = $1 AND semester = $2',
+      [year, semester],
+    )
+    semesterSubjects = rows.map(toSubject)
+  } catch {
+    semesterSubjects = mem.subjects.filter(s => s.year === year && s.semester === semester)
+  }
+  if (semesterSubjects.length === 0) return
+
+  // Fetch existing sectionSubjects for this section
+  let existingSS: SectionSubject[]
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM section_subjects WHERE section_id = $1',
+      [sectionId],
+    )
+    existingSS = rows.map(toSectionSubject)
+  } catch {
+    existingSS = mem.sectionSubjects.filter(ss => ss.sectionId === sectionId)
+  }
+  const existingSubjectIds = new Set(existingSS.map(ss => ss.subjectId))
+
+  // Create sectionSubject entries for subjects that don't have one yet
+  let created = 0
+  for (const subj of semesterSubjects) {
+    if (existingSubjectIds.has(subj.id)) continue
+    await upsertSectionSubject({
+      sectionId,
+      subjectId: subj.id,
+      theoryPeriods: subj.theoryPeriods ?? 0,
+      labPeriods: subj.labPeriods ?? 0,
+      labBlockLength: subj.labPeriods ? subj.labPeriods : null,
+    })
+    created++
+  }
+  if (created > 0) {
+    console.log(`[Repo] Derived ${created} new sectionSubject entries for section ${sectionId} (${year} Semester ${semester})`)
+  }
 }
 
 export async function deleteSection(id: string): Promise<void> {
+  // Cascade-delete dependent data: teaching assignments → sectionSubjects → section.
+  // This prevents orphaned rows that would confuse the readiness check.
+
+  // 1. Find all sectionSubjects belonging to this section
+  let ssIds: number[]
+  try {
+    const { rows } = await pool.query(
+      'SELECT id FROM section_subjects WHERE section_id = $1',
+      [id],
+    )
+    ssIds = rows.map((r: any) => r.id as number)
+  } catch {
+    ssIds = mem.sectionSubjects.filter(ss => ss.sectionId === id).map(ss => ss.id)
+  }
+
+  if (ssIds.length > 0) {
+    // 2. Delete teaching assignments that reference these sectionSubjects
+    try {
+      await pool.query(
+        'DELETE FROM teaching_assignments WHERE section_subject_id = ANY($1::int[])',
+        [ssIds],
+      )
+    } catch {
+      mem.teachingAssignments = mem.teachingAssignments.filter(
+        ta => !ssIds.includes(ta.sectionSubjectId),
+      )
+    }
+
+    // 3. Delete the sectionSubjects themselves
+    try {
+      await pool.query(
+        'DELETE FROM section_subjects WHERE section_id = $1',
+        [id],
+      )
+    } catch {
+      mem.sectionSubjects = mem.sectionSubjects.filter(ss => ss.sectionId !== id)
+    }
+  }
+
+  // 4. Delete lab mappings for this section
+  try {
+    await pool.query('DELETE FROM lab_mapping WHERE section_id = $1', [id])
+  } catch {
+    mem.labMappings = mem.labMappings.filter(lm => lm.sectionId !== id)
+  }
+
+  // 5. Delete the section itself
   try {
     await pool.query('DELETE FROM sections WHERE id = $1', [id])
   } catch {
@@ -367,17 +637,55 @@ export async function getSubject(id: string): Promise<Subject | undefined> {
 export async function upsertSubject(s: Subject): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO subjects (id, code, name, delivery_type, category)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO subjects (id, code, name, delivery_type, category, credits, year, semester, theory_periods, lab_periods, vertical, short_name, ltp, print_as)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO UPDATE SET code = EXCLUDED.code, name = EXCLUDED.name,
-         delivery_type = EXCLUDED.delivery_type, category = EXCLUDED.category`,
-      [s.id, s.code, s.name, s.deliveryType, s.category]
+         delivery_type = EXCLUDED.delivery_type, category = EXCLUDED.category, credits = EXCLUDED.credits,
+         year = EXCLUDED.year, semester = EXCLUDED.semester, theory_periods = EXCLUDED.theory_periods,
+         lab_periods = EXCLUDED.lab_periods, vertical = EXCLUDED.vertical, short_name = EXCLUDED.short_name,
+         ltp = EXCLUDED.ltp, print_as = EXCLUDED.print_as`,
+      [s.id, s.code, s.name, s.deliveryType, s.category, s.credits ?? 0, s.year ?? null, s.semester ?? null, s.theoryPeriods ?? 3, s.labPeriods ?? 0, s.vertical ?? null, s.shortName ?? null, s.ltp ? JSON.stringify(s.ltp) : null, s.printAs ?? null]
     )
   } catch {
     const idx = mem.subjects.findIndex(x => x.id === s.id)
     if (idx >= 0) mem.subjects[idx] = s
     else mem.subjects.push(s)
   }
+}
+
+/** Remove a subject and everything hanging off it (offerings, teachers on them, lab rooms, preferences). */
+export async function deleteSubjectCascade(id: string): Promise<void> {
+  const ssIds = new Set(mem.sectionSubjects.filter(ss => ss.subjectId === id).map(ss => ss.id))
+  const code = mem.subjects.find(s => s.id === id)?.code
+  mem.teachingAssignments = mem.teachingAssignments.filter(t => !ssIds.has(t.sectionSubjectId))
+  mem.sectionSubjects = mem.sectionSubjects.filter(ss => ss.subjectId !== id)
+  mem.labMappings = mem.labMappings.filter(m => m.subjectId !== id)
+  mem.facultyPreferences = mem.facultyPreferences.filter(p => p.subjectId !== id)
+  mem.facultyWorkloadAllocations = (mem.facultyWorkloadAllocations ?? []).filter(a => a.subjectId !== id)
+  if (code) mem.courses = mem.courses.filter(c => c.code.replace(/_LAB$/, '') !== code)
+  try {
+    await pool.query('DELETE FROM subjects WHERE id = $1', [id])
+  } catch {
+    // local mode: the mem clean-up above is the delete
+  }
+  mem.subjects = mem.subjects.filter(s => s.id !== id)
+  saveLocalDb()
+}
+
+/** Remove the offerings of one subject in some sections (and the teachers assigned on them). */
+export async function removeSectionSubjectOfferings(subjectId: string, sectionIds: string[]): Promise<number> {
+  const drop = mem.sectionSubjects.filter(ss => ss.subjectId === subjectId && sectionIds.includes(ss.sectionId))
+  const ids = new Set(drop.map(ss => ss.id))
+  mem.teachingAssignments = mem.teachingAssignments.filter(t => !ids.has(t.sectionSubjectId))
+  mem.sectionSubjects = mem.sectionSubjects.filter(ss => !ids.has(ss.id))
+  mem.labMappings = mem.labMappings.filter(m => !(m.subjectId === subjectId && m.sectionId && sectionIds.includes(m.sectionId)))
+  try {
+    await pool.query('DELETE FROM section_subjects WHERE subject_id = $1 AND section_id = ANY($2::text[])', [subjectId, sectionIds])
+  } catch {
+    // local mode
+  }
+  saveLocalDb()
+  return drop.length
 }
 
 export async function deleteSubject(id: string): Promise<void> {
@@ -401,6 +709,9 @@ function toSubject(row: any): Subject {
     theoryPeriods: row.theory_periods ?? 3,
     labPeriods: row.lab_periods ?? 0,
     vertical: row.vertical ?? null,
+    shortName: row.short_name ?? null,
+    ltp: row.ltp ? JSON.parse(row.ltp) : null,
+    printAs: row.print_as ?? null,
   }
 }
 
@@ -435,7 +746,8 @@ export async function upsertSectionSubject(s: Omit<SectionSubject, 'id'>): Promi
       existing.labBlockLength = s.labBlockLength ?? null
       return existing.id
     }
-    const id = mem.sectionSubjects.length + 1
+    const id = Math.max(0, ...mem.sectionSubjects.map(x => x.id)) + 1
+    mem.nextSectionSubjectId = id + 1
     const newSs = { id, ...s } as SectionSubject
     mem.sectionSubjects.push(newSs)
     return id
@@ -481,7 +793,15 @@ export async function addTeachingAssignment(a: Omit<TeachingAssignment, 'id'>): 
     )
     return existing.rows[0].id as number
   } catch {
-    const id = mem.teachingAssignments.length + 1
+    // Mirror the Postgres UNIQUE(faculty, section_subject, component, batch) behaviour, and never
+    // reuse an id: removals leave gaps, so `length + 1` could collide and a later delete would
+    // remove several rows.
+    const dup = mem.teachingAssignments.find(
+      t => t.facultyId === a.facultyId && t.sectionSubjectId === a.sectionSubjectId && t.component === a.component && (t.batch ?? null) === (a.batch ?? null)
+    )
+    if (dup) return dup.id
+    const id = Math.max(0, mem.nextTeachingAssignmentId ?? 0, ...mem.teachingAssignments.map(t => t.id + 1))
+    mem.nextTeachingAssignmentId = id + 1
     mem.teachingAssignments.push({ id, ...a } as TeachingAssignment)
     return id
   }
@@ -738,12 +1058,13 @@ function subjectsToCourses(subjects: Subject[]): Course[] {
         labBlockLength: s.labPeriods || 3,
       })
     } else {
-      const comp = s.category === 'MANDATORY' ? 'MANDATORY' : s.category === 'ADDITIONAL' ? 'ADDITIONAL' : 'THEORY_ONLY'
+      // Map category + deliveryType to the correct ComponentType
+      const comp = deriveComponentType(s.category, s.deliveryType)
       converted.push({
         id: s.code,
         code: s.code,
         name: s.name,
-        componentType: comp,
+        componentType: comp as any,
         labBlockLength: 3,
       })
     }
@@ -991,6 +1312,16 @@ export async function createRun(status: TimetableStatus, warnings: string[]): Pr
   } catch {
     const id = mem.nextRunId++
     mem.generationRuns.push({ id, status, generatedAt: new Date().toISOString(), warnings })
+    // Local mode keeps the latest few runs only (each holds hundreds of placements).
+    const KEEP_RUNS = 6
+    if (mem.generationRuns.length > KEEP_RUNS) {
+      const keep = new Set(mem.generationRuns.slice(-KEEP_RUNS).map(r => r.id))
+      mem.generationRuns = mem.generationRuns.filter(r => keep.has(r.id))
+      mem.assignments = mem.assignments.filter(a => keep.has(a.runId))
+      mem.conflicts = mem.conflicts.filter(c => keep.has(c.runId))
+      mem.unscheduled = mem.unscheduled.filter(u => keep.has(u.runId))
+    }
+    saveLocalDb()
     return id
   }
 }
@@ -1023,6 +1354,7 @@ export async function saveAssignments(runId: number, assignments: Assignment[]):
     }
   } catch {
     for (const a of assignments) mem.assignments.push({ ...a, runId })
+    saveLocalDb()
   }
 }
 
@@ -1047,6 +1379,7 @@ export async function saveConflicts(runId: number, conflicts: Conflict[]): Promi
     }
   } catch {
     for (const c of conflicts) mem.conflicts.push({ ...c, runId })
+    saveLocalDb()
   }
 }
 
@@ -1079,6 +1412,7 @@ export async function saveUnscheduled(runId: number, units: SchedulableUnit[]): 
     }
   } catch {
     for (const u of units) mem.unscheduled.push({ ...u, runId })
+    saveLocalDb()
   }
 }
 
@@ -1218,7 +1552,7 @@ export async function getCurrentAcademicCycle(): Promise<AcademicCycle> {
   } catch {
     // fallback to local DB state
   }
-  return normalizeCycle(mem.currentAcademicCycle, DEFAULT_CURRENT_CYCLE)
+  return normalizeCycle(getLocalDb().currentAcademicCycle, DEFAULT_CURRENT_CYCLE)
 }
 
 export async function setCurrentAcademicCycle(cycle: AcademicCycle): Promise<AcademicCycle> {
@@ -1231,7 +1565,8 @@ export async function setCurrentAcademicCycle(cycle: AcademicCycle): Promise<Aca
   } catch {
     // fallback to local DB state
   }
-  mem.currentAcademicCycle = normalized
+  const db = getLocalDb()
+  db.currentAcademicCycle = normalized
   saveLocalDbSync()
   return normalized
 }
@@ -1440,6 +1775,44 @@ export async function editFacultyPreference(
 
   saveLocalDb()
   return pref
+}
+
+/** HOD override: switch the subject of ANY preference (including approved ones). */
+export async function hodChangePreferenceSubject(
+  preferenceId: number,
+  subjectId: string,
+  academicYear: string,
+  semester: string
+): Promise<FacultySubjectPreference | null> {
+  const pref = mem.facultyPreferences.find(p => p.id === preferenceId)
+  if (!pref) return null
+  pref.subjectId = subjectId
+  pref.academicYear = academicYear
+  pref.semester = semester
+  pref.updatedAt = new Date().toISOString()
+  try {
+    await pool.query(
+      `UPDATE faculty_subject_preferences SET subject_id = $1, academic_year = $2, semester = $3, updated_at = $4 WHERE id = $5`,
+      [subjectId, academicYear, semester, pref.updatedAt, preferenceId]
+    )
+  } catch {
+    // local/in-memory mode
+  }
+  saveLocalDb()
+  return pref
+}
+
+/** HOD override: delete ANY preference (including approved ones). */
+export async function hodDeletePreference(preferenceId: number): Promise<boolean> {
+  const before = mem.facultyPreferences.length
+  mem.facultyPreferences = mem.facultyPreferences.filter(p => p.id !== preferenceId)
+  try {
+    await pool.query('DELETE FROM faculty_subject_preferences WHERE id = $1', [preferenceId])
+  } catch {
+    // local/in-memory mode
+  }
+  saveLocalDb()
+  return mem.facultyPreferences.length < before
 }
 
 export async function updateFacultyExperience(
@@ -1799,3 +2172,177 @@ export async function destroySessionRecord(token?: string | null): Promise<void>
     if (mem.sessions.length !== before) saveLocalDb()
   }
 }
+
+// ---------------------------------------------------------------------------
+// Workload Templates & HOD Faculty Workload Allocation Helpers (Phase 2 V1)
+// ---------------------------------------------------------------------------
+
+export async function listWorkloadTemplates(): Promise<WorkloadTemplate[]> {
+  const db = getLocalDb()
+  if (!db.workloadTemplates || db.workloadTemplates.length === 0) {
+    const { DEFAULT_WORKLOAD_TEMPLATES } = await import('./localDb.js')
+    db.workloadTemplates = [...DEFAULT_WORKLOAD_TEMPLATES]
+    saveLocalDbSync()
+  }
+  return db.workloadTemplates
+}
+
+export async function createWorkloadTemplate(tmpl: {
+  id?: string
+  name: string
+  theoryPeriodsPerSection: number
+  labPeriodsPerSection: number
+  description?: string
+}): Promise<WorkloadTemplate> {
+  const db = getLocalDb()
+  if (!db.workloadTemplates) db.workloadTemplates = []
+  const id = tmpl.id || `WKL-T${tmpl.theoryPeriodsPerSection}L${tmpl.labPeriodsPerSection}-${Date.now().toString(36)}`
+  const record: WorkloadTemplate = {
+    id,
+    name: tmpl.name,
+    theoryPeriodsPerSection: Number(tmpl.theoryPeriodsPerSection) || 0,
+    labPeriodsPerSection: Number(tmpl.labPeriodsPerSection) || 0,
+    description: tmpl.description || '',
+    createdAt: new Date().toISOString(),
+  }
+  db.workloadTemplates.push(record)
+  saveLocalDbSync()
+  return record
+}
+
+export async function updateWorkloadTemplate(id: string, updates: {
+  name?: string
+  theoryPeriodsPerSection?: number
+  labPeriodsPerSection?: number
+  description?: string
+}): Promise<WorkloadTemplate | null> {
+  const db = getLocalDb()
+  if (!db.workloadTemplates) return null
+  const idx = db.workloadTemplates.findIndex(t => t.id === id)
+  if (idx === -1) return null
+  const existing = db.workloadTemplates[idx]
+  const updated: WorkloadTemplate = {
+    ...existing,
+    ...(updates.name !== undefined ? { name: updates.name } : {}),
+    ...(updates.theoryPeriodsPerSection !== undefined ? { theoryPeriodsPerSection: Number(updates.theoryPeriodsPerSection) } : {}),
+    ...(updates.labPeriodsPerSection !== undefined ? { labPeriodsPerSection: Number(updates.labPeriodsPerSection) } : {}),
+    ...(updates.description !== undefined ? { description: updates.description } : {}),
+  }
+  db.workloadTemplates[idx] = updated
+  saveLocalDbSync()
+  return updated
+}
+
+export async function deleteWorkloadTemplate(id: string): Promise<boolean> {
+  const db = getLocalDb()
+  if (!db.workloadTemplates) return false
+  const before = db.workloadTemplates.length
+  db.workloadTemplates = db.workloadTemplates.filter(t => t.id !== id)
+  if (db.workloadTemplates.length === before) return false
+  saveLocalDbSync()
+  return true
+}
+
+export async function listFacultyWorkloadAllocations(semester?: string): Promise<FacultyWorkloadAllocation[]> {
+  const db = getLocalDb()
+  if (!db.facultyWorkloadAllocations) db.facultyWorkloadAllocations = []
+  if (semester) {
+    return db.facultyWorkloadAllocations.filter(a => a.semester === semester)
+  }
+  return db.facultyWorkloadAllocations
+}
+
+export async function createFacultyWorkloadAllocation(alloc: {
+  facultyId: string
+  subjectId: string
+  semester: string
+  templateId: string
+  assignedSectionIds: string[]
+  totalTheoryPeriods: number
+  totalLabPeriods: number
+}): Promise<FacultyWorkloadAllocation> {
+  const db = getLocalDb()
+  if (!db.facultyWorkloadAllocations) db.facultyWorkloadAllocations = []
+  const id = db.nextWorkloadAllocationId ? db.nextWorkloadAllocationId++ : db.facultyWorkloadAllocations.length + 1
+  const record: FacultyWorkloadAllocation = {
+    id,
+    facultyId: alloc.facultyId,
+    subjectId: alloc.subjectId,
+    semester: alloc.semester,
+    templateId: alloc.templateId,
+    assignedSectionIds: alloc.assignedSectionIds,
+    totalTheoryPeriods: alloc.totalTheoryPeriods,
+    totalLabPeriods: alloc.totalLabPeriods,
+    status: 'DRAFT',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+  db.facultyWorkloadAllocations.push(record)
+  saveLocalDbSync()
+  return record
+}
+
+export async function approveFacultyWorkloadAllocations(semester: string, subjectId?: string): Promise<{ approvedCount: number; syncedTeachingAssignmentsCount: number }> {
+  const db = getLocalDb()
+  if (!db.facultyWorkloadAllocations) return { approvedCount: 0, syncedTeachingAssignmentsCount: 0 }
+
+  let targets = db.facultyWorkloadAllocations.filter(a => a.semester === semester)
+  if (subjectId) {
+    targets = targets.filter(a => a.subjectId === subjectId)
+  }
+
+  let approvedCount = 0
+  let syncedTeachingAssignmentsCount = 0
+
+  for (const alloc of targets) {
+    alloc.status = 'APPROVED'
+    alloc.updatedAt = new Date().toISOString()
+    approvedCount++
+
+    // Sync into canonical TeachingAssignment rows for each targeted section
+    const targetSectionIds = (alloc.assignedSectionIds && alloc.assignedSectionIds.length > 0)
+      ? alloc.assignedSectionIds
+      : db.sectionSubjects.filter(ss => ss.subjectId === alloc.subjectId).map(ss => ss.sectionId)
+
+    for (const sectionId of targetSectionIds) {
+      const ss = db.sectionSubjects.find(s => s.sectionId === sectionId && s.subjectId === alloc.subjectId)
+      if (!ss) continue
+
+      // Sync THEORY component if theory periods > 0
+      if (alloc.totalTheoryPeriods > 0 && ss.theoryPeriods > 0) {
+        const exists = db.teachingAssignments.some(t => t.facultyId === alloc.facultyId && t.sectionSubjectId === ss.id && t.component === 'THEORY')
+        if (!exists) {
+          const nextId = db.nextTeachingAssignmentId ? db.nextTeachingAssignmentId++ : db.teachingAssignments.length + 1
+          db.teachingAssignments.push({
+            id: nextId,
+            facultyId: alloc.facultyId,
+            sectionSubjectId: ss.id,
+            component: 'THEORY',
+            batch: null,
+          })
+          syncedTeachingAssignmentsCount++
+        }
+      }
+
+      // Sync LAB component if lab periods > 0
+      if (alloc.totalLabPeriods > 0 && ss.labPeriods > 0) {
+        const exists = db.teachingAssignments.some(t => t.facultyId === alloc.facultyId && t.sectionSubjectId === ss.id && t.component === 'LAB')
+        if (!exists) {
+          const nextId = db.nextTeachingAssignmentId ? db.nextTeachingAssignmentId++ : db.teachingAssignments.length + 1
+          db.teachingAssignments.push({
+            id: nextId,
+            facultyId: alloc.facultyId,
+            sectionSubjectId: ss.id,
+            component: 'LAB',
+            batch: null,
+          })
+          syncedTeachingAssignmentsCount++
+        }
+      }
+    }
+  }
+
+  saveLocalDbSync()
+  return { approvedCount, syncedTeachingAssignmentsCount }
+}
+

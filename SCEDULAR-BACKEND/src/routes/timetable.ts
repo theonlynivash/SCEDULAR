@@ -7,7 +7,16 @@ import {
   getRun,
   getUnscheduledForRun,
   getSemesterReadinessStatus,
+  listFaculty,
+  listSectionSubjects,
+  listSections,
+  listSubjects,
+  listTeachingAssignments,
+  getScheduleConfig,
 } from '../db/repo.js'
+import { createPdf, renderClassTimetablesPdf } from '../export/classTimetablePdf.js'
+import { createLandscapePdf, renderFacultyTimetablePdf, renderMasterTimetablePdf } from '../export/facultyMasterPdf.js'
+import { requireAuth, requireRole } from '../auth/middleware.js'
 
 export const timetableRouter = Router()
 
@@ -55,7 +64,8 @@ timetableRouter.post('/generate', async (req, res, next) => {
         blockedSemesters: blocked,
       })
     }
-    res.json(await generateTimetable())
+    // Every ready semester in ONE run: teachers are shared across years, so they must be solved together.
+    res.json(await generateTimetable(eligible.map(r => ({ year: r.year, semester: r.semester }))))
   } catch (err) {
     next(err)
   }
@@ -65,7 +75,9 @@ timetableRouter.post('/generate', async (req, res, next) => {
 // it never changes the imported requirements.
 timetableRouter.post('/regenerate', async (_req, res, next) => {
   try {
-    res.json(await generateTimetable())
+    const eligible = (await getSemesterReadinessStatus()).filter(r => r.canGenerate)
+    if (eligible.length === 0) return res.status(422).json({ error: 'READINESS_BLOCKED', message: 'No semester is ready for generation.' })
+    res.json(await generateTimetable(eligible.map(r => ({ year: r.year, semester: r.semester }))))
   } catch (err) {
     next(err)
   }
@@ -150,6 +162,86 @@ timetableRouter.get('/conflicts/:runId', async (req, res, next) => {
     const runId = Number(req.params.runId)
     const [conflicts, unscheduled] = await Promise.all([getConflictsForRun(runId), getUnscheduledForRun(runId)])
     res.json({ runId, conflicts, unscheduled })
+  } catch (err) {
+    next(err)
+  }
+})
+
+const SEMESTERS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
+
+// GET /api/timetable/export?semester=VII   (or semester=all)
+// The generated class timetables as PDF sheets in the department's printed format, one page per section.
+// GET /api/timetable/export/faculty/:facultyId - one teacher's weekly timetable (a teacher may only download their own)
+timetableRouter.get('/export/faculty/:facultyId', requireAuth, async (req, res, next) => {
+  try {
+    const id = String(req.params.facultyId)
+    if (req.auth!.role !== 'HOD' && req.auth!.facultyId !== id) return res.status(403).json({ error: 'FORBIDDEN', message: 'You can only download your own timetable.' })
+    const run = await getLatestValidRun()
+    if (!run) return res.status(404).json({ error: 'NO_TIMETABLE', message: 'No timetable has been generated yet.' })
+    const [sections, subjects, sectionSubjects, teachingAssignments, faculty, config, assignments] = await Promise.all([
+      listSections(), listSubjects(), listSectionSubjects(), listTeachingAssignments(), listFaculty(), getScheduleConfig(), getAssignmentsForRun(run.id),
+    ])
+    const f = faculty.find(x => x.id === id)
+    if (!f) return res.status(404).json({ error: 'NOT_FOUND', message: 'Teacher not found.' })
+    const doc = createLandscapePdf(`Timetable ${f.name}`)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="Timetable-${f.id}.pdf"`)
+    doc.pipe(res)
+    renderFacultyTimetablePdf({ facultyId: id, sections, subjects, sectionSubjects, teachingAssignments, faculty, assignments, config }, doc)
+    doc.end()
+  } catch (err) { next(err) }
+})
+
+// GET /api/timetable/export/master?semester=VII|all - HOD only: the department's master timetable
+timetableRouter.get('/export/master', requireAuth, requireRole('HOD'), async (req, res, next) => {
+  try {
+    const wanted = String(req.query.semester ?? 'all').toUpperCase()
+    const run = await getLatestValidRun()
+    if (!run) return res.status(404).json({ error: 'NO_TIMETABLE', message: 'No timetable has been generated yet.' })
+    const [sections, subjects, sectionSubjects, teachingAssignments, faculty, config, assignments] = await Promise.all([
+      listSections(), listSubjects(), listSectionSubjects(), listTeachingAssignments(), listFaculty(), getScheduleConfig(), getAssignmentsForRun(run.id),
+    ])
+    const inRun = new Set(assignments.map(a => a.sectionId))
+    const available = SEMESTERS.filter(sem => sections.some(sec => sec.semester === sem && sec.active !== false && inRun.has(sec.id)))
+    const picked = wanted === 'ALL' ? available : available.filter(x => x === wanted)
+    if (picked.length === 0) return res.status(400).json({ error: 'INVALID_SEMESTER', message: `Choose a semester (${available.join(', ') || 'none generated yet'}) or "all".` })
+    const doc = createLandscapePdf('Master Timetable')
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="Master-Timetable-${wanted === 'ALL' ? 'All-Semesters' : 'Sem-' + wanted}.pdf"`)
+    doc.pipe(res)
+    renderMasterTimetablePdf({ semesters: picked, runId: run.id, generatedAt: run.generatedAt, sections, subjects, sectionSubjects, teachingAssignments, faculty, assignments, config }, doc)
+    doc.end()
+  } catch (err) { next(err) }
+})
+
+timetableRouter.get('/export', async (req, res, next) => {
+  try {
+    const wanted = String(req.query.semester ?? '').toUpperCase()
+    const run = await getLatestValidRun()
+    if (!run) return res.status(404).json({ error: 'NO_TIMETABLE', message: 'No timetable has been generated yet.' })
+    const [sections, subjects, sectionSubjects, teachingAssignments, faculty, config, assignments] = await Promise.all([
+      listSections(), listSubjects(), listSectionSubjects(), listTeachingAssignments(), listFaculty(), getScheduleConfig(), getAssignmentsForRun(run.id),
+    ])
+    const inRun = new Set(assignments.map(a => a.sectionId))
+    const available = SEMESTERS.filter(sem => sections.some(sec => sec.semester === sem && sec.active !== false && inRun.has(sec.id)))
+    const picked = wanted === 'ALL' ? available : SEMESTERS.includes(wanted) ? [wanted] : []
+    if (picked.length === 0) return res.status(400).json({ error: 'INVALID_SEMESTER', message: `Choose a semester (${available.join(', ') || 'none generated yet'}) or "all".` })
+    if (picked.some(sem => !available.includes(sem))) return res.status(404).json({ error: 'NOT_IN_RUN', message: `Semester ${wanted} is not part of the latest timetable (${available.join(', ')} are). Generate again first.` })
+
+    const doc = createPdf()
+    const name = wanted === 'ALL' ? 'All-Semesters' : `Sem-${wanted}`
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="Class-Timetables-${name}.pdf"`)
+    doc.pipe(res)
+    picked.forEach((sem, i) => {
+      if (i > 0) doc.addPage()
+      renderClassTimetablesPdf({
+        semester: sem,
+        sections: sections.filter(sec => sec.semester === sem && sec.active !== false && inRun.has(sec.id)),
+        subjects, sectionSubjects, teachingAssignments, faculty, assignments, config,
+      }, doc)
+    })
+    doc.end()
   } catch (err) {
     next(err)
   }

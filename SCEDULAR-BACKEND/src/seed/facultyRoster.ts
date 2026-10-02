@@ -72,4 +72,7 @@ export const REAL_FACULTY_ROSTER: Faculty[] = [
   { id: 'FAC-065', name: 'Dr.Selvakumari', designation: 'Faculty', department: 'Legal Studies / Mandatory Courses', role: 'FACULTY', maxDailyPeriods: 6, maxWeeklyPeriods: 24 },
   { id: 'FAC-066', name: 'Mrs.Anitha Florence', designation: 'Faculty', department: 'Humanities & Sciences', role: 'FACULTY', maxDailyPeriods: 6, maxWeeklyPeriods: 24 },
   { id: 'FAC-067', name: 'Mrs.Debbi Sharon', designation: 'Faculty', department: 'Humanities & Sciences', role: 'FACULTY', maxDailyPeriods: 6, maxWeeklyPeriods: 24 },
+  // Missing faculty confirmed from IV Year timetable and individual timetable PDFs
+  { id: 'FAC-068', name: 'Mrs.YASHIKA', designation: 'Asst.Prof', department: 'AI & DS', role: 'FACULTY', maxDailyPeriods: 6, maxWeeklyPeriods: 24 },
+  { id: 'FAC-069', name: 'Mrs.KAYALVIZHI V', designation: 'Asst.Prof', department: 'AI & DS', role: 'FACULTY', maxDailyPeriods: 6, maxWeeklyPeriods: 24 },
 ]

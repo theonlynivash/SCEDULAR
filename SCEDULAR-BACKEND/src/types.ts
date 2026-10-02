@@ -8,10 +8,15 @@
 // both counts -- INTEGRATED_THEORY takes the theory periods,
 // INTEGRATED_LAB the lab periods, whether or not the same faculty teaches
 // both halves. LAB_ONLY is reserved for a subject with no theory
-// counterpart at all (e.g. TSP). MANDATORY (e.g. Constitution of India,
-// Quantitative Aptitude) and ADDITIONAL (e.g. Skills for Career
-// Development, Library -- non-mandatory extra periods) are both
-// theory-only but distinguished for reporting.
+// counterpart at all (e.g. TSP).
+//
+// Every subject carries two independent axes:
+//   - category: canonical SubjectCategory taxonomy
+//     (CORE, BASIC_SCIENCE, ENGINEERING_SCIENCE, HUMANITIES, INTEGRATED,
+//      THEORY, LAB_ONLY, MANDATORY, ADDITIONAL, PROFESSIONAL_ELECTIVE,
+//      OPEN_ELECTIVE, PROJECT, TRAINING, VALUE_ADDED, OTHER)
+//   - deliveryType: how it is taught (THEORY, INTEGRATED, LAB, PROJECT)
+// Never derive one from the other.
 
 // ---------------------------------------------------------------------------
 // Canonical scheduling data model (Stage 1).
@@ -20,9 +25,28 @@
 // below remain temporarily for the existing solver/API compatibility layer;
 // Stage 2/3 will move their consumers to these canonical types.
 
-export type SubjectDeliveryType = 'THEORY' | 'LAB' | 'INTEGRATED'
-export type SubjectCategory = 'CORE' | 'ELECTIVE' | 'MANDATORY' | 'ADDITIONAL' | 'OTHER'
+export type SubjectDeliveryType = 'THEORY' | 'INTEGRATED' | 'LAB' | 'PROJECT'
 export type TeachingComponent = 'THEORY' | 'LAB'
+
+// Canonical curriculum category — underscore-separated SubjectCategory enum.
+// Values are underscore-separated (e.g. BASIC_SCIENCE, not "BASIC SCIENCE").
+// subject's category from its delivery type (or vice versa).
+export type SubjectCategory =
+  | 'CORE'
+  | 'BASIC_SCIENCE'
+  | 'ENGINEERING_SCIENCE'
+  | 'HUMANITIES'
+  | 'INTEGRATED'
+  | 'THEORY'
+  | 'LAB_ONLY'
+  | 'MANDATORY'
+  | 'ADDITIONAL'
+  | 'PROFESSIONAL_ELECTIVE'
+  | 'OPEN_ELECTIVE'
+  | 'PROJECT'
+  | 'TRAINING'
+  | 'VALUE_ADDED'
+  | 'OTHER'
 
 export interface Subject {
   id: string
@@ -36,6 +60,12 @@ export interface Subject {
   theoryPeriods?: number
   labPeriods?: number
   vertical?: string | null
+  /** Printed on class timetables, e.g. "ARVR" (a lab block prints as "ARVR LAB"). */
+  shortName?: string | null
+  /** Printed L-T-P hours (credits are the C column). */
+  ltp?: [number, number, number] | null
+  /** Which table of the class timetable lists the subject. Default: LAB subjects under Practicals, the rest under Theory. */
+  printAs?: 'THEORY' | 'PRACTICAL' | null
 }
 
 export interface SectionSubject {
@@ -55,7 +85,12 @@ export interface TeachingAssignment {
   batch: string | null
 }
 
-export type ComponentType = 'INTEGRATED_THEORY' | 'INTEGRATED_LAB' | 'LAB_ONLY' | 'THEORY_ONLY' | 'MANDATORY' | 'ADDITIONAL'
+export type ComponentType =
+  | 'INTEGRATED_THEORY'
+  | 'INTEGRATED_LAB'
+  | 'LAB_ONLY'
+  | 'THEORY_ONLY'
+  | 'PROJECT'
 
 export type UserRole = 'FACULTY' | 'HOD'
 
@@ -149,6 +184,8 @@ export interface Section {
   department?: string
   studentCount?: number | null
   active?: boolean
+  /** Faculty id printed as "CLASS INCHARGE" on the section's timetable. */
+  classIncharge?: string | null
 }
 
 export interface Course {
@@ -312,4 +349,67 @@ export interface SessionRecord {
   token: string
   facultyId: string
   createdAt: string
+}
+
+// ---------------------------------------------------------------------------
+// HOD Workload Template & Faculty Allocation Types (Phase 2 V1)
+
+export interface WorkloadTemplate {
+  id: string
+  name: string
+  theoryPeriodsPerSection: number // T per section (e.g. 2)
+  labPeriodsPerSection: number    // L per section (e.g. 2)
+  description?: string
+  createdAt?: string
+}
+
+export interface FacultyWorkloadAllocation {
+  id: number
+  facultyId: string
+  subjectId: string
+  semester: string
+  templateId: string
+  assignedSectionIds: string[] // List of section IDs (e.g. ["Y2-A", "Y2-B"])
+  totalTheoryPeriods: number   // theoryPeriodsPerSection * assignedSectionIds.length
+  totalLabPeriods: number      // labPeriodsPerSection * assignedSectionIds.length
+  status: 'DRAFT' | 'APPROVED'
+  createdAt: string
+  updatedAt: string
+}
+
+
+/** Pass percentage a teacher achieved in a class they took in a past semester. */
+export interface FacultyResult {
+  id: number
+  facultyId: string
+  academicYear: string          // e.g. "2025-26"
+  semester: string              // I..VIII
+  subjectId?: string | null     // when the subject exists in the syllabus
+  subjectCode?: string | null
+  subjectName: string
+  sectionsHandled?: number | null
+  studentsAppeared?: number | null
+  passPercent: number           // 0..100
+  createdAt: string
+}
+
+/** A mail the HOD sent to a teacher (the body and any password are never stored). */
+export interface MailLogEntry {
+  id: number
+  facultyId: string
+  to: string
+  subject: string
+  credentials: 'none' | 'id' | 'new'
+  sentBy: string
+  sentAt: string
+}
+
+/** A short in-app message between the HOD and a teacher (plain text, deleted after 30 days). */
+export interface ChatMessage {
+  id: number
+  fromId: string
+  toId: string
+  text: string
+  sentAt: string
+  readAt: string | null
 }

@@ -1,0 +1,1 @@
+URW Bookman (URW++ Design & Development), distributed under AGPL/GPL with font exception; see https://github.com/ArtifexSoftware/urw-base35-fonts

@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import type { Page } from '../types'
 import { api, type MasterDatasetStatus } from '../api'
-import { quoteOfSession } from '../quotes'
+import { fetchSessionQuote, getCachedQuote, type ScedularQuote } from '../quotes'
 import type { AcademicCycle } from '../academicCycle'
 import { Btn } from './ui'
 import {
@@ -54,6 +54,7 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
   const [aiSummary, setAiSummary] = useState<string | null>(null)
   const [aiSummaryLoading, setAiSummaryLoading] = useState(true)
   const [aiSummaryError, setAiSummaryError] = useState(false)
+  const [quote, setQuote] = useState<ScedularQuote | null>(null)
 
   const reloadData = () => {
     setLoading(true)
@@ -81,6 +82,10 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
 
   useEffect(() => {
     reloadData()
+    // Fetch quote — try cache first, then API
+    const cached = getCachedQuote()
+    if (cached) setQuote(cached)
+    else fetchSessionQuote().then(setQuote)
   }, [])
 
   // AI-generated dashboard summary: asks the same live-grounded assistant
@@ -102,10 +107,10 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
   }, [role])
 
   const counts = datasetStatus?.counts ?? {}
-  const totalSections = counts.sections ?? 28
-  const totalSubjects = counts.subjects ?? 143
-  const totalFaculty = counts.faculty ?? 58
-  const totalLabs = counts.labs ?? 10
+  const totalSections = counts.sections ?? 0
+  const totalSubjects = counts.subjects ?? 0
+  const totalFaculty = counts.faculty ?? 0
+  const totalLabs = counts.labs ?? 0
 
   const getTimeGreeting = () => {
     const hour = Number(
@@ -135,21 +140,21 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
     return { label: 'Draft', tone: 'text-slate-500' }
   })()
 
-  const quote = quoteOfSession()
+  const quoteData = quote ?? getCachedQuote()
 
   const statCards = [
-    { label: 'Sections', value: totalSections, expected: 28, icon: Building2, tone: 'from-blue-500/10 to-indigo-500/10', textTone: 'text-[#0F4C81]', page: 'dashboard' as Page },
-    { label: 'Subjects', value: totalSubjects, expected: 143, icon: BookOpen, tone: 'from-emerald-500/10 to-teal-500/10', textTone: 'text-emerald-700', page: 'subjects' as Page },
-    { label: 'Faculty', value: totalFaculty, expected: 58, icon: Users, tone: 'from-indigo-500/10 to-blue-500/10', textTone: 'text-[#0F4C81]', page: 'faculty' as Page },
-    { label: 'Labs', value: totalLabs, expected: 10, icon: FlaskConical, tone: 'from-amber-500/10 to-yellow-500/10', textTone: 'text-amber-700', page: 'lab-management' as Page },
+    { label: 'Sections', value: totalSections, icon: Building2, tone: 'from-blue-500/10 to-indigo-500/10', textTone: 'text-[#0F4C81]', page: 'settings' as Page },
+    { label: 'Subjects', value: totalSubjects, icon: BookOpen, tone: 'from-emerald-500/10 to-teal-500/10', textTone: 'text-emerald-700', page: 'settings' as Page },
+    { label: 'Faculty', value: totalFaculty, icon: Users, tone: 'from-indigo-500/10 to-blue-500/10', textTone: 'text-[#0F4C81]', page: 'faculty' as Page },
+    { label: 'Labs', value: totalLabs, icon: FlaskConical, tone: 'from-amber-500/10 to-yellow-500/10', textTone: 'text-amber-700', page: 'lab-management' as Page },
   ]
 
   const hodQuickActions = [
-    { title: 'Faculty Subject Review', page: 'hod-allocation-review' as Page, icon: ClipboardList, highlight: true },
+    { title: 'Assign Teachers', page: 'hod-allocation-review' as Page, icon: ClipboardList, highlight: true },
     { title: 'Generate Timetable', page: 'generate' as Page, icon: Cpu, highlight: false },
     { title: 'View Timetable', page: 'view-timetable' as Page, icon: Calendar, highlight: false },
-    { title: 'Faculty Management', page: 'faculty' as Page, icon: Users, highlight: false },
-    { title: 'Subject Management', page: 'subjects' as Page, icon: BookOpen, highlight: false },
+    { title: 'Teachers', page: 'faculty' as Page, icon: Users, highlight: false },
+    { title: 'Subjects & Syllabus', page: 'settings' as Page, icon: BookOpen, highlight: false },
     { title: 'Lab Management', page: 'lab-management' as Page, icon: FlaskConical, highlight: false },
     { title: 'Reports & Workload', page: 'reports' as Page, icon: Database, highlight: false },
   ]
@@ -221,22 +226,24 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
             ) : aiSummaryError ? (
               <p className="text-xs text-slate-500 mt-1.5">AI summary unavailable right now — ask SCEDULAR AI directly using the chat button.</p>
             ) : (
-              <p className="text-sm text-slate-700 mt-1.5 leading-relaxed">{aiSummary}</p>
+              <p className="text-sm text-slate-700 mt-1.5 leading-relaxed">{(aiSummary ?? '').replace(/\*\*/g, '').replace(/\s*\|\s*/g, ' · ')}</p>
             )}
           </div>
         </div>
 
         {/* Motivational quote — decorative only, no allocation logic */}
+        {quoteData && (
         <div className="rounded-2xl border border-[#0F4C81]/20 bg-gradient-to-br from-[#0F4C81]/5 to-amber-400/5 p-5 flex items-start gap-3">
           <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#0F4C81] text-white flex-shrink-0">
             <Sparkles size={18} className="text-amber-300" />
           </span>
           <div>
             <p className="text-[11px] font-700 tracking-wide text-[#0F4C81] uppercase">Today's Note</p>
-            <p className="text-sm text-slate-700 italic mt-1">"{quote.text}"</p>
-            <p className="text-xs text-slate-500 mt-1">— {quote.author}</p>
+            <p className="text-sm text-slate-700 italic mt-1">"{quoteData.text}"</p>
+            <p className="text-xs text-slate-500 mt-1">— {quoteData.author}</p>
           </div>
         </div>
+        )}
       </div>
 
       {role === 'FACULTY' ? (
@@ -283,7 +290,7 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
           {/* Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {statCards.map((s, idx) => {
-              const isReady = !loading && s.value >= s.expected
+              const isReady = !loading && s.value > 0
               return (
                 <button key={s.label} onClick={() => navigate(s.page)} className="text-left group">
                   <div style={{ '--stagger': idx } as CSSProperties} className="animate-in bg-white rounded-xl border border-slate-200 shadow-sm p-4.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md h-full">
@@ -293,7 +300,7 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
                       </span>
                       {!loading && (
                         <span className={`text-xs font-700 ${isReady ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          {isReady ? '✓ Active' : `/${s.expected}`}
+                          {isReady ? '✓ Active' : 'None yet'}
                         </span>
                       )}
                     </div>

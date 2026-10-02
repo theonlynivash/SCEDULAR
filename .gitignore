@@ -3,3 +3,15 @@ dist/
 .env
 .env.*
 !.env.example
+# local data & personal files — never commit (real teacher emails, password hashes, messages, source PDFs)
+SCEDULAR-BACKEND/data/scedular_local_db.json
+SCEDULAR-BACKEND/data/scedular_local_db.json.backup-*
+SCEDULAR-BACKEND/data/pdf_source/
+.claude/settings.local.json
+.trae/
+pdf24_converted/
+pdf24_converted.zip
+pdf_text/
+SCEDULAR/
+__pycache__/
+*.pyc

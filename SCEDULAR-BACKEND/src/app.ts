@@ -14,6 +14,13 @@ import { sectionSubjectsRouter } from './routes/sectionSubjects.js'
 import { teachingAssignmentsRouter } from './routes/teachingAssignments.js'
 
 import { facultyAllocationRouter } from './routes/facultyAllocation.js'
+import { hodAssignRouter } from './routes/hodAssign.js'
+import { setupRouter } from './routes/setup.js'
+import { teacherExtrasRouter } from './routes/teacherExtras.js'
+import { passwordResetRouter } from './routes/passwordReset.js'
+import { assistantRouter } from './routes/assistant.js'
+import { messagesRouter } from './routes/messages.js'
+import { workloadTemplatesRouter } from './routes/workloadTemplates.js'
 
 function buildCorsOriginList(): (string | RegExp)[] {
   const origins: (string | RegExp)[] = []
@@ -72,6 +79,13 @@ app.use(async (req, res, next) => {
 })
 
 app.use('/api', facultyAllocationRouter)
+app.use('/api', passwordResetRouter)
+app.use('/api', assistantRouter)
+app.use('/api', messagesRouter)
+app.use('/api', hodAssignRouter)
+app.use('/api', setupRouter)
+app.use('/api', teacherExtrasRouter)
+app.use('/api', workloadTemplatesRouter)
 app.use('/api/faculty', facultyRouter)
 app.use('/api/sections', sectionsRouter)
 app.use('/api/courses', coursesRouter)

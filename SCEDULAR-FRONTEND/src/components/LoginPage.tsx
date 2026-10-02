@@ -20,6 +20,32 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [mode, setMode] = useState<'login' | 'ask' | 'code'>('login')
+  const [code, setCode] = useState('')
+  const [newPass, setNewPass] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
+
+  async function handleForgot(e: FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setSubmitting(true)
+    try {
+      if (mode === 'ask') {
+        if (!facultyId.trim()) { setError('Enter your Faculty ID or email.'); return }
+        const r = await api.auth.forgot(facultyId.trim())
+        setNotice(r.sentTo ? `A 6-digit code was sent to ${r.sentTo}.` : r.message)
+        setMode('code')
+      } else {
+        const r = await api.auth.reset(facultyId.trim(), code.trim(), newPass)
+        setNotice(r.message)
+        setMode('login'); setCode(''); setNewPass(''); setPass('')
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Something went wrong. Try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -56,7 +82,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       <div className="app-wallpaper"><div className="blob" /></div>
 
       <div className="relative z-10 w-full max-w-md mx-4">
-        <form onSubmit={handleSubmit} className="login-panel glass-strong rounded-[2rem] overflow-hidden">
+        <form onSubmit={mode === 'login' ? handleSubmit : handleForgot} className="login-panel glass-strong rounded-[2rem] overflow-hidden">
           <div className="px-8 pt-9 pb-6 text-center">
             <div className="w-full max-w-[420px] mx-auto mb-4 p-0 bg-white border-0 rounded-none shadow-none">
               <CollegeLogo className="block w-full h-auto" />
@@ -71,11 +97,20 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 value={facultyId}
                 onChange={e => { setFacultyId(e.target.value); setError(null) }}
                 className="w-full glass-input rounded-xl px-4 py-2.5 text-sm text-slate-800 transition placeholder:text-slate-400"
-                placeholder="FAC-001"
+                placeholder={mode === 'login' ? 'FAC-001' : 'Faculty ID or registered email'}
                 autoComplete="username"
               />
             </div>
-            <div className="mb-2">
+            {mode === 'code' && (
+              <div className="mb-3 grid gap-3">
+                <input value={code} onChange={e => setCode(e.target.value)} inputMode="numeric" maxLength={6} placeholder="6-digit code"
+                  className="w-full glass-input rounded-xl px-4 py-2.5 text-sm text-slate-800 tracking-widest" />
+                <input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="New password (min 8 characters)" autoComplete="new-password"
+                  className="w-full glass-input rounded-xl px-4 py-2.5 text-sm text-slate-800" />
+              </div>
+            )}
+            {notice && <p className="text-sm text-emerald-700 font-500 mb-3" role="status">{notice}</p>}
+            {mode === 'login' && <div className="mb-2">
               <label className="block text-xs font-600 text-slate-500 uppercase tracking-wider mb-1.5">Password</label>
               <div className="relative">
                 <input
@@ -104,7 +139,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   )}
                 </button>
               </div>
-            </div>
+            </div>}
 
             {error && (
               <p className="text-sm text-rose-600 font-500 mb-3" role="alert">{error}</p>
@@ -120,14 +155,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 />
                 <span className="text-sm text-slate-600">Remember me</span>
               </label>
-              <button type="button" onClick={() => alert('Please contact the HOD or Admin for password assistance.')} className="text-sm text-[#0e254f] hover:text-[#081a38] font-500 transition">Forgot Password?</button>
+              <button type="button" onClick={() => { setMode(mode === 'login' ? 'ask' : 'login'); setError(null); setNotice(null) }} className="text-sm text-[#0e254f] hover:text-[#081a38] font-500 transition">{mode === 'login' ? 'Forgot Password?' : 'Back to sign in'}</button>
             </div>
             <button
               type="submit"
               disabled={submitting}
               className="w-full text-white font-600 py-3 rounded-xl transition-all text-sm tracking-wide bg-gradient-to-br from-[#0e254f] to-[#081a38] ring-1 ring-[#f3c326]/60 shadow-[0_8px_24px_rgba(14,37,79,0.45)] hover:brightness-110 disabled:opacity-60"
             >
-              {submitting ? 'Signing In…' : 'Sign In to SCEDULAR'}
+              {submitting ? 'Please wait…' : mode === 'login' ? 'Sign In to SCEDULAR' : mode === 'ask' ? 'Email me a code' : 'Set new password'}
             </button>
           </div>
         </form>

@@ -8,7 +8,10 @@ const courseSchema = z.object({
   id: z.string().min(1),
   code: z.string().min(1),
   name: z.string().min(1),
-  componentType: z.enum(['INTEGRATED_THEORY', 'INTEGRATED_LAB', 'LAB_ONLY', 'THEORY_ONLY', 'MANDATORY', 'ADDITIONAL']),
+  componentType: z.enum([
+    'INTEGRATED_THEORY', 'INTEGRATED_LAB', 'LAB_ONLY', 'THEORY_ONLY',
+    'PROJECT',
+  ]),
   labBlockLength: z.number().int().positive().default(3),
 })
 

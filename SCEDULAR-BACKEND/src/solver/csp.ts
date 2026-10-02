@@ -13,6 +13,21 @@ const MAX_BACKTRACK_STEPS = 2_000_000
 export const MAX_SAME_COURSE_PER_DAY = 2
 export const MAX_SAME_COURSE_SAME_PERIOD_PER_WEEK = 2
 
+// Subjects with a heavy weekly load (6+ theory periods, e.g. Year 4 core
+// subjects in the department's printed timetable) cannot be spread at 2/day
+// without leaving other slots unfillable; the printed timetables themselves
+// put 3 periods of such a subject on one day. Light subjects keep the cap of 2.
+export const HEAVY_COURSE_WEEKLY_PERIODS = 6
+export const MAX_SAME_COURSE_PER_DAY_HEAVY = 3
+export function maxSameCoursePerDay(weeklyTheoryPeriods: number): number {
+  return weeklyTheoryPeriods >= HEAVY_COURSE_WEEKLY_PERIODS ? MAX_SAME_COURSE_PER_DAY_HEAVY : MAX_SAME_COURSE_PER_DAY
+}
+function weeklyTheoryOf(units: SchedulableUnit[]): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const u of units) if (u.blockType === 'THEORY') m.set(`${u.sectionId}:${u.courseId}`, (m.get(`${u.sectionId}:${u.courseId}`) ?? 0) + 1)
+  return m
+}
+
 interface Candidate {
   facultyId: string
   day: string
@@ -32,6 +47,7 @@ interface SolveContext {
   facultyWeeklyCount: Map<string, number>
   sectionDailyCount: Map<string, number> // `${sectionId}:${day}`
   sectionCourseDailyCount: Map<string, number> // `${sectionId}:${courseId}:${day}`
+  weeklyTheory: Map<string, number> // `${sectionId}:${courseId}` -> theory periods per week
   sectionCoursePeriodCount: Map<string, number> // `${sectionId}:${courseId}:${periodIndex}` -- column balance
   labBusy: Map<string, Map<string, number>>
   labCapacityById: Map<string, number>
@@ -70,6 +86,7 @@ function buildContext(
     facultyWeeklyCount: new Map(),
     sectionDailyCount: new Map(),
     sectionCourseDailyCount: new Map(),
+    weeklyTheory: new Map(),
     sectionCoursePeriodCount: new Map(),
     labBusy: new Map(),
     groups: contiguousGroups(config.periods),
@@ -127,7 +144,7 @@ function getDomain(unit: SchedulableUnit, ctx: SolveContext, positionFloor?: Can
 
       if (unit.blockType === 'THEORY') {
         const courseDayCount = ctx.sectionCourseDailyCount.get(`${unit.sectionId}:${unit.courseId}:${day}`) ?? 0
-        if (courseDayCount >= MAX_SAME_COURSE_PER_DAY) continue
+        if (courseDayCount >= maxSameCoursePerDay(ctx.weeklyTheory.get(`${unit.sectionId}:${unit.courseId}`) ?? 0)) continue
         for (const p of ctx.config.periods) {
           if (!p.schedulable) continue
           const key = slotKey(day, p.index)
@@ -178,6 +195,27 @@ function getDomain(unit: SchedulableUnit, ctx: SolveContext, positionFloor?: Can
   }
   domain.sort((a, b) => a.score - b.score || a.facultyId.localeCompare(b.facultyId))
   return domain
+}
+
+/**
+ * Bookings made by an earlier solve (another semester solved before this one): teachers and lab rooms are shared
+ * across years, so those slots, and the teachers' daily/weekly loads, are already spoken for.
+ */
+function seedContext(ctx: SolveContext, preplaced: Assignment[]) {
+  for (const a of preplaced) {
+    const len = a.endPeriod - a.startPeriod + 1
+    for (let p = a.startPeriod; p <= a.endPeriod; p++) {
+      const key = slotKey(a.day, p)
+      getSet(ctx.facultyBusy, a.facultyId).add(key)
+      if (a.labId) {
+        const usage = ctx.labBusy.get(a.labId) ?? new Map<string, number>()
+        usage.set(key, (usage.get(key) ?? 0) + 1)
+        ctx.labBusy.set(a.labId, usage)
+      }
+    }
+    ctx.facultyDailyCount.set(`${a.facultyId}:${a.day}`, (ctx.facultyDailyCount.get(`${a.facultyId}:${a.day}`) ?? 0) + len)
+    ctx.facultyWeeklyCount.set(a.facultyId, (ctx.facultyWeeklyCount.get(a.facultyId) ?? 0) + len)
+  }
 }
 
 function place(unit: SchedulableUnit, c: Candidate, ctx: SolveContext) {
@@ -536,9 +574,11 @@ function repairTheoryFacultyConflicts(records: ScheduledRecord[], ctx: SolveCont
   }
 }
 
-export function constructiveGreedy(units: SchedulableUnit[], faculty: Faculty[], unavailability: FacultyUnavailability[], config: ScheduleConfig, labsByCourse: Map<string, string[]>, labsBySectionCourse: Map<string, string[]>, labCapacityById: Map<string, number> = new Map()): ConstructiveResult {
+export function constructiveGreedy(units: SchedulableUnit[], faculty: Faculty[], unavailability: FacultyUnavailability[], config: ScheduleConfig, labsByCourse: Map<string, string[]>, labsBySectionCourse: Map<string, string[]>, labCapacityById: Map<string, number> = new Map(), preplaced: Assignment[] = []): ConstructiveResult {
   const ordered = constructiveOrder(units)
   const ctx = buildContext(faculty, unavailability, config, labsByCourse, labsBySectionCourse, labCapacityById)
+  seedContext(ctx, preplaced)
+  ctx.weeklyTheory = weeklyTheoryOf(units)
   const assignments: Assignment[] = []
   const scheduledRecords: ScheduledRecord[] = []
   const unscheduled: SchedulableUnit[] = []
@@ -558,7 +598,7 @@ export function constructiveGreedy(units: SchedulableUnit[], faculty: Faculty[],
         if (facultyDaily + unit.length > faculty.maxDailyPeriods) return false
         if (unit.blockType === 'THEORY') {
           const courseDay = ctx.sectionCourseDailyCount.get(`${unit.sectionId}:${unit.courseId}:${candidate.day}`) ?? 0
-          if (courseDay + 1 > MAX_SAME_COURSE_PER_DAY) return false
+          if (courseDay + 1 > maxSameCoursePerDay(ctx.weeklyTheory.get(`${unit.sectionId}:${unit.courseId}`) ?? 0)) return false
           const coursePeriod = ctx.sectionCoursePeriodCount.get(`${unit.sectionId}:${unit.courseId}:${candidate.startPeriod}`) ?? 0
           if (coursePeriod + 1 > MAX_SAME_COURSE_SAME_PERIOD_PER_WEEK) return false
         }
@@ -625,7 +665,9 @@ export function solve(
   config: ScheduleConfig,
   labsByCourse: Map<string, string[]>,
   labsBySectionCourse: Map<string, string[]>,
-  labCapacityById: Map<string, number> = new Map()
+  labCapacityById: Map<string, number> = new Map(),
+  preplaced: Assignment[] = [],
+  stepBudget: number = MAX_BACKTRACK_STEPS
 ): SolveResult {
   // Symmetry breaking is applied to identical demand units (same section, subject,
   // component, length, batch, faculty option set and lab option set): equivalent
@@ -644,13 +686,15 @@ export function solve(
   // search small enough to finish, because a unit with only one legal
   // slot left gets committed immediately instead of being deferred while
   // other, easier units eat the slots it needed.
-  const constructive = constructiveGreedy(units, faculty, unavailability, config, labsByCourse, labsBySectionCourse, labCapacityById)
+  const constructive = constructiveGreedy(units, faculty, unavailability, config, labsByCourse, labsBySectionCourse, labCapacityById, preplaced)
   if (constructive.conflictFree) return { assignments: constructive.assignments, unscheduled: [], budgetExceeded: false }
 
   const ordered = orderUnits(units)
   const n = ordered.length
   const symmetry = buildSymmetryInfo(ordered)
   const ctx = buildContext(faculty, unavailability, config, labsByCourse, labsBySectionCourse, labCapacityById)
+  seedContext(ctx, preplaced)
+  ctx.weeklyTheory = weeklyTheoryOf(units)
   const active = new Array<boolean>(n).fill(true)
   const assignedCandidate: (Candidate | null)[] = new Array(n).fill(null)
   let steps = 0
@@ -688,7 +732,7 @@ export function solve(
   function backtrack(remaining: number): boolean {
     if (remaining === 0) return true
     steps++
-    if (steps > MAX_BACKTRACK_STEPS) {
+    if (steps > stepBudget) {
       budgetExceeded = true
       return false
     }
@@ -740,7 +784,7 @@ export function solve(
   // step budget (search ran out of time, not proof of anything) -- the
   // greedy pass itself is not exhaustive and must never be mistaken for
   // that proof.
-  const constructiveFallback = constructiveGreedy(units, faculty, unavailability, config, labsByCourse, labsBySectionCourse, labCapacityById)
+  const constructiveFallback = constructiveGreedy(units, faculty, unavailability, config, labsByCourse, labsBySectionCourse, labCapacityById, preplaced)
   return { assignments: constructiveFallback.assignments, unscheduled: constructiveFallback.unscheduled, budgetExceeded }
 }
 
@@ -755,6 +799,7 @@ function greedyFallback(
   labCapacityById: Map<string, number> = new Map()
 ): SolveResult {
   const ctx = buildContext(faculty, unavailability, config, labsByCourse, labsBySectionCourse, labCapacityById)
+  ctx.weeklyTheory = weeklyTheoryOf(ordered)
   const assignments: Assignment[] = []
   const scheduledRecords: ScheduledRecord[] = []
   const unscheduled: SchedulableUnit[] = []

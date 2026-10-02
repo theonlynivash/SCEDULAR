@@ -21,6 +21,23 @@ function resolveApiBase(): string {
 
 export const API_BASE = resolveApiBase()
 
+/** Download a protected file (needs the session token, so a plain <a href> would not work). */
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const token = getSessionToken()
+  const res = await fetch(`${API_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (!res.ok) {
+    let msg = `Download failed (${res.status})`
+    try { const b = await res.json(); if (b?.message) msg = b.message } catch { /* keep default */ }
+    throw new Error(msg)
+  }
+  const name = /filename="?([^"]+)"?/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? fallbackName
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url; a.download = name
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+}
+
 import { getSessionToken } from './session'
 
 async function request<T>(path: string, options: RequestInit = {}, acceptedStatuses: number[] = []): Promise<T> {
@@ -36,13 +53,17 @@ async function request<T>(path: string, options: RequestInit = {}, acceptedStatu
   })
   if (!res.ok && !acceptedStatuses.includes(res.status)) {
     let message = `Request failed (${res.status})`
+    let code: string | undefined
     try {
       const body = await res.json()
-      message = typeof body.error === 'string' ? body.error : JSON.stringify(body.error ?? body)
+      code = typeof body.error === 'string' ? body.error : undefined
+      message = typeof body.message === 'string' && body.message
+        ? body.message
+        : typeof body.error === 'string' ? body.error : JSON.stringify(body.error ?? body)
     } catch {
       // ignore, use default message
     }
-    throw new Error(message)
+    throw Object.assign(new Error(message), { code, status: res.status })
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
@@ -50,7 +71,12 @@ async function request<T>(path: string, options: RequestInit = {}, acceptedStatu
 
 // ---------- Types (mirrors SCEDULAR-BACKEND/src/types.ts) ----------
 
-export type ComponentType = 'INTEGRATED_THEORY' | 'INTEGRATED_LAB' | 'LAB_ONLY' | 'THEORY_ONLY' | 'MANDATORY' | 'ADDITIONAL'
+export type ComponentType =
+  | 'INTEGRATED_THEORY'
+  | 'INTEGRATED_LAB'
+  | 'LAB_ONLY'
+  | 'THEORY_ONLY'
+  | 'PROJECT'
 
 export interface FacultyUnavailability {
   day: string
@@ -61,6 +87,11 @@ export interface Faculty {
   id: string
   name: string
   designation: string | null
+  previousExperience?: number
+  currentExperience?: number
+  allocationExperience?: number
+  email?: string | null
+  role?: "HOD" | "FACULTY"
   maxDailyPeriods: number
   maxWeeklyPeriods: number
   unavailability: FacultyUnavailability[]
@@ -72,6 +103,8 @@ export interface Section {
   year: string | null
   semester: string | null
   studentCount?: number | null
+  active?: boolean
+  classIncharge?: string | null
 }
 
 export interface Course {
@@ -89,10 +122,25 @@ export interface Lab {
   courseIds: string[]
 }
 
-export type SubjectDeliveryType = 'THEORY' | 'LAB' | 'INTEGRATED'
-export type SubjectCategory = 'CORE' | 'ELECTIVE' | 'MANDATORY' | 'ADDITIONAL' | 'OTHER'
+export type SubjectDeliveryType = 'THEORY' | 'INTEGRATED' | 'LAB' | 'PROJECT'
+export type SubjectCategory =
+  | 'CORE'
+  | 'BASIC_SCIENCE'
+  | 'ENGINEERING_SCIENCE'
+  | 'HUMANITIES'
+  | 'INTEGRATED'
+  | 'THEORY'
+  | 'LAB_ONLY'
+  | 'MANDATORY'
+  | 'ADDITIONAL'
+  | 'PROFESSIONAL_ELECTIVE'
+  | 'OPEN_ELECTIVE'
+  | 'PROJECT'
+  | 'TRAINING'
+  | 'VALUE_ADDED'
+  | 'OTHER'
 export type TeachingComponent = 'THEORY' | 'LAB'
-export interface Subject { id: string; code: string; name: string; deliveryType: SubjectDeliveryType; category: SubjectCategory }
+export interface Subject { id: string; code: string; name: string; shortName?: string | null; deliveryType: SubjectDeliveryType; category: SubjectCategory; year?: string; semester?: string; theoryPeriods?: number; labPeriods?: number; credits?: number; vertical?: string | null }
 export interface SectionSubject { id: number; sectionId: string; subjectId: string; theoryPeriods: number; labPeriods: number; labBlockLength: number | null }
 export interface TeachingAssignment { id: number; facultyId: string; sectionSubjectId: number; component: TeachingComponent; batch: string | null }
 
@@ -241,7 +289,7 @@ export interface FacultySubjectDTO {
   code: string
   name: string
   category: string | null
-  deliveryType: 'THEORY' | 'LAB' | 'INTEGRATED'
+  deliveryType: 'THEORY' | 'INTEGRATED' | 'LAB' | 'PROJECT'
   credits: number | null
   theoryPeriods: number | null
   labPeriods: number | null
@@ -344,6 +392,7 @@ export interface SubjectDemandDTO {
   approvedCount: number
   requestedSectionTotal: number
   approvedSectionTotal: number
+  assignedSections?: number
 }
 
 export interface PreferenceItemPayload {
@@ -352,9 +401,69 @@ export interface PreferenceItemPayload {
   academicYear?: string
   semester?: string
   preferenceRank: number
-  requestedSections: number
-  labConfirmed: boolean
+  requestedSections?: number
+  labConfirmed?: boolean
 }
+
+export interface AssignBoardSubject {
+  subjectId: string
+  code: string
+  name: string
+  year: string
+  deliveryType: string
+  perSection: { theory: number; lab: number }
+  sectionCount: number
+  assignedCount: number
+  sections: { sectionId: string; sectionName: string; theoryPeriods: number; labPeriods: number; facultyId: string | null; facultyName: string | null; complete: boolean }[]
+  interested: { facultyId: string; facultyName: string; rank: number; approved: boolean }[]
+  teachers: { facultyId: string; facultyName: string; sectionIds: string[]; theory: number; lab: number }[]
+}
+export interface SetupSubject {
+  id: string; code: string; name: string; year: string | null; semester: string | null
+  deliveryType: 'THEORY' | 'INTEGRATED' | 'LAB' | 'PROJECT'; category: string; credits: number
+  theoryPeriods: number; labPeriods: number
+  sectionIds: string[]; sectionNames: string[]; labIds: string[]; staffed: number
+  shortName: string | null; ltp: [number, number, number] | null; printAs: 'THEORY' | 'PRACTICAL' | null
+}
+export interface SetupSubjectInput {
+  code: string; name: string; semester: string; deliveryType: 'THEORY' | 'INTEGRATED' | 'LAB'
+  theoryPeriods: number; labPeriods: number; credits?: number; category?: string; sectionIds?: string[]; labIds?: string[]
+  shortName?: string | null; ltp?: [number, number, number] | null; printAs?: 'THEORY' | 'PRACTICAL' | null
+}
+export interface SetupOverview {
+  cycle: string
+  semesters: { semester: string; year: string; sections: number; subjects: number; subjectsOffered: number; offerings: number; staffed: number; choices: number; choicesPending: number }[]
+  teachers: { total: number; withLogin: number }
+  labs: number
+}
+export interface FacultyResultRow {
+  id: number; academicYear: string; semester: string; subjectId?: string | null; subjectCode?: string | null; subjectName: string
+  sectionsHandled?: number | null; studentsAppeared?: number | null; passPercent: number; createdAt: string
+}
+export interface ResultSummary {
+  count: number; average: number | null; weightedAverage: number | null; best: number | null; lowest: number | null
+  bySemester: { label: string; average: number; entries: number }[]
+}
+export interface MailStatus { configured: boolean; mode: 'smtp' | 'json' | 'fail' | 'off'; from: string | null }
+export interface MailLogRow { id: number; facultyId: string; to: string; subject: string; credentials: 'none' | 'id' | 'new'; sentBy: string; sentAt: string }
+
+export interface IssuedLogin { facultyId: string; name: string; password: string }
+
+export interface AutoAssignResult {
+  dryRun: boolean
+  assignedSections: number
+  plan: { subjectId: string; code: string; name: string; facultyId: string; facultyName: string; sectionIds: string[]; periods: number; loadAfter: number; max: number }[]
+  leftover: { subjectId: string; code: string; name: string; remaining: number; reason: string }[]
+}
+export interface AssignBoard {
+  semester: string
+  cycle: string
+  subjects: AssignBoardSubject[]
+  teachers: { facultyId: string; name: string; experience: number | null; load: number; max: number }[]
+}
+
+export interface MsgThread { id: string; name: string; designation: string | null; lastText: string | null; lastAt: string | null; lastFromMe: boolean | null; unread: number }
+export interface ChatMsg { id: number; fromId: string; toId: string; text: string; sentAt: string; readAt: string | null }
 
 export const api = {
   auth: {
@@ -363,6 +472,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ facultyId, password }),
       }),
+    forgot: (identifier: string) =>
+      request<{ success: boolean; message: string; sentTo?: string }>('/auth/forgot', { method: 'POST', body: JSON.stringify({ identifier }) }),
+    reset: (identifier: string, code: string, newPassword: string) =>
+      request<{ success: boolean; message: string }>('/auth/reset', { method: 'POST', body: JSON.stringify({ identifier, code, newPassword }) }),
     logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
     me: () => request<AuthUser>('/auth/me'),
   },
@@ -480,6 +593,54 @@ export const api = {
     conflicts: (runId: number) =>
       request<{ runId: number; conflicts: Conflict[]; unscheduled: unknown[] }>(`/timetable/conflicts/${runId}`),
   },
+  results: {
+    mine: () => request<{ results: FacultyResultRow[]; summary: ResultSummary }>('/faculty/results'),
+    add: (b: { academicYear: string; semester: string; subjectId?: string | null; subjectName?: string; subjectCode?: string | null; sectionsHandled?: number | null; studentsAppeared?: number | null; passPercent: number }) =>
+      request<FacultyResultRow>('/faculty/results', { method: 'POST', body: JSON.stringify(b) }),
+    remove: (id: number) => request<{ success: boolean }>(`/faculty/results/${id}`, { method: 'DELETE' }),
+    hodOverview: () => request<Record<string, { count: number; average: number | null; weightedAverage: number | null }>>('/hod/faculty-results'),
+    hodAll: () => request<{ teachers: { facultyId: string; name: string; designation: string | null; results: FacultyResultRow[]; summary: ResultSummary }[]; totalTeachers: number }>('/hod/faculty-results-all'),
+    hodDetail: (facultyId: string) => request<{ results: FacultyResultRow[]; summary: ResultSummary }>(`/hod/faculty-results/${encodeURIComponent(facultyId)}`),
+  },
+  contact: {
+    update: (b: { email?: string | null; phone?: string | null }) => request<{ email: string | null; phone: string | null }>('/faculty/me/contact', { method: 'PATCH', body: JSON.stringify(b) }),
+  },
+  messages: {
+    threads: () => request<MsgThread[]>('/messages/threads'),
+    unread: () => request<{ count: number }>('/messages/unread'),
+    thread: (otherId: string) => request<ChatMsg[]>(`/messages/thread/${encodeURIComponent(otherId)}`),
+    send: (toId: string, text: string) => request<ChatMsg>('/messages', { method: 'POST', body: JSON.stringify({ toId, text }) }),
+  },
+  assistant: {
+    chat: (messages: { role: 'user' | 'assistant'; content: string }[]) =>
+      request<{ reply: string; drafts: { facultyId: string; name: string; email: string | null; subject: string; body: string }[] }>('/assistant/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
+  },
+  mail: {
+    status: () => request<MailStatus>('/hod/mail/status'),
+    check: () => request<{ ok: boolean; message: string }>('/hod/mail/check', { method: 'POST' }),
+    draft: (facultyId: string, prompt: string) => request<{ subject: string; body: string; source: 'ai' | 'template' }>('/hod/mail/draft', { method: 'POST', body: JSON.stringify({ facultyId, prompt }) }),
+    send: (b: { facultyId: string; subject: string; body: string; credentials: 'none' | 'id' | 'new' }) => request<{ sent: boolean; to: string }>('/hod/mail/send', { method: 'POST', body: JSON.stringify(b) }),
+    log: (facultyId: string) => request<MailLogRow[]>(`/hod/mail/log?facultyId=${encodeURIComponent(facultyId)}`),
+  },
+  setup: {
+    overview: () => request<SetupOverview>('/setup/overview'),
+    listSubjects: () => request<SetupSubject[]>('/setup/subjects'),
+    createSubject: (b: SetupSubjectInput) => request<{ id: string }>('/setup/subjects', { method: 'POST', body: JSON.stringify(b) }),
+    updateSubject: (id: string, b: SetupSubjectInput) => request<{ id: string }>(`/setup/subjects/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(b) }),
+    deleteSubject: (id: string) => request<{ success: boolean }>(`/setup/subjects/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    createSections: (semester: string, count: number) => request<{ created: string[] }>('/setup/sections', { method: 'POST', body: JSON.stringify({ semester, count }) }),
+    setClassIncharge: (id: string, facultyId: string | null) => request<{ id: string; classIncharge: string | null }>(`/setup/sections/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ classIncharge: facultyId }) }),
+    deleteSection: (id: string) => request<{ success: boolean }>(`/setup/sections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    createTeacher: (b: { name: string; designation?: string | null; email?: string | null; allocationExperience?: number; maxWeeklyPeriods?: number }) =>
+      request<IssuedLogin>('/setup/faculty', { method: 'POST', body: JSON.stringify(b) }),
+    updateTeacher: (id: string, b: { name?: string; designation?: string | null; email?: string | null; allocationExperience?: number; maxWeeklyPeriods?: number }) =>
+      request<any>(`/setup/faculty/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(b) }),
+    issueLogin: (id: string, password?: string) => request<IssuedLogin>(`/setup/faculty/${encodeURIComponent(id)}/credentials`, { method: 'POST', body: JSON.stringify({ password }) }),
+    issueMissingLogins: () => request<{ issued: IssuedLogin[] }>('/setup/faculty-credentials/missing', { method: 'POST' }),
+    logins: () => request<Record<string, boolean>>('/setup/faculty-logins'),
+    deleteTeacher: (id: string) => request<{ success: boolean }>(`/setup/faculty/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    resetBlank: (password: string, confirm: string) => request<{ success: boolean }>('/setup/reset-blank', { method: 'POST', body: JSON.stringify({ password, confirm }) }),
+  },
   facultyAllocation: {
     // Identity always comes from the authenticated session — these calls send no
     // client-trusted facultyId. The backend resolves (and re-verifies) it.
@@ -514,6 +675,7 @@ export const api = {
         allowedSemesters: string[]
         semester: string | null
         year: string | null
+        summary: { totalFaculty: number; submitted: number; approved: number; changesRequested: number; rejected: number; notSubmitted: number }
         preferences: any[]
         facultyRows: any[]
         demand: any[]
@@ -558,5 +720,32 @@ export const api = {
       request<{ reply: string }>('/ai/chat', { method: 'POST', body: JSON.stringify({ message, role }) }),
     getReadiness: () =>
       request<{ readiness: Array<import('./types').SemesterReadiness> }>('/readiness'),
+    // Workload Templates & Allocation (Phase 2 V1)
+    getWorkloadTemplates: () => request<Array<{ id: string; name: string; theoryPeriodsPerSection: number; labPeriodsPerSection: number; description?: string }>>('/workload-templates'),
+    createWorkloadTemplate: (data: { name: string; theoryPeriodsPerSection: number; labPeriodsPerSection: number; description?: string }) =>
+      request<{ id: string; name: string; theoryPeriodsPerSection: number; labPeriodsPerSection: number; description?: string }>('/workload-templates', { method: 'POST', body: JSON.stringify(data) }),
+    updateWorkloadTemplate: (id: string, data: { name: string; theoryPeriodsPerSection: number; labPeriodsPerSection: number; description?: string }) =>
+      request<{ id: string; name: string; theoryPeriodsPerSection: number; labPeriodsPerSection: number; description?: string }>(`/workload-templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteWorkloadTemplate: (id: string) =>
+      request<{ success: boolean }>(`/workload-templates/${id}`, { method: 'DELETE' }),
+    getWorkloadSummary: (semester: string) =>
+      request<{ semester: string; activeSectionCount: number; subjectSummaries: any[]; facultySummaries: any[]; stagedAllocations?: any[] }>(`/hod/workload-summary?semester=${encodeURIComponent(semester)}`),
+    allocateWorkload: (data: { semester: string; subjectId: string; templateId: string; facultyId: string; assignedSectionIds?: string[] }) =>
+      request<any>('/hod/allocate-workload', { method: 'POST', body: JSON.stringify(data) }),
+    approveWorkloadAllocation: (semester: string, subjectId?: string) =>
+      request<{ success: boolean; approvedAllocationsCount: number; syncedTeachingAssignmentsCount: number }>('/hod/approve-workload-allocation', { method: 'POST', body: JSON.stringify({ semester, subjectId }) }),
+    getAssignBoard: (semester: string) =>
+      request<AssignBoard>(`/hod/assign-board?semester=${encodeURIComponent(semester)}`),
+    assignSections: (data: { semester: string; subjectId: string; facultyId: string; sectionCount?: number; sectionIds?: string[]; override?: boolean }) =>
+      request<{ success: boolean; assignedSectionIds: string[]; addedPeriods: number; facultyLoad: number; facultyMax: number }>('/hod/assign', { method: 'POST', body: JSON.stringify(data) }),
+    changePreferenceSubject: (id: number, subjectId: string) =>
+      request<{ success: boolean }>(`/hod/preferences/${id}/change`, { method: 'POST', body: JSON.stringify({ subjectId }) }),
+    deletePreference: (id: number) =>
+      request<{ success: boolean }>(`/hod/preferences/${id}`, { method: 'DELETE' }),
+    autoAssign: (data: { semester: string; subjectId?: string; dryRun?: boolean }) =>
+      request<AutoAssignResult>('/hod/auto-assign', { method: 'POST', body: JSON.stringify(data) }),
+    unassignSections: (data: { subjectId: string; facultyId: string; sectionIds?: string[] }) =>
+      request<{ success: boolean; removed: number }>('/hod/unassign', { method: 'POST', body: JSON.stringify(data) }),
   },
 }
+

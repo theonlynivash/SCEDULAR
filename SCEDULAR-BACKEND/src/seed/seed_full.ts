@@ -27,6 +27,7 @@ import 'dotenv/config'
 //   different pages; "Mrs. Geriyashakthi" vs "Mrs. Giriyasakthi").
 
 import { ensureInitialized, pool } from '../db/client.js'
+import type { ComponentType } from '../types.js'
 import {
   setLabCourseMapping,
   upsertCourse,
@@ -41,7 +42,7 @@ interface CourseDef {
   id: string
   code: string
   name: string
-  componentType: 'INTEGRATED_THEORY' | 'INTEGRATED_LAB' | 'LAB_ONLY' | 'THEORY_ONLY' | 'MANDATORY' | 'ADDITIONAL'
+  componentType: ComponentType
   theory: number
   lab: number
   labBlockLength: number
@@ -97,14 +98,14 @@ async function main() {
     { id: 'OOP_LAB', code: '23AD1312L', name: 'Object Oriented Programming Paradigm Laboratory', componentType: 'INTEGRATED_LAB', theory: 0, lab: 3, labBlockLength: 3 },
     { id: 'DBMS', code: '23CS1312', name: 'Database Management Systems', componentType: 'INTEGRATED_THEORY', theory: 5, lab: 0, labBlockLength: 3 },
     { id: 'DBMS_LAB', code: '23CS1312L', name: 'Database Management Systems Laboratory', componentType: 'INTEGRATED_LAB', theory: 0, lab: 3, labBlockLength: 3 },
-    { id: 'COI', code: '23MC1002', name: 'Constitution of India', componentType: 'MANDATORY', theory: 1, lab: 0, labBlockLength: 3 },
-    { id: 'QAP', code: '23HS1302', name: 'Quantitative Aptitude Practices III', componentType: 'MANDATORY', theory: 1, lab: 0, labBlockLength: 3 },
-    { id: 'SCD', code: '23HS1301', name: 'Skills for Career Building and Development I', componentType: 'ADDITIONAL', theory: 2, lab: 0, labBlockLength: 3 },
-    { id: 'LIB', code: 'LIBRARY', name: 'Library', componentType: 'ADDITIONAL', theory: 1, lab: 0, labBlockLength: 3 },
+    { id: 'COI', code: '23MC1002', name: 'Constitution of India', componentType: 'THEORY_ONLY', theory: 1, lab: 0, labBlockLength: 3 },
+    { id: 'QAP', code: '23HS1302', name: 'Quantitative Aptitude Practices III', componentType: 'THEORY_ONLY', theory: 1, lab: 0, labBlockLength: 3 },
+    { id: 'SCD', code: '23HS1301', name: 'Skills for Career Building and Development I', componentType: 'THEORY_ONLY', theory: 2, lab: 0, labBlockLength: 3 },
+    { id: 'LIB', code: 'LIBRARY', name: 'Library', componentType: 'THEORY_ONLY', theory: 1, lab: 0, labBlockLength: 3 },
     { id: 'TSP', code: '23ES1311', name: 'Technical Skill Practices II', componentType: 'LAB_ONLY', theory: 0, lab: 2, labBlockLength: 2 },
   ]
   for (const c of COURSES) {
-    await upsertCourse({ id: c.id, code: c.code, name: c.name, componentType: c.componentType, labBlockLength: c.labBlockLength })
+    await upsertCourse({ id: c.id, code: c.code, name: c.name, componentType: c.componentType as any, labBlockLength: c.labBlockLength })
   }
 
   // -- Labs ------------------------------------------------------------------

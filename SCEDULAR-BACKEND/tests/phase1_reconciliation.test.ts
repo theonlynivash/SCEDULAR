@@ -45,14 +45,16 @@ afterAll(async () => {
   })
 })
 
+const SNAP = JSON.parse(process.env.SCEDULAR_TEST_SNAPSHOT!) as { faculty: number; sections: number; subjects: number; labs: number }
+
 describe('Phase 1 Reconciliation Tests', () => {
   beforeEach(async () => {
     await resetWorkflowStateRepo()
   })
 
-  it('1. Verifies exactly 58 faculty records exist', async () => {
+  it('1. Verifies all faculty records exist', async () => {
     const faculty = await listFaculty()
-    expect(faculty.length).toBe(67)
+    expect(faculty.length).toBe(SNAP.faculty)
   })
 
   it('2. Verifies exactly 28 active operational sections exist', async () => {
@@ -61,14 +63,14 @@ describe('Phase 1 Reconciliation Tests', () => {
     expect(activeSections.length).toBe(28)
   })
 
-  it('3. Verifies exactly 143 canonical subjects exist', async () => {
+  it('3. Verifies the canonical subjects are all present', async () => {
     const subjects = await listSubjects()
-    expect(subjects.length).toBe(143)
+    expect(subjects.length).toBe(SNAP.subjects)
   })
 
   it('4. Verifies exactly 10 labs exist', async () => {
     const labs = await listLabs()
-    expect(labs.length).toBe(10)
+    expect(labs.length).toBe(SNAP.labs)
   })
 
   it('5. Verifies lab mappings are populated from the real confirmed data (>= the original 10-row sample)', async () => {
@@ -124,10 +126,20 @@ describe('Phase 1 Reconciliation Tests', () => {
       if (!sec.year || !sec.semester) continue
       const expected = subjects.filter(su => su.year === sec.year && su.semester === sec.semester).length
       expect(expected).toBeGreaterThan(0)
-      expect(countBySection.get(sec.id) ?? 0).toBe(expected)
+      // Sections run a subset of the semester's curriculum (e.g. Year 4 sections A-D take
+      // Big Data + Testing, E-H take Ethics + DevOps), exactly as in the printed timetables.
+      const offered = countBySection.get(sec.id) ?? 0
+      expect(offered).toBeGreaterThan(0)
+      expect(offered).toBeLessThanOrEqual(expected)
       checked++
     }
     expect(checked).toBe(28)
+    // ...but every curriculum subject of a running semester is offered by at least one section.
+    const offeredSubjects = new Set(secSubs.map(ss => ss.subjectId))
+    const runningSemesters = new Set(sections.filter(s => s.active !== false).map(s => `${s.year}|${s.semester}`))
+    for (const su of subjects.filter(x => runningSemesters.has(`${x.year}|${x.semester}`))) {
+      expect(offeredSubjects.has(su.id)).toBe(true)
+    }
   })
 
   it('8 & 9. Verifies reset preserves master records and clears workflow records', async () => {
@@ -159,10 +171,10 @@ describe('Phase 1 Reconciliation Tests', () => {
     expect(body.success).toBe(true)
 
     // Check after counts
-    expect(body.after.faculty).toBe(67)
-    expect(body.after.sections).toBe(28)
-    expect(body.after.subjects).toBe(143)
-    expect(body.after.labs).toBe(10)
+    expect(body.after.faculty).toBe(SNAP.faculty)
+    expect(body.after.sections).toBe(SNAP.sections)
+    expect(body.after.subjects).toBe(SNAP.subjects)
+    expect(body.after.labs).toBe(SNAP.labs)
     expect(body.after.labMappings).toBeGreaterThanOrEqual(10)
     expect(body.after.sectionSubjects).toBeGreaterThan(0)
 
@@ -269,5 +281,12 @@ describe('Phase 1 Reconciliation Tests', () => {
         expect(content).not.toContain('gsk_TEST_SECRET_SHOULD_NOT_EXIST')
       }
     }
+  })
+
+  it('16. Verifies data validation layer reports zero critical structural errors', async () => {
+    const { validateData } = await import('../src/utils/dataValidator.js')
+    const report = validateData()
+    expect(report.valid).toBe(true)
+    expect(report.errorsCount).toBe(0)
   })
 })

@@ -8,17 +8,17 @@ import { preValidate } from '../src/solver/preValidate.js'
 
 describe('SCEDULAR — Core Workflow & Requirement Verification', () => {
 
-  // Test A: 58 real faculty exist
-  it('A: exactly 58 real faculty records exist in roster', () => {
-    expect(REAL_FACULTY_ROSTER.length).toBe(67)
+  it('A: real faculty records exist in roster (69 total)', () => {
+    expect(REAL_FACULTY_ROSTER.length).toBe(69)
     expect(REAL_FACULTY_ROSTER[0].id).toBe('FAC-001')
     expect(REAL_FACULTY_ROSTER[0].name).toBe('Dr.S.MALATHI')
     expect(REAL_FACULTY_ROSTER[57].id).toBe('FAC-058')
   })
 
-  // Test B: 28 operational sections exist
-  it('B: exactly 28 current operational sections exist in roster', () => {
-    expect(KNOWN_SECTIONS_ROSTER.length).toBe(28)
+  // Test B: 56 canonical sections exist (28 current operational + 28 EVEN-semester templates)
+  it('B: 56 canonical sections exist in roster (28 current operational)', () => {
+    expect(KNOWN_SECTIONS_ROSTER.length).toBe(56)
+    expect(KNOWN_SECTIONS_ROSTER.filter(s => s.active !== false).length).toBe(28)
   })
 
   // Test C: Authoritative syllabus canonical subjects exist
@@ -45,11 +45,11 @@ describe('SCEDULAR — Core Workflow & Requirement Verification', () => {
     expect(labIds).toContain('CC46')
   })
 
-  // Test E, F, G: Y2, Y3, Y4 Section Rosters
-  it('E–G: section rosters for Y2 (12), Y3 (8), Y4 (8) are valid', () => {
-    const y2 = KNOWN_SECTIONS_ROSTER.filter(s => s.year === 'Year 2')
-    const y3 = KNOWN_SECTIONS_ROSTER.filter(s => s.year === 'Year 3')
-    const y4 = KNOWN_SECTIONS_ROSTER.filter(s => s.year === 'Year 4')
+  // Test E, F, G: Y2, Y3, Y4 active Section Rosters
+  it('E–G: active section rosters for Y2 (12), Y3 (8), Y4 (8) are valid', () => {
+    const y2 = KNOWN_SECTIONS_ROSTER.filter(s => s.year === 'Year 2' && s.active !== false)
+    const y3 = KNOWN_SECTIONS_ROSTER.filter(s => s.year === 'Year 3' && s.active !== false)
+    const y4 = KNOWN_SECTIONS_ROSTER.filter(s => s.year === 'Year 4' && s.active !== false)
 
     expect(y2.length).toBe(12)
     expect(y3.length).toBe(8)
@@ -145,7 +145,7 @@ describe('SCEDULAR — Core Workflow & Requirement Verification', () => {
     const conflicts = preValidate({
       faculty: [{ id: 'FAC-001', name: 'Dr.S.MALATHI', designation: 'Prof', maxDailyPeriods: 6, maxWeeklyPeriods: 24 }],
       sections: [{ id: 'Y2-A', name: 'II Year AI&DS A', year: 'Year 2', semester: 'III' }],
-      subjects: [{ id: 'SUB-23CS1303', code: '23CS1303', name: 'DBMS', deliveryType: 'INTEGRATED', category: 'CORE' }],
+      subjects: [{ id: 'SUB-23CS1303', code: '23CS1303', name: 'DBMS', deliveryType: 'INTEGRATED', category: 'PROFESSIONAL CORE' }],
       sectionSubjects: [{ id: 1, sectionId: 'Y2-A', subjectId: 'SUB-23CS1303', theoryPeriods: 3, labPeriods: 2, labBlockLength: 2 }],
       teachingAssignments: [],
       unavailability: [],

@@ -1,3 +1,5 @@
+import { getSession } from '../session'
+import { time12 } from '../utils/time12'
 import { useEffect, useState } from 'react'
 import { PageHeader, Btn, GlassPanel, Chip } from './ui'
 import type { Page } from '../types'
@@ -20,8 +22,11 @@ import {
   type TimetableStatus,
 } from '../api'
 import { useScope, matchesScope } from '../scope'
+import DownloadTimetables from './DownloadTimetables'
+import { downloadFile } from '../api'
+import { cellLabel } from '../utils/subjectLabel'
 import type { SemesterReadiness } from '../types'
-import { AlertTriangle, Building2, CheckCircle2, CloudSun, Clock, Cpu, Info, Sun, UserRound, Utensils } from 'lucide-react'
+import { AlertTriangle, Download, Building2, CheckCircle2, CloudSun, Clock, Cpu, Sun, UserRound, Utensils } from 'lucide-react'
 
 function BackBtn({ navigate }: { navigate: (p: Page) => void }) {
   return (
@@ -44,53 +49,40 @@ export function GenerateTimetable({
   navigate: (p: Page) => void
   onGenerated: (runId: number) => void
 }) {
-  const [running, setRunning] = useState(false)
-  const [status, setStatus] = useState<TimetableStatus | null>(null)
-  const [conflictCount, setConflictCount] = useState(0)
-  const [error, setError] = useState<string | null>(null)
+  const [readiness, setReadiness] = useState<SemesterReadiness[]>([])
+  const [cycle, setCycle] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [dataset, setDataset] = useState<MasterDatasetStatus | null>(null)
-  const [lastGenerated, setLastGenerated] = useState<string | null>(null)
-  const [semesterReadiness, setSemesterReadiness] = useState<SemesterReadiness[]>([])
-  const [selectedKey, setSelectedKey] = useState<string>('')
-  const { scope } = useScope()
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<{ status: TimetableStatus; conflicts: number; placements: number; seconds: number; at: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [openRow, setOpenRow] = useState<string | null>(null)
+
+  const ODD = new Set(['I', 'III', 'V', 'VII'])
+  const EVEN = new Set(['II', 'IV', 'VI', 'VIII'])
 
   useEffect(() => {
-    setLoading(true)
-    Promise.all([
-      api.importMaster.status().catch(() => null),
-      api.facultyAllocation.getReadiness().catch(() => null),
-    ])
-      .then(([ds, rdnData]) => {
-        if (ds) setDataset(ds)
-        if (rdnData?.readiness) {
-          setSemesterReadiness(rdnData.readiness)
-          // Default the picker to the first (year, semester) that's actually
-          // ready to generate, so the HOD isn't left with a blocked context
-          // selected by accident. She can still switch to any other entry —
-          // e.g. "start from Year 4 Sem VII, then the others" — via the picker.
-          const firstReady = rdnData.readiness.find(r => r.canGenerate)
-          setSelectedKey(prev => prev || (firstReady ? `${firstReady.year}::${firstReady.semester}` : `${rdnData.readiness[0]?.year}::${rdnData.readiness[0]?.semester}`))
-        }
+    Promise.all([api.facultyAllocation.getReadiness(), api.facultyAllocation.getCycleContext().catch(() => null)])
+      .then(([rd, cy]) => {
+        const c = cy?.currentCycle ?? null
+        setCycle(c)
+        setReadiness((rd?.readiness ?? []).filter((r: SemesterReadiness) => c === 'BOTH' || (c === 'ODD' ? ODD.has(r.semester) : c === 'EVEN' ? EVEN.has(r.semester) : true)))
       })
-      .catch(e => setError(e instanceof Error ? e.message : 'Failed to load generation data'))
+      .catch(e => setError(e instanceof Error ? e.message : 'Could not load readiness.'))
       .finally(() => setLoading(false))
-  }, [scope.year, scope.semester])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const selected = semesterReadiness.find(r => `${r.year}::${r.semester}` === selectedKey) ?? null
-  const canGenerateSelected = !!selected?.canGenerate
+  // Semesters nobody runs (no sections) are not part of this department's timetable.
+  const rows = readiness.filter(r => (r.sectionCount ?? 0) > 0)
+  const ready = rows.filter(r => r.canGenerate)
 
   async function start() {
-    if (!selected) return
-    setRunning(true)
-    setError(null)
-    setStatus(null)
+    setRunning(true); setError(null); setResult(null)
+    const t0 = Date.now()
     try {
-      const result = await api.timetable.generate({ year: selected.year, semester: selected.semester })
-      setStatus(result.status)
-      setConflictCount(result.conflicts.length)
-      setLastGenerated(result.generatedAt)
-      onGenerated(result.runId)
+      const r = await api.timetable.generate()
+      setResult({ status: r.status, conflicts: r.conflicts.length, placements: r.assignments.length, seconds: Math.round((Date.now() - t0) / 1000), at: r.generatedAt })
+      onGenerated(r.runId)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed — is the SCEDULAR backend running?')
     } finally {
@@ -98,142 +90,61 @@ export function GenerateTimetable({
     }
   }
 
-  const done = status !== null
-  const counts = dataset?.counts ?? {}
-  const generationLabel = 'Current canonical dataset'
-  const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : 'Never'
-  const preflightChecks = [
-    { label: `Sections loaded (${counts.sections ?? 0})`, ok: (counts.sections ?? 0) > 0 },
-    { label: `Subjects loaded (${counts.subjects ?? 0})`, ok: (counts.subjects ?? 0) > 0 },
-    { label: `Faculty loaded (${counts.faculty ?? 0})`, ok: (counts.faculty ?? 0) > 0 },
-    { label: `Labs configured (${counts.labs ?? 0})`, ok: (counts.labs ?? 0) > 0 },
-  ]
-
   return (
-    <div>
-      <PageHeader title={`Generate timetable for ${generationLabel}`}>
+    <div className="space-y-4">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="font-display font-700 text-xl text-slate-900">Generate timetable</h1>
+          <p className="text-xs text-slate-500 mt-0.5">{cycle ?? '—'} cycle · every ready semester is solved together, so a teacher or lab room shared between years can never be double-booked.</p>
+        </div>
         <BackBtn navigate={navigate} />
-      </PageHeader>
+      </div>
 
-      {/* Semester picker — the HOD chooses which (year, semester) context to
-          generate, e.g. Year 4 / Sem VII first, then others, independent of
-          whether every other semester in the department is configured yet. */}
-      {semesterReadiness.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-slate-200/80 bg-white/70 px-5 py-4">
-          <p className="text-xs font-700 uppercase tracking-wider text-slate-500 mb-3">Choose a semester to generate</p>
-          <div className="flex flex-wrap gap-2">
-            {semesterReadiness.map(r => {
-              const key = `${r.year}::${r.semester}`
-              const active = key === selectedKey
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-slate-100 text-[11px] font-700 uppercase tracking-wider text-slate-400">Semesters</div>
+        {loading ? <p className="text-xs text-slate-400 px-4 py-6">Checking…</p> : rows.length === 0 ? (
+          <p className="text-xs text-slate-500 px-4 py-6">No semester has sections yet. Add sections and a syllabus in Settings first.</p>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {rows.map(r => {
+              const key = `${r.year}::${r.semester}`, open = openRow === key
               return (
-                <button
-                  key={key}
-                  onClick={() => setSelectedKey(key)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-600 border transition flex items-center gap-1.5 ${
-                    active
-                      ? 'border-[#0e254f] bg-[#0e254f] text-white'
-                      : r.canGenerate
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                      : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
-                  }`}
-                >
-                  {r.canGenerate ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-                  {r.year} — Sem {r.semester}
-                </button>
+                <div key={key}>
+                  <button onClick={() => !r.canGenerate && setOpenRow(open ? null : key)} className={`w-full px-4 py-2.5 flex items-center gap-3 text-left ${r.canGenerate ? 'cursor-default' : 'hover:bg-slate-50'}`}>
+                    {r.canGenerate ? <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" /> : <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />}
+                    <div className="flex-1"><p className="text-xs font-700 text-slate-800">{r.year} · Semester {r.semester}</p><p className="text-[11px] text-slate-500">{r.sectionCount} sections · {r.subjectCount} subjects</p></div>
+                    {r.canGenerate ? <span className="text-[11px] font-700 text-emerald-700">Ready</span> : <span className="text-[11px] font-700 text-amber-700">{r.missingItems.length} issue{r.missingItems.length === 1 ? '' : 's'} {open ? '▲' : '▼'}</span>}
+                  </button>
+                  {open && (
+                    <ul className="px-11 pb-3 space-y-0.5 text-[11px] text-amber-800 list-disc">
+                      {r.missingItems.slice(0, 8).map((m, i) => <li key={i}>{m}</li>)}
+                      {r.missingItems.length > 8 && <li>…and {r.missingItems.length - 8} more</li>}
+                    </ul>
+                  )}
+                </div>
               )
             })}
           </div>
-          {selected && (
-            <div className="mt-4 pt-4 border-t border-slate-200/70">
-              {selected.canGenerate ? (
-                <p className="text-xs font-600 text-emerald-700 flex items-center gap-1.5">
-                  <CheckCircle2 size={14} /> {selected.year} — Semester {selected.semester} is ready for generation ({selected.sectionCount ?? 0} sections, {selected.subjectCount ?? 0} subjects).
-                </p>
-              ) : (
-                <div>
-                  <p className="text-xs font-700 text-amber-800 flex items-center gap-1.5 mb-1.5">
-                    <AlertTriangle size={14} /> {selected.year} — Semester {selected.semester} cannot generate yet.
-                  </p>
-                  <ul className="text-xs text-amber-700 space-y-0.5 list-disc list-inside">
-                    {selected.missingItems.slice(0, 6).map((m, i) => <li key={i}>{m}</li>)}
-                    {selected.missingItems.length > 6 && <li>…and {selected.missingItems.length - 6} more</li>}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <GlassPanel strong className="p-6">
-          <div className="flex items-start justify-between gap-3 mb-6">
-            <div>
-              <p className="text-xs font-700 uppercase tracking-wider text-slate-500">Generation Scope</p>
-              <h2 className="font-display font-800 text-xl text-slate-900 mt-1">Department · {generationLabel}</h2>
-            </div>
-            <Info size={20} className="text-slate-400" strokeWidth={1.8} />
-          </div>
-          <div className="space-y-3">
-            {[
-              ['Sections loaded', counts.sections ?? 0],
-              ['Subjects loaded', counts.subjects ?? 0],
-              ['Faculty loaded', counts.faculty ?? 0],
-              ['Labs available', counts.labs ?? 0],
-            ].map(([label, value]) => (
-              <div key={label as string} className="flex items-center justify-between border-b border-slate-200/70 pb-3 text-sm last:border-0 last:pb-0">
-                <span className="text-slate-500">{label}</span>
-                <span className="font-700 text-slate-800">{loading ? '—' : value}</span>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-xs text-slate-500 mt-6 leading-relaxed">Pick a semester above to see its exact readiness. Generation is scoped to that semester only — other semesters can be completed and generated independently, whenever they're ready.</p>
-        </GlassPanel>
-
-        <GlassPanel strong className="p-6">
-          <div className="mb-6">
-            <p className="text-xs font-700 uppercase tracking-wider text-slate-500">Pre-flight Check</p>
-            <h2 className="font-display font-800 text-xl text-slate-900 mt-1">Generation status</h2>
-          </div>
-          <div className="space-y-4">
-            {preflightChecks.map(item => (
-              <div key={item.label} className="flex items-start gap-3 text-sm">
-                {item.ok ? <CheckCircle2 size={20} className="text-emerald-600 flex-shrink-0" strokeWidth={1.8} /> : <AlertTriangle size={20} className="text-amber-600 flex-shrink-0" strokeWidth={1.8} />}
-                <span className={item.ok ? 'text-slate-700' : 'text-amber-700'}>{item.label}</span>
-              </div>
-            ))}
-            <div className="flex items-start gap-3 text-sm pt-2 border-t border-slate-200/70">
-              <Clock size={20} className="text-slate-400 flex-shrink-0" strokeWidth={1.8} />
-              <span className="text-slate-500">Last generated: <span className="text-slate-700">{formatDate(lastGenerated)}</span></span>
-            </div>
-          </div>
-          {error && <p className="mt-5 text-sm text-rose-600">{error}</p>}
-        </GlassPanel>
+        )}
       </div>
-      <div className="mt-6 flex items-center justify-between gap-4 flex-wrap rounded-3xl border border-slate-200/80 bg-white/70 px-5 py-4 shadow-[0_6px_20px_rgba(7,20,51,0.08)]">
-        <div>
-          {status === 'GREEN' && <p className="text-sm font-600 text-emerald-700">Timetable generated with no conflicts.</p>}
-          {status === 'RED' && <p className="text-sm font-600 text-rose-700">{conflictCount} hard-constraint conflict{conflictCount !== 1 ? 's' : ''} found.</p>}
-          {!done && <p className="text-sm text-slate-600">{running ? 'Expanding requirements and validating the schedule…' : 'Review the checks, then run the scheduling pipeline.'}</p>}
+
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-4 flex items-center gap-4 flex-wrap">
+        <div className="flex-1 min-w-[220px]">
+          {running ? <p className="text-sm font-600 text-slate-700">Solving {ready.length} semester{ready.length === 1 ? '' : 's'} together… this can take up to a minute.</p>
+            : result ? (
+              result.status === 'GREEN'
+                ? <p className="text-sm font-700 text-emerald-700">✓ Timetable ready — {result.placements} placements, no clashes <span className="font-500 text-slate-500">({result.seconds}s)</span></p>
+                : <p className="text-sm font-700 text-rose-700">{result.conflicts} problem{result.conflicts === 1 ? '' : 's'} found — nothing was published.</p>
+            ) : <p className="text-sm text-slate-600">{ready.length === 0 ? 'No semester is ready yet.' : `${ready.length} of ${rows.length} semester${rows.length === 1 ? '' : 's'} ready to generate.`}</p>}
+          {error && <p className="text-xs text-rose-600 mt-1">{error}</p>}
         </div>
-        <div className="flex items-center gap-2">
-          {done && <Btn variant="secondary" onClick={() => navigate('timetable-result')}>{status === 'GREEN' ? 'View Results' : 'View Conflicts'}</Btn>}
-          {!done && (
-            <Btn
-              onClick={start}
-              disabled={running || loading || !canGenerateSelected}
-            >
-              <Cpu size={18} strokeWidth={1.8} />
-              {running ? 'Generating…' : selected ? `Generate ${selected.year} — Sem ${selected.semester}` : 'Generate Timetable'}
-            </Btn>
-          )}
-        </div>
+        {result?.status === 'GREEN' && <DownloadTimetables />}
+        {result && <Btn variant="secondary" onClick={() => navigate(result.status === 'GREEN' ? 'view-timetable' : 'timetable-result')}>{result.status === 'GREEN' ? 'View timetable' : 'View problems'}</Btn>}
+        <Btn onClick={start} disabled={running || loading || ready.length === 0}><Cpu size={16} strokeWidth={1.9} /> {running ? 'Generating…' : result ? 'Regenerate' : `Generate ${ready.length || ''} semester${ready.length === 1 ? '' : 's'}`}</Btn>
       </div>
     </div>
   )
 }
-
 
 export function TimetableResult({ navigate, runId }: { navigate: (p: Page) => void; runId: number | null }) {
   const [run, setRun] = useState<RunDetail | null>(null)
@@ -272,10 +183,10 @@ export function TimetableResult({ navigate, runId }: { navigate: (p: Page) => vo
     return (
       <div>
         <PageHeader title="Timetable Result"><BackBtn navigate={navigate} /></PageHeader>
-        <GlassPanel strong className="max-w-lg mx-auto text-center p-12">
-          <p className="text-slate-500 text-sm mb-4">No timetable has been generated in this session yet.</p>
-          <Btn onClick={() => navigate('generate')}>Go to Generate →</Btn>
-        </GlassPanel>
+        <div className="max-w-md mx-auto text-center py-16">
+          <p className="text-slate-400 text-sm mb-4">No timetable generated in this session.</p>
+          <Btn onClick={() => navigate('generate')}>Generate</Btn>
+        </div>
       </div>
     )
   }
@@ -504,7 +415,7 @@ function colorForCourse(courseId: string): string {
   return courseColorPalette[Math.abs(hash) % courseColorPalette.length]
 }
 
-export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
+export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void; role?: 'FACULTY' | 'HOD' }) {
   const { scope } = useScope()
   const [tab, setTab] = useState(0)
   const [sections, setSections] = useState<Section[]>([])
@@ -518,12 +429,13 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
   const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([])
   const [requirements, setRequirements] = useState<CourseRequirement[]>([])
   const [config, setConfig] = useState<ScheduleConfig | null>(null)
-  const [selectedFaculty, setSelectedFaculty] = useState('')
+  const [selectedFaculty, setSelectedFaculty] = useState(() => (role === 'HOD' ? '' : getSession()?.user.facultyId ?? ''))
   const [selectedSection, setSelectedSection] = useState('')
   const [selectedLab, setSelectedLab] = useState('')
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [error, setError] = useState<string | null>(null)
   const [hasMasterRun, setHasMasterRun] = useState<boolean | null>(null)
+  const isHod = role === 'HOD'
   const tabs = ['Faculty Timetable', 'Class Timetable', 'Lab Timetable']
 
   useEffect(() => {
@@ -589,7 +501,7 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
   // If the scope changed out from under a selection, drop it rather than
   // keep showing an out-of-scope entity's timetable.
   useEffect(() => {
-    if (selectedFaculty && !scopedFaculty.some(f => f.id === selectedFaculty)) setSelectedFaculty('')
+    if (selectedFaculty && facultyList.length > 0 && !scopedFaculty.some(f => f.id === selectedFaculty) && role === 'HOD') setSelectedFaculty('')
     if (selectedSection && !scopedSectionIds.has(selectedSection)) setSelectedSection('')
     if (selectedLab && !scopedLabs.some(l => l.id === selectedLab)) setSelectedLab('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -604,7 +516,7 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
         if (tab === 1 && selectedSection) setAssignments((await api.timetable.section(selectedSection)).assignments)
         if (tab === 2 && selectedLab) setAssignments((await api.timetable.lab(selectedLab)).assignments)
       } catch (e) {
-        setError('TIME TABLE GENERATION IS UNDER PROGRESS')
+        setError(isHod ? 'Failed to load timetable data' : 'TIME TABLE GENERATION IS UNDER PROGRESS')
       }
     }
     load()
@@ -642,7 +554,8 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
 
   function cellContent(a: Assignment): string[] {
     const targetId = a.subjectId ?? a.courseId
-    const cName = courseName(targetId)
+    // acronym on the grid (ARVR, NLP, DBMS LAB…); the full name is in the tooltip
+    const cName = cellLabel(subjects.find(s => s.id === targetId || s.code === targetId), courseName(targetId), a.blockType === 'LAB')
     if (tab === 0) return [cName, a.sectionId, labName(a.labId) ?? '']
     if (tab === 1) return [cName, facultyName(a.facultyId), labName(a.labId) ?? '']
     return [cName, a.sectionId, facultyName(a.facultyId)]
@@ -650,17 +563,41 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
 
   return (
     <div>
-      <PageHeader title="View Timetable" desc="Projections of the one authoritative master timetable — pulled live from the backend">
+      <PageHeader title="View Timetable">
+        {isHod && <DownloadTimetables />}
         <BackBtn navigate={navigate} />
       </PageHeader>
 
       {hasMasterRun === false && (
-        <GlassPanel strong className="max-w-lg mx-auto text-center p-12 mb-6">
-          <Cpu size={32} className="mx-auto text-slate-400 mb-4" strokeWidth={1.5} />
-          <p className="font-display font-700 text-lg text-slate-800 mb-2">No timetable has been generated yet</p>
-          <p className="text-slate-500 text-sm mb-6">Run the solver for a ready semester to populate faculty, class and lab timetable views.</p>
-          <Btn onClick={() => navigate('generate')}><Cpu size={18} strokeWidth={1.8} />Generate Timetable</Btn>
-        </GlassPanel>
+        <div className="max-w-lg mx-auto text-center py-20">
+          {isHod ? (
+            <>
+              <div className="mx-auto mb-5 w-20 h-20 rounded-full bg-[#0F4C81]/10 flex items-center justify-center shadow-sm">
+                <Cpu size={36} className="text-[#0F4C81]" strokeWidth={1.4} />
+              </div>
+              <p className="font-display font-800 text-xl text-slate-800 mb-1.5">No Timetable Generated Yet</p>
+              <p className="text-slate-400 text-sm mb-8 max-w-xs mx-auto">Generate a timetable to view it here. The AI scheduler will optimize faculty, section, and lab allocations.</p>
+              <button
+                onClick={() => navigate('generate')}
+                className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-gradient-to-r from-[#0F4C81] to-[#0e254f] text-white font-700 text-base shadow-lg shadow-[#0F4C81]/25 hover:from-[#0a3860] hover:to-[#0c1d42] hover:shadow-xl hover:shadow-[#0F4C81]/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+              >
+                <Cpu size={20} strokeWidth={2} />
+                Generate Timetable
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="mx-auto mb-5 w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center">
+                <svg className="w-10 h-10 text-amber-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              </div>
+              <p className="font-display font-800 text-xl text-slate-800 mb-1.5">Time Table Generation Under Progress</p>
+              <p className="text-slate-400 text-sm max-w-xs mx-auto">Please wait while the HOD generates the timetable.</p>
+            </>
+          )}
+        </div>
       )}
 
       {hasMasterRun !== false && (
@@ -674,6 +611,12 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
           ))}
         </div>
 
+        {tab === 0 && selectedFaculty && (
+          <button onClick={() => downloadFile(`/timetable/export/faculty/${encodeURIComponent(selectedFaculty)}`, 'Timetable.pdf').catch(e => setError(e.message))}
+            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-500 text-[#16367a] bg-white/40 ring-1 ring-[#16367a]/25 hover:bg-white/70 transition">
+            <Download size={14} /> {isHod ? 'Download PDF' : 'Download my timetable'}
+          </button>
+        )}
         {tab === 0 && (
           <select value={selectedFaculty} onChange={e => setSelectedFaculty(e.target.value)} className={selectCls} style={selectStyle}>
             <option value="">{scopedFaculty.length === 0 ? 'No faculty in this scope' : 'Select Faculty…'}</option>
@@ -703,18 +646,18 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
       {!config && !error && <p className="text-sm text-slate-400">Loading schedule…</p>}
 
       {config && (
-        <GlassPanel className="overflow-x-auto">
-          <table className="w-full text-xs" style={{ minWidth: 900 }}>
+        <GlassPanel className="overflow-x-auto hidden md:block">
+          <table className="w-full text-xs" style={{ minWidth: 820, tableLayout: 'fixed' }}>
             <thead>
               <tr>
                 <th className="px-4 py-3 text-left font-600 w-20 text-white align-middle rounded-tl-3xl" style={{ background: 'linear-gradient(135deg, #0e254f, #081a38)' }}>Day</th>
                 {columns.map(col =>
                   col.type === 'gap' ? (
-                    <th key={col.key} className="px-2 py-2 text-center font-600 text-white" style={{ background: '#d97706', minWidth: 70 }}>{col.label}</th>
+                    <th key={col.key} className="px-2 py-2 text-center font-600 text-white" style={{ background: '#d97706', width: 62 }}>{col.label}</th>
                   ) : (
-                    <th key={col.index} className="px-2 py-2 text-center font-500 text-white" style={{ background: 'linear-gradient(135deg, #0e254f, #081a38)', minWidth: 100 }}>
+                    <th key={col.index} className="px-2 py-2 text-center font-500 text-white" style={{ background: 'linear-gradient(135deg, #0e254f, #081a38)' }}>
                       <div className="font-700">{col.label}</div>
-                      <div className="font-400 text-white/70 text-xs">{col.start}–{col.end}</div>
+                      <div className="font-400 text-white/70 text-xs">{time12(col.start)}–{time12(col.end)}</div>
                     </th>
                   )
                 )}
@@ -747,9 +690,9 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
                       const lines = cellContent(a)
                       return (
                         <td key={ci} colSpan={span} className="px-1.5 py-1.5">
-                          <div className="rounded-lg p-2 min-h-[52px]" style={{ background: colorForCourse(a.courseId) }}>
-                            <p className="font-700 text-slate-800">{lines[0]}{a.blockType === 'LAB' ? ' (Lab)' : ''}</p>
-                            {lines[1] && <p className="text-slate-500 mt-0.5 leading-tight">{lines[1]}</p>}
+                          <div className="rounded-lg p-2 min-h-[52px] overflow-hidden" title={courseName(a.subjectId ?? a.courseId)} style={{ background: colorForCourse(a.courseId) }}>
+                            <p className="font-700 text-slate-800 text-[13px] tracking-wide">{lines[0]}</p>
+                            {lines[1] && <p className="text-slate-500 mt-0.5 leading-tight [overflow-wrap:anywhere]">{lines[1]}</p>}
                             {lines[2] && <p className="text-slate-400 mt-0.5">{lines[2]}</p>}
                           </div>
                         </td>
@@ -761,6 +704,44 @@ export function ViewTimetable({ navigate }: { navigate: (p: Page) => void }) {
             </tbody>
           </table>
         </GlassPanel>
+      )}
+
+      {/* phones: one card per day instead of the wide grid */}
+      {config && (
+        <div className="md:hidden space-y-3">
+          {(selectedFaculty || selectedSection || selectedLab) === '' && <p className="text-sm text-slate-500 text-center py-6">Choose {tab === 0 ? 'a teacher' : tab === 1 ? 'a section' : 'a lab'} above to see the week.</p>}
+          {(tab === 0 ? selectedFaculty : tab === 1 ? selectedSection : selectedLab) && workingDays.map(day => {
+            const rows = visibleAssignments.filter(a => a.day === day).sort((x, y) => x.startPeriod - y.startPeriod)
+            const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+            const isToday = day.toLowerCase().startsWith(todayName.slice(0, 3))
+            const periodCol = (i: number) => columns.find(c => c.type === 'period' && c.index === i) as Extract<GridColumn, { type: 'period' }> | undefined
+            return (
+              <section key={day} className={`rounded-2xl border p-3.5 ${isToday ? 'border-[#0e254f]/40 bg-white/80' : 'border-white/40 bg-white/45'}`}>
+                <h3 className="flex items-center gap-2 text-sm font-700 text-[#0e254f]">{day}{isToday && <span className="text-[10px] font-700 uppercase tracking-wider rounded-full bg-[#f3c326]/30 text-[#8a6500] px-2 py-0.5">Today</span>}<span className="ml-auto text-[11px] font-500 text-slate-400">{rows.length} class{rows.length === 1 ? '' : 'es'}</span></h3>
+                {rows.length === 0 ? <p className="text-xs text-slate-400 mt-2">Free day</p> : (
+                  <ul className="mt-2.5 space-y-2">
+                    {rows.map((a, i) => {
+                      const lines = cellContent(a)
+                      const from = periodCol(a.startPeriod), to = periodCol(a.endPeriod)
+                      return (
+                        <li key={i} className="flex gap-3 rounded-xl p-2.5" style={{ background: colorForCourse(a.courseId) }}>
+                          <div className="w-[68px] shrink-0 text-[11px] leading-tight text-slate-600 font-600">
+                            {from && to ? <>{time12(from.start)}<br />{time12(to.end)}</> : `P${a.startPeriod}`}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[13.5px] font-700 text-slate-800">{lines[0]}</p>
+                            <p className="text-[11.5px] text-slate-500 truncate">{courseName(a.subjectId ?? a.courseId)}</p>
+                            <p className="text-[11.5px] text-slate-500">{[lines[1], lines[2]].filter(Boolean).join(' · ')}</p>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </section>
+            )
+          })}
+        </div>
       )}
       </>
       )}

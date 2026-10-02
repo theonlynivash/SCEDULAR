@@ -308,7 +308,7 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
 
       <Section title="Also configurable">
         <div className="flex flex-wrap gap-3">
-          <Btn variant="secondary" onClick={() => navigate('subjects')}>Subject / Syllabus Catalog</Btn>
+          <Btn variant="secondary" onClick={() => navigate('settings')}>Subject / Syllabus Catalog</Btn>
           <Btn variant="secondary" onClick={() => navigate('faculty')}>Faculty Directory</Btn>
           <Btn variant="secondary" onClick={() => navigate('constraints')}>Period Grid &amp; Working Days</Btn>
         </div>

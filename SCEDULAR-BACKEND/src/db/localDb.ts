@@ -9,6 +9,7 @@ import { REGULATION_2024_CURRICULUM } from '../seed/curriculumRoster.js'
 import { KNOWN_SECTIONS_ROSTER, KNOWN_LABS_ROSTER, KNOWN_LAB_MAPPINGS } from '../seed/resourceRoster.js'
 import { CONFIRMED_TEACHING_ASSIGNMENTS_ODD } from '../seed/confirmedTeachingAssignments.js'
 import { CONFIRMED_LAB_MAPPINGS_ODD } from '../seed/confirmedLabMappings.js'
+import { deriveComponentType } from '../subjectConfig.js'
 import type {
   Assignment,
   Conflict,
@@ -26,13 +27,40 @@ import type {
   FacultySubjectPreference,
   FacultySubjectHistory,
   SessionRecord,
+  WorkloadTemplate,
+  FacultyWorkloadAllocation,
+  FacultyResult,
+  MailLogEntry,
+  ChatMessage,
 } from '../types.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DB_DIR = path.resolve(__dirname, '../../data')
-const DB_FILE = path.resolve(DB_DIR, 'scedular_local_db.json')
+// SCEDULAR_DB_FILE lets tests and separate datasets use their own database file.
+const DB_FILE = process.env.SCEDULAR_DB_FILE
+  ? path.resolve(process.env.SCEDULAR_DB_FILE)
+  : path.resolve(__dirname, '../../data/scedular_local_db.json')
+const DB_DIR = path.dirname(DB_FILE)
+
+export const DEFAULT_WORKLOAD_TEMPLATES: WorkloadTemplate[] = [
+  { id: 'WKL-T1L0', name: '1T + 0L (1 Theory / Section)', theoryPeriodsPerSection: 1, labPeriodsPerSection: 0, description: '1 Theory period per section' },
+  { id: 'WKL-T2L0', name: '2T + 0L (2 Theory / Section)', theoryPeriodsPerSection: 2, labPeriodsPerSection: 0, description: '2 Theory periods per section' },
+  { id: 'WKL-T3L0', name: '3T + 0L (3 Theory / Section)', theoryPeriodsPerSection: 3, labPeriodsPerSection: 0, description: '3 Theory periods per section' },
+  { id: 'WKL-T4L0', name: '4T + 0L (4 Theory / Section)', theoryPeriodsPerSection: 4, labPeriodsPerSection: 0, description: '4 Theory periods per section' },
+  { id: 'WKL-T2L2', name: '2T + 2L (Integrated 2T + 2L / Section)', theoryPeriodsPerSection: 2, labPeriodsPerSection: 2, description: '2 Theory + 2 Lab periods per section' },
+  { id: 'WKL-T3L2', name: '3T + 2L (Integrated 3T + 2L / Section)', theoryPeriodsPerSection: 3, labPeriodsPerSection: 2, description: '3 Theory + 2 Lab periods per section' },
+  { id: 'WKL-T4L4', name: '4T + 4L (4 Theory + 4 Lab / Section)', theoryPeriodsPerSection: 4, labPeriodsPerSection: 4, description: '4 Theory + 4 Lab periods per section' },
+  { id: 'WKL-T0L3', name: '0T + 3L (3 Lab Only / Section)', theoryPeriodsPerSection: 0, labPeriodsPerSection: 3, description: '3 Lab periods per section' },
+]
 
 export interface LocalDbState {
+  /**
+   * Once true the database file is the single source of truth: startup never merges the built-in
+   * seed rosters/curriculum back in (which would resurrect deleted teachers/assignments or overwrite
+   * subjects edited in the app).
+   */
+  appOwned?: boolean
+  /** facultyId -> bcrypt hash. Kept apart from the faculty rows so hashes never leak through faculty listings. */
+  facultyPasswords?: Record<string, string>
   faculty: Faculty[]
   sections: Section[]
   subjects: Subject[]
@@ -52,13 +80,22 @@ export interface LocalDbState {
   conflicts: Array<Conflict & { runId: number }>
   unscheduled: Array<SchedulableUnit & { runId: number }>
   sessions: SessionRecord[]
+  workloadTemplates: WorkloadTemplate[]
+  facultyWorkloadAllocations: FacultyWorkloadAllocation[]
+  facultyResults: FacultyResult[]
+  mailLog: MailLogEntry[]
+  messages: ChatMessage[]
+  nextMessageId: number
+  nextResultId: number
+  nextMailId: number
   nextPreferenceId: number
   nextRunId: number
   nextSectionSubjectId: number
   nextTeachingAssignmentId: number
+  nextWorkloadAllocationId: number
 }
 
-function deriveInitialCourses(subjects: Subject[]): Course[] {
+export function deriveInitialCourses(subjects: Subject[]): Course[] {
   const converted: Course[] = []
   for (const s of subjects) {
     if (s.deliveryType === 'INTEGRATED') {
@@ -85,12 +122,13 @@ function deriveInitialCourses(subjects: Subject[]): Course[] {
         labBlockLength: s.labPeriods || 3,
       })
     } else {
-      const comp = s.category === 'MANDATORY' ? 'MANDATORY' : s.category === 'ADDITIONAL' ? 'ADDITIONAL' : 'THEORY_ONLY'
+      // Map category + deliveryType to the correct ComponentType
+      const comp = deriveComponentType(s.category, s.deliveryType)
       converted.push({
         id: s.code,
         code: s.code,
         name: s.name,
-        componentType: comp,
+        componentType: comp as any,
         labBlockLength: 3,
       })
     }
@@ -104,6 +142,7 @@ function createDefaultDbState(): LocalDbState {
   const initialSectionSubjects = deriveCanonicalSectionSubjects(initialSections, initialSubjects)
   const initialTeachingAssignments = resolveConfirmedTeachingAssignments(initialSectionSubjects, initialSubjects)
   return {
+    appOwned: true,
     faculty: [...REAL_FACULTY_ROSTER] as Faculty[],
     sections: initialSections,
     subjects: initialSubjects,
@@ -154,14 +193,73 @@ function createDefaultDbState(): LocalDbState {
     conflicts: [],
     unscheduled: [],
     sessions: [],
+    workloadTemplates: [...DEFAULT_WORKLOAD_TEMPLATES],
+    facultyWorkloadAllocations: [],
+    facultyResults: [],
+    mailLog: [],
+    messages: [],
+    nextMessageId: 1,
+    nextResultId: 1,
+    nextMailId: 1,
     nextPreferenceId: 1,
     nextRunId: 1,
     nextSectionSubjectId: initialSectionSubjects.length + 1,
     nextTeachingAssignmentId: initialTeachingAssignments.length + 1,
+    nextWorkloadAllocationId: 1,
+  }
+}
+
+/** An empty dataset: no sections, subjects, teachers (except the HOD) or assignments. Labs and the period grid are kept. */
+export function createBlankDbState(): LocalDbState {
+  const base = createDefaultDbState()
+  return {
+    ...base,
+    appOwned: true,
+    faculty: base.faculty.filter(f => f.role === 'HOD'),
+    facultyPasswords: {},
+    sections: [],
+    subjects: [],
+    courses: [],
+    sectionSubjects: [],
+    teachingAssignments: [],
+    labMappings: [],
+    facultyUnavailability: [],
+    facultyPreferences: [],
+    facultySubjectHistory: [],
+    generationRuns: [],
+    assignments: [],
+    conflicts: [],
+    unscheduled: [],
+    sessions: [],
+    facultyWorkloadAllocations: [],
+    facultyResults: [],
+    mailLog: [],
+    messages: [],
+    nextMessageId: 1,
+    nextResultId: 1,
+    nextMailId: 1,
+    nextPreferenceId: 1,
+    nextRunId: 1,
+    nextSectionSubjectId: 1,
+    nextTeachingAssignmentId: 1,
+    nextWorkloadAllocationId: 1,
   }
 }
 
 let dbState: LocalDbState | null = null
+
+/** Replace the whole dataset with an empty one (keeps the HOD login, labs and period grid). */
+export function resetToBlankDb(): LocalDbState {
+  // Mutate in place: repo.ts holds a reference to this object, so replacing it would orphan that reference.
+  const target = getLocalDb() as unknown as Record<string, unknown>
+  const blank = createBlankDbState()
+  const hodIds = new Set(blank.faculty.map(f => f.id))
+  blank.sessions = ((target.sessions as SessionRecord[]) ?? []).filter(x => hodIds.has(x.facultyId)) // the HOD stays logged in
+  for (const k of Object.keys(target)) delete target[k]
+  Object.assign(target, blank)
+  saveLocalDbSync()
+  return dbState!
+}
 
 /**
  * Resolve the real, supplied ODD-semester confirmed-teaching-assignment seed
@@ -254,15 +352,82 @@ export function initLocalDb(): LocalDbState {
     if (fs.existsSync(DB_FILE)) {
       const content = fs.readFileSync(DB_FILE, 'utf-8')
       const parsed = JSON.parse(content)
+
+      if (parsed.appOwned) {
+        // The file is authoritative: no seed merging, no "repairs" (a legitimately empty table stays empty).
+        const base = createBlankDbState()
+        const merged: LocalDbState = { ...base, ...parsed }
+        merged.nextSectionSubjectId = Math.max(merged.nextSectionSubjectId ?? 1, ...merged.sectionSubjects.map(x => x.id + 1), 1)
+        merged.nextTeachingAssignmentId = Math.max(merged.nextTeachingAssignmentId ?? 1, ...merged.teachingAssignments.map(x => x.id + 1), 1)
+        dbState = merged
+        console.log(`[LocalDB] Loaded ${DB_FILE} (${merged.faculty.length} faculty, ${merged.subjects.length} subjects, ${merged.sections.length} sections, ${merged.labs.length} labs, ${merged.sectionSubjects.length} sectionSubjects)`)
+        return dbState
+      }
       const defaults = createDefaultDbState()
 
       // Use canonical sections and subjects from DB (or defaults if missing)
       const sections: Section[] = parsed.sections?.length ? parsed.sections : defaults.sections
       const subjects: Subject[] = parsed.subjects?.length ? parsed.subjects : defaults.subjects
 
+      // Migrate legacy subject categories to the canonical SubjectCategory enum.
+      // Old DB snapshots may contain LABORATORY, EMPLOYABILITY, PROFESSIONAL_CORE,
+      // "BASIC SCIENCE" (with spaces), ELECTIVE, etc.  Normalize them so the
+      // rest of the system sees only the canonical underscore-separated set.
+      let needsRepair = false
+      const legacyCategoryMap: Record<string, string> = {
+        LABORATORY: 'LAB_ONLY',
+        EMPLOYABILITY: 'ADDITIONAL',
+        PROFESSIONAL_CORE: 'CORE',
+        ELECTIVE: 'PROFESSIONAL_ELECTIVE',
+        'BASIC SCIENCE': 'BASIC_SCIENCE',
+        'ENGINEERING SCIENCE': 'ENGINEERING_SCIENCE',
+        'HUMANITIES': 'HUMANITIES',
+        'PROFESSIONAL ELECTIVE': 'PROFESSIONAL_ELECTIVE',
+        'OPEN ELECTIVE': 'OPEN_ELECTIVE',
+        BS: 'BASIC_SCIENCE',
+        ES: 'ENGINEERING_SCIENCE',
+        HS: 'HUMANITIES',
+        PC: 'CORE',
+        PE: 'PROFESSIONAL_ELECTIVE',
+        OE: 'OPEN_ELECTIVE',
+        EEC: 'ADDITIONAL',
+        MC: 'MANDATORY',
+        SKILL: 'ADDITIONAL',
+      }
+      let migrated = false
+      for (const s of subjects) {
+        const mapped = legacyCategoryMap[s.category]
+        if (mapped) {
+          s.category = mapped as any
+          migrated = true
+        }
+      }
+      if (migrated) {
+        needsRepair = true
+        console.log('[LocalDB] Migrated legacy subject categories to canonical enum')
+      }
+
+      // Sync canonical subject deliveryType, theoryPeriods, labPeriods from REGULATION_2024_CURRICULUM
+      const currMap = new Map(REGULATION_2024_CURRICULUM.map(c => [c.code, c]))
+      let dtMigrated = false
+      for (const s of subjects) {
+        const c = currMap.get(s.code)
+        if (c) {
+          if (s.deliveryType !== c.deliveryType || s.theoryPeriods !== c.theoryPeriods || s.labPeriods !== c.labPeriods) {
+            s.deliveryType = c.deliveryType as any
+            s.theoryPeriods = c.theoryPeriods
+            s.labPeriods = c.labPeriods
+            dtMigrated = true
+          }
+        }
+      }
+      if (dtMigrated) {
+        needsRepair = true
+        console.log('[LocalDB] Synced subject deliveryTypes & periods to canonical curriculum roster')
+      }
+
       // Repair sectionSubjects if missing or empty — derive canonically and persist
       let sectionSubjects: SectionSubject[]
-      let needsRepair = false
       if (!parsed.sectionSubjects?.length) {
         sectionSubjects = deriveCanonicalSectionSubjects(sections, subjects)
         needsRepair = true
@@ -362,6 +527,8 @@ export function initLocalDb(): LocalDbState {
         teachingAssignments,
         nextTeachingAssignmentId: Math.max(teachingAssignments.length + 1, parsed.nextTeachingAssignmentId ?? 1),
       }
+      merged.appOwned = true
+      needsRepair = true
       dbState = merged
 
       if (needsRepair) {
@@ -371,9 +538,11 @@ export function initLocalDb(): LocalDbState {
 
       console.log(`[LocalDB] Loaded ${DB_FILE} (${merged.faculty.length} faculty, ${merged.subjects.length} subjects, ${merged.sections.length} sections, ${merged.labs.length} labs, ${merged.sectionSubjects.length} sectionSubjects)`)
     } else {
-      dbState = createDefaultDbState()
+      // SCEDULAR_START_BLANK=true starts an empty dataset (build everything in the app);
+      // otherwise a new install begins with the bundled sample department.
+      dbState = process.env.SCEDULAR_START_BLANK === 'true' ? createBlankDbState() : createDefaultDbState()
       saveLocalDbSync()
-      console.log(`[LocalDB] Created new local database at ${DB_FILE}`)
+      console.log(`[LocalDB] Created new ${process.env.SCEDULAR_START_BLANK === 'true' ? 'blank' : 'sample'} local database at ${DB_FILE}`)
     }
   } catch (err) {
     console.warn(`[LocalDB] Failed to read ${DB_FILE}, initializing default state in memory:`, err)
@@ -387,6 +556,7 @@ export function resetWorkflowState(): LocalDbState {
   const db = getLocalDb()
   db.facultyPreferences = []
   db.teachingAssignments = []
+  db.facultyWorkloadAllocations = []
   db.generationRuns = []
   db.assignments = []
   db.conflicts = []
@@ -394,6 +564,7 @@ export function resetWorkflowState(): LocalDbState {
   db.nextPreferenceId = 1
   db.nextRunId = 1
   db.nextTeachingAssignmentId = 1
+  db.nextWorkloadAllocationId = 1
   saveLocalDbSync()
   console.log('[LocalDB] Reset workflow transaction state. Master entities preserved.')
   return db

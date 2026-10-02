@@ -1,3 +1,4 @@
+import { time12 } from '../utils/time12'
 import { useEffect, useRef, useState } from 'react'
 import { PageHeader, Btn, Section, GlassPanel, Chip } from './ui'
 import type { Page } from '../types'
@@ -275,7 +276,7 @@ export function ConstraintManagement({ navigate }: { navigate: (p: Page) => void
                 <div className="flex flex-wrap gap-2 mt-1">
                   {config.periods.map(p => (
                     <span key={p.index} className="px-2.5 py-1 rounded-lg text-xs font-mono glass-pill text-slate-600">
-                      {p.label} {p.start}–{p.end}
+                      {p.label} {time12(p.start)}–{time12(p.end)}
                     </span>
                   ))}
                 </div>

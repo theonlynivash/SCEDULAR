@@ -69,7 +69,15 @@ function FacultyPreferencesPanel({
         year: yearStr,
         subject: p.subjectName || p.subjectCode || 'Subject',
         code: p.subjectCode || '23ADXXXX',
-        type: p.deliveryType === 'LAB' ? 'Lab' : p.isCore ? 'Theory ★' : 'Theory',
+        // Type is derived from deliveryType only — category and delivery are
+        // independent axes, so "core-ness" (category) never changes the badge.
+        type: p.deliveryType === 'LAB'
+          ? 'Lab'
+          : p.deliveryType === 'INTEGRATED'
+            ? 'Theory + Lab'
+            : p.deliveryType === 'PROJECT'
+              ? 'Project'
+              : 'Theory',
         sections: p.requestedSections || p.targetSections || 1,
         labLinked: !!p.relatedLabCode || p.deliveryType === 'INTEGRATED',
         submitted: p.status === 'SUBMITTED' || p.status === 'APPROVED' || true,

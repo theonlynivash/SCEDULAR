@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import type { AcademicCycle } from '../academicCycle'
 import { ShieldCheck, RotateCcw, Bot, Info, Plus, Trash2 } from 'lucide-react'
+import type { Page } from '../types'
+import SetupOverviewTab from './SetupOverviewTab'
+import SetupSyllabusTab from './SetupSyllabusTab'
+import SetupDatasetTab from './SetupDatasetTab'
+import SetupInchargeTab from './SetupInchargeTab'
+import { PillTabs } from './ui'
 
 interface AllocationBand {
   id: string
@@ -22,7 +28,7 @@ interface AllocationConfig {
 
 const ALL_YEARS = ['Year 1', 'Year 2', 'Year 3', 'Year 4']
 
-export default function HodSettings() {
+function PolicyAndCycle() {
   const [config, setConfig] = useState<AllocationConfig | null>(null)
   const [cycle, setCycle] = useState<AcademicCycle | null>(null)
   const [loading, setLoading] = useState(true)
@@ -136,14 +142,7 @@ export default function HodSettings() {
   if (!config) return <div className="p-8 text-center text-sm text-rose-600">Failed to load settings.</div>
 
   return (
-    <div className="space-y-5 max-w-4xl">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-6 py-4">
-        <h1 className="font-display font-800 text-lg text-[#0F4C81] flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5" /> HOD Settings
-        </h1>
-        <p className="text-slate-500 text-xs mt-1">Configure the allocation policy, academic cycle, and SCEDULAR AI access for this department.</p>
-      </div>
-
+    <div className="space-y-5">
       {notice && (
         <div className={`px-4 py-3 rounded-xl flex items-center justify-between border text-xs font-600 shadow-sm ${notice.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
           <span>{notice.message}</span>
@@ -159,9 +158,6 @@ export default function HodSettings() {
             <Plus className="w-3.5 h-3.5" /> Add Band
           </button>
         </div>
-        <p className="text-xs text-slate-500">
-          Bands determine which years a faculty member can select preferences for, based on their allocation experience (set individually by each teacher on their own profile — never inferred from designation).
-        </p>
         <div className="space-y-3">
           {config.bands.map((band, idx) => (
             <div key={band.id} className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5">
@@ -217,7 +213,7 @@ export default function HodSettings() {
 
       {/* 2. Academic Cycle + Reset */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-700 text-slate-800">Academic Cycle &amp; Allocation Reset</h2>
+        <h2 className="text-sm font-700 text-slate-800">Academic Cycle</h2>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">Current cycle:</span>
           {(['ODD', 'EVEN', 'BOTH'] as AcademicCycle[]).map(c => (
@@ -230,30 +226,33 @@ export default function HodSettings() {
               {c}
             </button>
           ))}
-        </div>
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Locked action — changing the cycle requires your HOD password. Faculty only see and submit preferences for the current cycle's semesters (e.g. ODD subjects only while ODD is active), so switching this affects which syllabus every teacher sees.
-        </p>
-        <div className="pt-3 border-t border-slate-100">
-          <p className="text-xs text-slate-500 mb-2">
-            Starting a new allocation cycle closes the current faculty preference round: it clears preferences, teaching assignments and generated timetables (master data — faculty, subjects, sections, labs — is never touched), and clears every faculty's allocation experience so each teacher must complete their profile again before submitting new preferences.
-          </p>
-          <button
-            onClick={() => setShowResetModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-700 hover:bg-rose-100"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Start New Allocation Cycle
-          </button>
+          <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-700">
+            {cycle} SEMESTER LOCKED
+          </span>
         </div>
       </div>
 
-      {/* 3. AI toggle */}
+      {/* 3. Allocation Reset */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <h2 className="text-sm font-700 text-slate-800">Reset Allocation Cycle</h2>
+        <button
+          onClick={() => setShowResetModal(true)}
+          className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white font-700 text-sm shadow-lg hover:from-rose-600 hover:to-rose-700 transition-all hover:shadow-xl hover:-translate-y-0.5"
+        >
+          <RotateCcw className="w-5 h-5" />
+          <div className="text-left">
+            <div>Start New Allocation Cycle</div>
+            <div className="text-[11px] font-500 text-rose-100">Clears preferences, assignments &amp; timetables</div>
+          </div>
+        </button>
+      </div>
+
+      {/* 4. AI toggle */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#0F4C81]/10 text-[#0F4C81]"><Bot className="w-4.5 h-4.5" /></span>
           <div>
             <h2 className="text-sm font-700 text-slate-800">SCEDULAR AI for Faculty</h2>
-            <p className="text-xs text-slate-500">Enable or disable the AI chat assistant for FACULTY users. HOD access is unaffected. The motivational quote card always shows regardless of this setting.</p>
           </div>
         </div>
         <button
@@ -265,7 +264,7 @@ export default function HodSettings() {
         </button>
       </div>
 
-      {/* 4. Other info */}
+      {/* 5. Other info */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
         <h2 className="text-sm font-700 text-slate-800 flex items-center gap-2 mb-3"><Info className="w-4 h-4 text-[#0F4C81]" /> Department Snapshot</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -340,6 +339,36 @@ export default function HodSettings() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+type Tab = 'setup' | 'syllabus' | 'incharge' | 'policy' | 'dataset'
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'setup', label: 'Semester setup' },
+  { id: 'syllabus', label: 'Syllabus & sections' },
+  { id: 'incharge', label: 'Class in-charge' },
+  { id: 'policy', label: 'Policy & cycle' },
+  { id: 'dataset', label: 'Dataset' },
+]
+
+export default function HodSettings({ navigate }: { navigate: (p: Page) => void }) {
+  const [tab, setTab] = useState<Tab>('setup')
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
+  const say = (ok: boolean, text: string) => { setNotice({ ok, text }); setTimeout(() => setNotice(null), 6000) }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-5 flex-wrap">
+        <h1 className="font-display font-700 text-lg text-[#0F4C81] flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Settings</h1>
+        <PillTabs value={tab} onChange={setTab} tabs={TABS} />
+      </div>
+      {notice && <div className={`text-xs font-600 rounded-lg px-4 py-2.5 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>{notice.ok ? '✓' : '⚠'} {notice.text}</div>}
+      {tab === 'setup' && <SetupOverviewTab navigate={navigate} goTo={setTab} />}
+      {tab === 'syllabus' && <SetupSyllabusTab say={say} />}
+      {tab === 'incharge' && <SetupInchargeTab say={say} />}
+      {tab === 'policy' && <PolicyAndCycle />}
+      {tab === 'dataset' && <SetupDatasetTab say={say} />}
     </div>
   )
 }

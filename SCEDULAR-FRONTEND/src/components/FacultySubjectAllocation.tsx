@@ -10,6 +10,7 @@ import {
   type CycleContextResponse,
 } from '../api'
 import { SEMESTER_TO_YEAR, SEMESTER_ORDER, type SemesterOption } from '../academicCycle'
+import { getSubjectCategoryLabel } from '../subjectConfig'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Semester lists and the semester→year mapping come from the canonical
@@ -27,7 +28,7 @@ interface Selection {
   name: string
   year: string
   semester: string
-  deliveryType: 'THEORY' | 'LAB' | 'INTEGRATED'
+  deliveryType: 'THEORY' | 'INTEGRATED' | 'LAB' | 'PROJECT'
   requestedSections: number
   labConfirmed: boolean
 }
@@ -67,7 +68,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
   const [meta, setMeta] = useState<Record<string, FacultySubjectDTO>>({})
   const [maxSections, setMaxSections] = useState<number>(DEFAULT_MAX_SECTIONS)
 
-  const [interest, setInterest] = useState<Record<string, number>>({})
+  const [demandData, setDemandData] = useState<Record<string, { interestCount: number; requiredSections: number }>>({})
   const [interestUnavailable, setInterestUnavailable] = useState(false)
 
   const [selections, setSelections] = useState<Record<string, Selection>>({})
@@ -105,7 +106,6 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
     (a, b) => (SEMESTER_ORDER[a.semester] ?? 0) - (SEMESTER_ORDER[b.semester] ?? 0)
   )
   const countInSelectedYear = selectionArr.filter(s => s.year === selectedYear).length
-  const integratedPending = selectionArr.filter(s => s.deliveryType === 'INTEGRATED' && !s.labConfirmed)
 
   const isLocked = existingPrefs.some(p => p.status === 'SUBMITTED' || p.status === 'APPROVED')
   const status = computeStatus(existingPrefs)
@@ -128,12 +128,16 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
   const loadInterest = useCallback(async (sem: string) => {
     try {
       const d = await api.facultyAllocation.getSubjectDemand(sem)
-      const map: Record<string, number> = {}
-      for (const item of d.demand) map[item.subjectId] = item.interestCount ?? item.facultyInterestedCount ?? 0
-      setInterest(map)
+      const map: Record<string, { interestCount: number; requiredSections: number }> = {}
+      for (const item of d.demand) {
+        map[item.subjectId] = {
+          interestCount: item.interestCount ?? item.facultyInterestedCount ?? 0,
+          requiredSections: item.requiredSections ?? 4,
+        }
+      }
+      setDemandData(map)
       setInterestUnavailable(false)
     } catch {
-      // Counts are supplementary — never fabricate a number. Flag as unavailable.
       setInterestUnavailable(true)
     }
   }, [])
@@ -157,7 +161,10 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
       // already-selected semester if it is still allowed, otherwise fall back to
       // the first semester of the current cycle (EVEN → II, etc.).
       const allowed = cycleRes.allowedSemesters ?? []
-      const effective = allowed.includes(semester) ? semester : (allowed[0] ?? '')
+      const eligible = policyRes.policy?.eligibleYears ?? []
+      const mine = prefsRes.preferences.map(p => p.semester).find(sem => allowed.includes(sem))
+      const usable = allowed.find(sem => eligible.includes(SEMESTER_TO_YEAR[sem]))
+      const effective = allowed.includes(semester) ? semester : (mine ?? usable ?? allowed[0] ?? '')
       if (effective !== semester) setSemester(effective)
 
       // Rebuild working selections from persisted preferences (real data only).
@@ -280,11 +287,6 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
     setSelections(prev => (prev[id] ? { ...prev, [id]: { ...prev[id], requestedSections: clamped } } : prev))
   }
 
-  function toggleLab(id: string) {
-    setSelections(prev => (prev[id] ? { ...prev, [id]: { ...prev[id], labConfirmed: !prev[id].labConfirmed } } : prev))
-    setValidationMsg('')
-  }
-
   function buildItems(): PreferenceItemPayload[] {
     return selectionArr.map((s, idx) => ({
       subjectId: s.subjectId,
@@ -292,8 +294,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
       academicYear: s.year,
       semester: s.semester,
       preferenceRank: idx + 1,
-      requestedSections: s.requestedSections,
-      labConfirmed: s.deliveryType === 'INTEGRATED' ? s.labConfirmed : true,
+      labConfirmed: true,
     }))
   }
 
@@ -328,12 +329,6 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
     }
     if (selectionArr.length === 0) {
       setValidationMsg('Select at least one subject before submitting.')
-      return
-    }
-    if (integratedPending.length > 0) {
-      setValidationMsg(
-        `Confirm laboratory responsibility for: ${integratedPending.map(s => s.name).join(', ')}.`
-      )
       return
     }
     setValidationMsg('')
@@ -401,14 +396,9 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
     <div className="flex flex-col space-y-4">
       {/* Header */}
       <div className="bg-white border border-slate-200 rounded-2xl px-6 py-4 flex items-center justify-between flex-wrap gap-3 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#0F4C81]" />
-            <h1 className="font-display font-800 text-lg text-[#0F4C81]">Faculty Subject Allocation</h1>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Preference workflow only — select subjects and requested section capacity. Section assignment is done later by the HOD.
-          </p>
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#0F4C81]" />
+          <h1 className="font-display font-800 text-lg text-[#0F4C81]">Faculty Subject Allocation</h1>
         </div>
         <span className={`text-xs font-700 px-3 py-1 rounded-full border ${status.className}`}>{status.label}</span>
       </div>
@@ -426,12 +416,59 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
           <button onClick={() => setValidationMsg('')} className="text-rose-500 hover:text-rose-800">✕</button>
         </div>
       )}
-      {isLocked && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs font-600 rounded-xl px-4 py-3 shadow-xs">
-          🔒 Your preferences are locked ({status.key === 'APPROVED' ? 'approved by the HOD' : 'submitted, pending HOD review'}).
-          Editing resumes only if the HOD requests changes.
+      {/* Status-specific banners — APPROVED, CHANGES_REQUESTED, REJECTED, SUBMITTED */}
+      {status.key === 'APPROVED' && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 shadow-xs flex items-start gap-3">
+          <span className="text-lg leading-none mt-0.5">🔒</span>
+          <div>
+            <p className="text-xs font-700 text-emerald-800">Your preferences have been approved by the HOD.</p>
+            <p className="text-[11px] text-emerald-700 mt-0.5">The HOD assigns your sections next. Your choices can no longer be edited.</p>
+          </div>
         </div>
       )}
+      {status.key === 'SUBMITTED' && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs font-600 rounded-xl px-4 py-3 shadow-xs">
+          🔒 Your preferences are submitted and pending HOD review. Editing resumes only if the HOD requests changes.
+        </div>
+      )}
+      {status.key === 'CHANGES_REQUESTED' && (() => {
+        const withComment = existingPrefs.find(p => p.status === 'CHANGES_REQUESTED' && p.hodComment)
+        return (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 shadow-xs space-y-2">
+            <p className="text-xs font-700 text-amber-800 flex items-center gap-1.5">
+              <span>⚠</span> The HOD has requested changes to one or more of your preferences.
+            </p>
+            {withComment && (
+              <div>
+                <p className="text-[10px] font-700 text-amber-600 uppercase tracking-wider mb-1">HOD Comment</p>
+                <p className="text-xs text-amber-900 bg-amber-100/60 border border-amber-200 rounded-lg px-3 py-2 italic">
+                  {withComment.hodComment}
+                </p>
+              </div>
+            )}
+            <p className="text-[11px] text-amber-700">Please revise your selections and resubmit for HOD approval.</p>
+          </div>
+        )
+      })()}
+      {status.key === 'REJECTED' && (() => {
+        const rejected = existingPrefs.filter(p => p.status === 'REJECTED')
+        return (
+          <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 shadow-xs space-y-2">
+            <p className="text-xs font-700 text-rose-800 flex items-center gap-1.5">
+              <span>✕</span> One or more of your preferences have been rejected by the HOD.
+            </p>
+            {rejected.filter(p => p.hodComment).map(p => (
+              <div key={p.id}>
+                <p className="text-[10px] font-700 text-rose-600 uppercase tracking-wider mb-1">HOD Rejection Reason</p>
+                <p className="text-xs text-rose-900 bg-rose-100/60 border border-rose-200 rounded-lg px-3 py-2 italic">
+                  {p.hodComment}
+                </p>
+              </div>
+            ))}
+            <p className="text-[11px] text-rose-700">You may edit your selections and resubmit.</p>
+          </div>
+        )
+      })()}
 
       {/* Faculty + experience context */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -441,7 +478,12 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
               {initials}
             </div>
             <div>
-              <p className="font-display font-700 text-base text-slate-800">{faculty?.name || 'Not Set'}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-display font-700 text-base text-slate-800">{faculty?.name || 'Not Set'}</p>
+                <span className="bg-blue-50 border border-blue-200 text-[#0F4C81] text-xs font-800 px-2.5 py-0.5 rounded-md shadow-xs">
+                  {allocationExperience != null ? `${allocationExperience} yrs experience` : 'Experience not set'}
+                </span>
+              </div>
               <p className="text-xs text-slate-500">{faculty?.department || 'Not Set'}</p>
               <p className="text-[11px] text-slate-400 mt-0.5">
                 {faculty?.designation || 'Not Set'} · <span className="font-mono text-blue-700 font-600">{faculty?.id}</span>
@@ -463,29 +505,6 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-center">
-            <p className="text-xs text-slate-500 mb-1">Previous Experience</p>
-            <p className="font-display font-700 text-xl text-slate-700">
-              {faculty?.previousExperience != null ? faculty.previousExperience : 'Not Set'}{' '}
-              <span className="text-xs font-500">Yrs</span>
-            </p>
-          </div>
-          <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-center">
-            <p className="text-xs text-slate-500 mb-1">Current Experience</p>
-            <p className="font-display font-700 text-xl text-slate-700">
-              {faculty?.currentExperience != null ? faculty.currentExperience : 'Not Set'}{' '}
-              <span className="text-xs font-500">Yrs</span>
-            </p>
-          </div>
-          <div className="bg-[#0F4C81]/8 border border-[#0F4C81]/20 rounded-lg p-3 text-center">
-            <p className="text-xs text-[#0F4C81] font-600 mb-1">Allocation Experience (Policy)</p>
-            <p className="font-display font-800 text-xl text-[#0F4C81]">
-              {allocationExperience != null ? allocationExperience : 'Not Set'} <span className="text-xs font-500">Yrs</span>
-            </p>
-          </div>
-        </div>
-
         {!experienceConfigured && (
           <p className="mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             ⚠ Allocation experience is not configured. Open <span className="font-700">My Profile</span> to set it before selecting subjects.
@@ -493,7 +512,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
         )}
       </div>
 
-      {/* Semester selector + year eligibility */}
+      {/* Semester selector */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
@@ -502,16 +521,11 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
               Only canonical subjects for the chosen semester are shown. Year is derived automatically.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {currentCycle && (
-              <span className="text-[11px] font-700 text-white bg-[#0F4C81] rounded-full px-3 py-1">
-                Current Cycle: {currentCycle}
-              </span>
-            )}
-            <span className="text-[11px] font-600 text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-3 py-1">
-              Semester {semester || '—'} → {semester ? selectedYear : '—'}
+          {currentCycle && (
+            <span className="text-[11px] font-700 text-white bg-[#0F4C81] rounded-full px-3 py-1">
+              Current Cycle: {currentCycle}
             </span>
-          </div>
+          )}
         </div>
 
         {semesterOptions.length === 0 ? (
@@ -519,51 +533,33 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
             No semesters are available for the current academic cycle context.
           </div>
         ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {semesterOptions.map(s => {
-            const locked = !eligibleYears.includes(s.year)
-            const active = semester === s.value
-            return (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => switchSemester(s.value)}
-                title={locked ? reasons[s.year] || `${s.year} not eligible for your allocation experience` : `Show Semester ${s.value} subjects`}
-                className={`rounded-lg border px-3 py-2 text-left transition ${
-                  active
-                    ? 'border-[#0F4C81] bg-[#0F4C81] text-white shadow-xs'
-                    : locked
-                    ? 'border-slate-200 bg-slate-50 text-slate-400'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-[#0F4C81]/40'
-                }`}
-              >
-                <span className="block text-xs font-700">{s.label}</span>
-                <span className={`block text-[10px] ${active ? 'text-blue-100' : 'text-slate-400'}`}>
-                  {s.year} {locked ? '· 🔒' : ''}
-                </span>
-              </button>
-            )
-          })}
-        </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {semesterOptions.map(s => {
+              const locked = !eligibleYears.includes(s.year)
+              const active = semester === s.value
+              return (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => switchSemester(s.value)}
+                  title={locked ? reasons[s.year] || `${s.year} not eligible for your allocation experience` : `Show Semester ${s.value} subjects`}
+                  className={`rounded-lg border px-3 py-2 text-left transition ${
+                    active
+                      ? 'border-[#0F4C81] bg-[#0F4C81] text-white shadow-xs'
+                      : locked
+                      ? 'border-slate-200 bg-slate-50 text-slate-400'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-[#0F4C81]/40'
+                  }`}
+                >
+                  <span className="block text-xs font-700">{s.label}</span>
+                  <span className={`block text-[10px] ${active ? 'text-blue-100' : 'text-slate-400'}`}>
+                    {s.year}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         )}
-
-        {/* Year eligibility legend — all four years always visible */}
-        <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {YEAR_LIST.map(y => {
-            const ok = eligibleYears.includes(y)
-            return (
-              <div
-                key={y}
-                className={`rounded-lg border px-3 py-1.5 text-[11px] ${
-                  ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-400'
-                }`}
-              >
-                <span className="font-700">{y} (Sem {YEAR_SHORT[y]})</span>
-                <span className="block">{ok ? 'Selectable' : reasons[y] || 'Locked by experience policy'}</span>
-              </div>
-            )
-          })}
-        </div>
       </div>
 
       {/* Main workspace */}
@@ -582,9 +578,9 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
 
             <div className="p-5">
               {!yearEligible ? (
-                <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-5 text-center">
-                  <p className="text-sm font-700 text-amber-800">🔒 {selectedYear} is not eligible for your allocation experience</p>
-                  <p className="text-xs text-slate-500 mt-1">{reasons[selectedYear] || 'Select an eligible semester above.'}</p>
+                <div className="bg-slate-50/70 border border-slate-200/80 rounded-xl p-5 text-center opacity-70">
+                  <p className="text-xs font-600 text-slate-600">🔒 {selectedYear} is not eligible for your allocation experience {allocationExperience != null ? `(${allocationExperience} years)` : ''}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">{reasons[selectedYear] || 'Please select an eligible semester above.'}</p>
                 </div>
               ) : catalog.length === 0 ? (
                 <div className="text-center py-10">
@@ -596,8 +592,9 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                 <div className="grid gap-3 sm:grid-cols-2">
                   {catalog.map(subject => {
                     const selected = !!selections[subject.id]
-                    const isIntegrated = subject.deliveryType === 'INTEGRATED'
-                    const interestCount = interest[subject.id]
+                    const dem = demandData[subject.id]
+                    const interestCount = dem?.interestCount ?? 0
+                    const reqSections = dem?.requiredSections ?? 4
                     const cannotAdd =
                       !selected &&
                       (selectionArr.length >= maxTotal || countInSelectedYear >= maxPerYear)
@@ -619,15 +616,23 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                         </div>
 
                         <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                          <div className="flex justify-between"><dt className="text-slate-400">Category</dt><dd className="text-slate-700 font-500 truncate ml-1">{notSpecified(subject.category)?.replace(/_/g, ' ')}</dd></div>
+                          <div className="flex justify-between"><dt className="text-slate-400">Category</dt><dd className="text-slate-700 font-500 truncate ml-1">{subject.category ? getSubjectCategoryLabel(subject.category) : 'Not specified'}</dd></div>
                           <div className="flex justify-between"><dt className="text-slate-400">Credits</dt><dd className="text-slate-700 font-500">{notSpecified(subject.credits)}</dd></div>
                           <div className="flex justify-between"><dt className="text-slate-400">Theory</dt><dd className="text-slate-700 font-500">{notSpecified(subject.theoryPeriods)}</dd></div>
                           <div className="flex justify-between"><dt className="text-slate-400">Lab</dt><dd className="text-slate-700 font-500">{notSpecified(subject.labPeriods)}</dd></div>
                         </dl>
 
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="text-[11px] text-blue-700 font-600 bg-blue-100/60 px-2 py-0.5 rounded">
-                            👥 {interestUnavailable ? '—' : interestCount ?? 0} interested
+                        <div className="mt-2.5 flex items-center justify-between gap-2">
+                          <span className={`text-[11px] font-600 px-2 py-0.5 rounded ${
+                            interestUnavailable
+                              ? 'bg-slate-100 text-slate-400'
+                              : interestCount >= reqSections
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : interestCount > 0
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            👥 {interestUnavailable ? '—' : `${interestCount}/${reqSections} Faculty Interested`}
                           </span>
                           {!isLocked && (
                             <button
@@ -645,43 +650,6 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                           )}
                         </div>
 
-                        {selected && !isLocked && (
-                          <div className="mt-3 pt-3 border-t border-slate-200 space-y-2.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] text-slate-600 font-600">Requested capacity</span>
-                              <div className="flex items-center gap-1.5">
-                                <button type="button" onClick={() => setSections(subject.id, selections[subject.id].requestedSections - 1)}
-                                  className="w-6 h-6 rounded bg-white border border-slate-200 hover:bg-[#0F4C81] hover:text-white text-slate-600 text-xs font-700 flex items-center justify-center transition">−</button>
-                                <span className="text-xs font-800 text-[#0F4C81] w-6 text-center">{selections[subject.id].requestedSections}</span>
-                                <button type="button" onClick={() => setSections(subject.id, selections[subject.id].requestedSections + 1)}
-                                  className="w-6 h-6 rounded bg-white border border-slate-200 hover:bg-[#0F4C81] hover:text-white text-slate-600 text-xs font-700 flex items-center justify-center transition">+</button>
-                                <span className="text-[11px] text-slate-500">{selections[subject.id].requestedSections === 1 ? 'section' : 'sections'}</span>
-                              </div>
-                            </div>
-                            <p className="text-[9px] text-slate-400 italic">
-                              Requested capacity only (max {maxSections}). Final section assignment is decided separately by the HOD.
-                            </p>
-                            {isIntegrated && (
-                              <label className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 cursor-pointer ${
-                                selections[subject.id].labConfirmed ? 'border-teal-200 bg-teal-50/60' : 'border-amber-200 bg-amber-50/60'
-                              }`}>
-                                <input
-                                  type="checkbox"
-                                  checked={selections[subject.id].labConfirmed}
-                                  onChange={() => toggleLab(subject.id)}
-                                  className="mt-0.5 accent-teal-600"
-                                />
-                                <span className="text-[11px] text-slate-700">
-                                  <span className="font-700">Integrated subject (Theory + Lab).</span>{' '}
-                                  I confirm responsibility for the associated lab component.
-                                  {!selections[subject.id].labConfirmed && (
-                                    <span className="block text-amber-700 font-600 mt-0.5">⚠ Required before submission.</span>
-                                  )}
-                                </span>
-                              </label>
-                            )}
-                          </div>
-                        )}
                       </div>
                     )
                   })}
@@ -701,8 +669,10 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                   <tr className="border-b border-slate-100 text-slate-400 font-600">
                     <th className="text-left py-2">Academic Year</th>
                     <th className="text-left py-2">Semester</th>
+                    <th className="text-left py-2">Code</th>
                     <th className="text-left py-2">Subject</th>
                     <th className="text-left py-2">Type</th>
+                    <th className="text-right py-2">Sections</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -710,12 +680,14 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                     <tr key={i}>
                       <td className="py-2 text-slate-600">{h.academicYear}</td>
                       <td className="py-2 text-slate-600">{h.semester}</td>
+                      <td className="py-2 text-[#0F4C81] font-600 font-mono text-[11px]">{h.subjectCode || '—'}</td>
                       <td className="py-2 text-slate-800 font-500">{h.subjectName}</td>
                       <td className="py-2">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-600 ${
-                          h.type === 'LAB' ? 'bg-teal-50 text-teal-700' : 'bg-blue-50 text-blue-700'
+                          h.type === 'LAB' ? 'bg-purple-50 text-purple-700' : h.type === 'INTEGRATED' ? 'bg-teal-50 text-teal-700' : 'bg-blue-50 text-blue-700'
                         }`}>{h.type || 'Theory'}</span>
                       </td>
+                      <td className="py-2 text-right text-slate-700 font-600">{h.sectionsHandled}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -747,13 +719,8 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                         <p className="text-xs font-600 text-slate-800 leading-snug truncate">{s.name}</p>
                         <p className="text-[10px] text-slate-400 font-mono">{s.code}</p>
                         <p className="text-[10px] text-slate-500 mt-0.5">
-                          Semester {s.semester} · {s.year} · {s.requestedSections} {s.requestedSections === 1 ? 'section' : 'sections'}
+                          Semester {s.semester} · {s.year}
                         </p>
-                        {s.deliveryType === 'INTEGRATED' && (
-                          <p className={`text-[10px] mt-0.5 font-600 ${s.labConfirmed ? 'text-teal-700' : 'text-amber-700'}`}>
-                            {s.labConfirmed ? '✓ Lab confirmed' : '⚠ Lab confirmation pending'}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -766,12 +733,6 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                 <span className="text-slate-500">Status</span>
                 <span className="font-700 text-slate-700">{status.label}</span>
               </div>
-              {integratedPending.length > 0 && (
-                <div className="flex justify-between text-amber-600">
-                  <span>Labs pending</span>
-                  <span className="font-700">{integratedPending.length}</span>
-                </div>
-              )}
             </div>
 
             {status.key === 'CHANGES_REQUESTED' && existingPrefs.find(p => p.hodComment) && (
@@ -791,16 +752,10 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                 {busy ? 'Working…' : isLocked ? 'Locked' : 'Submit Preferences'}
               </button>
               {!isLocked && (
-                <div className="flex gap-2">
-                  <button type="button" onClick={handleSaveDraft} disabled={busy}
-                    className="flex-1 py-2 border border-slate-200 text-slate-700 text-xs font-600 rounded-xl hover:bg-slate-50 transition disabled:opacity-40">
-                    Save Draft
-                  </button>
-                  <button type="button" onClick={handleReset} disabled={busy}
-                    className="flex-1 py-2 border border-slate-200 text-slate-700 text-xs font-600 rounded-xl hover:bg-slate-50 transition disabled:opacity-40">
-                    Reset
-                  </button>
-                </div>
+                <button type="button" onClick={handleReset} disabled={busy}
+                  className="w-full py-2 border border-slate-200 text-slate-700 text-xs font-600 rounded-xl hover:bg-slate-50 transition disabled:opacity-40">
+                  Reset Selection
+                </button>
               )}
             </div>
           </div>
@@ -819,7 +774,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
               {selectionArr.map((s, idx) => (
                 <div key={s.subjectId} className="flex justify-between text-slate-600">
                   <span>#{idx + 1} {s.name} <span className="text-slate-400">(Sem {s.semester})</span></span>
-                  <span className="font-600">{s.requestedSections} sec</span>
+                  <span className="font-600">Selected</span>
                 </div>
               ))}
             </div>

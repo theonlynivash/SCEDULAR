@@ -80,12 +80,13 @@ CREATE TABLE IF NOT EXISTS sections (
 ALTER TABLE sections ADD COLUMN IF NOT EXISTS department TEXT DEFAULT 'AI & DS';
 ALTER TABLE sections ADD COLUMN IF NOT EXISTS student_count INTEGER DEFAULT NULL;
 ALTER TABLE sections ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
+ALTER TABLE sections ADD COLUMN IF NOT EXISTS class_incharge TEXT;
 
 CREATE TABLE IF NOT EXISTS courses (
   id TEXT PRIMARY KEY,
   code TEXT NOT NULL,
   name TEXT NOT NULL,
-  component_type TEXT NOT NULL CHECK (component_type IN ('INTEGRATED_THEORY','INTEGRATED_LAB','LAB_ONLY','THEORY_ONLY','MANDATORY','ADDITIONAL')),
+  component_type TEXT NOT NULL CHECK (component_type IN ('INTEGRATED_THEORY','INTEGRATED_LAB','LAB_ONLY','THEORY_ONLY','PROJECT')),
   lab_block_length INTEGER NOT NULL DEFAULT 3
 );
 
@@ -193,8 +194,9 @@ CREATE TABLE IF NOT EXISTS subjects (
   id TEXT PRIMARY KEY,
   code TEXT NOT NULL,
   name TEXT NOT NULL,
-  delivery_type TEXT NOT NULL CHECK (delivery_type IN ('THEORY','LAB','INTEGRATED','PROJECT')),
-  category TEXT NOT NULL DEFAULT 'CORE',
+  delivery_type TEXT NOT NULL CHECK (delivery_type IN ('THEORY','INTEGRATED','LAB','PROJECT')),
+  category TEXT NOT NULL DEFAULT 'PROFESSIONAL CORE'
+    CHECK (category IN ('BASIC SCIENCE','ENGINEERING SCIENCE','PROFESSIONAL CORE','HUMANITIES','EMPLOYABILITY','LABORATORY','PROFESSIONAL ELECTIVE','OPEN ELECTIVE','EEC','MC','PROJECT')),
   credits INTEGER DEFAULT 0,
   year TEXT,
   semester TEXT,
@@ -209,6 +211,9 @@ ALTER TABLE subjects ADD COLUMN IF NOT EXISTS semester TEXT;
 ALTER TABLE subjects ADD COLUMN IF NOT EXISTS theory_periods INTEGER DEFAULT 3;
 ALTER TABLE subjects ADD COLUMN IF NOT EXISTS lab_periods INTEGER DEFAULT 0;
 ALTER TABLE subjects ADD COLUMN IF NOT EXISTS vertical TEXT;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS short_name TEXT;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS ltp TEXT;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS print_as TEXT;
 
 -- A section declares its own academic demand here. Weekly counts therefore
 -- belong to the section+subject offering, not to the faculty workload row.
@@ -315,3 +320,38 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_faculty ON sessions(faculty_id);
 
+
+
+CREATE TABLE IF NOT EXISTS faculty_results (
+  id SERIAL PRIMARY KEY,
+  faculty_id TEXT NOT NULL REFERENCES faculty(id) ON DELETE CASCADE,
+  academic_year TEXT NOT NULL,
+  semester TEXT NOT NULL,
+  subject_id TEXT,
+  subject_code TEXT,
+  subject_name TEXT NOT NULL,
+  sections_handled INTEGER,
+  students_appeared INTEGER,
+  pass_percent NUMERIC(5,2) NOT NULL CHECK (pass_percent >= 0 AND pass_percent <= 100),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS mail_log (
+  id SERIAL PRIMARY KEY,
+  faculty_id TEXT NOT NULL REFERENCES faculty(id) ON DELETE CASCADE,
+  to_email TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  credentials TEXT NOT NULL DEFAULT 'none',
+  sent_by TEXT NOT NULL,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id SERIAL PRIMARY KEY,
+  from_id TEXT NOT NULL REFERENCES faculty(id) ON DELETE CASCADE,
+  to_id TEXT NOT NULL REFERENCES faculty(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  read_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS chat_messages_pair ON chat_messages (from_id, to_id);

@@ -60,6 +60,45 @@ export const KNOWN_SECTIONS_ROSTER: SeedSection[] = [
   { id: 'Y4-F', name: 'IV Year AI&DS F', year: 'Year 4', semester: 'VII', department: 'AI & DS', studentCount: null, active: true },
   { id: 'Y4-G', name: 'IV Year AI&DS G', year: 'Year 4', semester: 'VII', department: 'AI & DS', studentCount: null, active: true },
   { id: 'Y4-H', name: 'IV Year AI&DS H', year: 'Year 4', semester: 'VII', department: 'AI & DS', studentCount: null, active: true },
+
+  // ===================================================================
+  // EVEN SEMESTERS — Template sections (deactivated until real data arrives)
+  // To activate: set active: true and provide real teaching assignments + lab mappings
+  // ===================================================================
+
+  // Year 2 / Semester IV (template — 12 sections matching Sem III count)
+  { id: 'Y2S4-A', name: 'II Year AI&DS A (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-B', name: 'II Year AI&DS B (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-C', name: 'II Year AI&DS C (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-D', name: 'II Year AI&DS D (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-E', name: 'II Year AI&DS E (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-F', name: 'II Year AI&DS F (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-G', name: 'II Year AI&DS G (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-H', name: 'II Year AI&DS H (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-I', name: 'II Year AI&DS I (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-J', name: 'II Year AI&DS J (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-K', name: 'II Year AI&DS K (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y2S4-L', name: 'II Year AI&DS L (Sem IV)', year: 'Year 2', semester: 'IV', department: 'AI & DS', studentCount: null, active: false },
+
+  // Year 3 / Semester VI (template — 8 sections matching Sem V count)
+  { id: 'Y3S6-A', name: 'III Year AI&DS A (Sem VI)', year: 'Year 3', semester: 'VI', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y3S6-B', name: 'III Year AI&DS B (Sem VI)', year: 'Year 3', semester: 'VI', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y3S6-C', name: 'III Year AI&DS C (Sem VI)', year: 'Year 3', semester: 'VI', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y3S6-D', name: 'III Year AI&DS D (Sem VI)', year: 'Year 3', semester: 'VI', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y3S6-E', name: 'III Year AI&DS E (Sem VI)', year: 'Year 3', semester: 'VI', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y3S6-F', name: 'III Year AI&DS F (Sem VI)', year: 'Year 3', semester: 'VI', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y3S6-G', name: 'III Year AI&DS G (Sem VI)', year: 'Year 3', semester: 'VI', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y3S6-H', name: 'III Year AI&DS H (Sem VI)', year: 'Year 3', semester: 'VI', department: 'AI & DS', studentCount: null, active: false },
+
+  // Year 4 / Semester VIII (template — 8 sections matching Sem VII count)
+  { id: 'Y4S8-A', name: 'IV Year AI&DS A (Sem VIII)', year: 'Year 4', semester: 'VIII', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y4S8-B', name: 'IV Year AI&DS B (Sem VIII)', year: 'Year 4', semester: 'VIII', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y4S8-C', name: 'IV Year AI&DS C (Sem VIII)', year: 'Year 4', semester: 'VIII', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y4S8-D', name: 'IV Year AI&DS D (Sem VIII)', year: 'Year 4', semester: 'VIII', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y4S8-E', name: 'IV Year AI&DS E (Sem VIII)', year: 'Year 4', semester: 'VIII', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y4S8-F', name: 'IV Year AI&DS F (Sem VIII)', year: 'Year 4', semester: 'VIII', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y4S8-G', name: 'IV Year AI&DS G (Sem VIII)', year: 'Year 4', semester: 'VIII', department: 'AI & DS', studentCount: null, active: false },
+  { id: 'Y4S8-H', name: 'IV Year AI&DS H (Sem VIII)', year: 'Year 4', semester: 'VIII', department: 'AI & DS', studentCount: null, active: false },
 ]
 
 // Known Physical Labs from Lab Timetable

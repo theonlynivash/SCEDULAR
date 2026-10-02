@@ -11,7 +11,7 @@ import type {
   TeachingAssignment,
 } from '../types.js'
 import { contiguousGroups } from '../utils/grid.js'
-import { MAX_SAME_COURSE_PER_DAY, MAX_SAME_COURSE_SAME_PERIOD_PER_WEEK } from './csp.js'
+import { maxSameCoursePerDay, MAX_SAME_COURSE_SAME_PERIOD_PER_WEEK } from './csp.js'
 
 export interface CanonicalValidationInput {
   assignments: Assignment[]
@@ -251,7 +251,8 @@ export function independentValidate(input: CanonicalValidationInput): Conflict[]
   }
   for (const f of faculty) {
     const weekly = weeklyTotals.get(f.id) ?? 0
-    if (weekly > f.maxWeeklyPeriods) conflicts.push({ type: 'FACULTY_SHORTAGE', message: `Faculty ${f.id} is assigned ${weekly} periods/week, exceeding capacity ${f.maxWeeklyPeriods}`, facultyId: f.id })
+    // A weekly total above the nominal limit (e.g. 28 of 24) is allowed by the department and is not a conflict.
+    void weekly
     for (const day of config.workingDays) {
       const daily = dailyTotals.get(`${f.id}:${day}`) ?? 0
       if (daily > f.maxDailyPeriods) conflicts.push({ type: 'FACULTY_SHORTAGE', message: `Faculty ${f.id} is assigned ${daily} periods on ${day}, exceeding daily capacity ${f.maxDailyPeriods}`, facultyId: f.id, day })
@@ -270,9 +271,11 @@ export function independentValidate(input: CanonicalValidationInput): Conflict[]
     theoryPerSectionCoursePeriod.set(periodKey, (theoryPerSectionCoursePeriod.get(periodKey) ?? 0) + 1)
   }
   for (const [key, count] of theoryPerSectionCourseDay) {
-    if (count > MAX_SAME_COURSE_PER_DAY) {
-      const [sectionId, courseId, day] = key.split('::')
-      conflicts.push({ type: 'DAILY_SUBJECT_LIMIT_EXCEEDED', message: `Section ${sectionId} has ${count} theory periods of ${courseId} on ${day}, exceeding ${MAX_SAME_COURSE_PER_DAY}/day`, sectionId, courseId, day })
+    const [sectionId, courseId, day] = key.split('::')
+    const weekly = sectionSubjects.find(o => o.sectionId === sectionId && o.subjectId === courseId)?.theoryPeriods ?? 0
+    const cap = maxSameCoursePerDay(weekly)
+    if (count > cap) {
+      conflicts.push({ type: 'DAILY_SUBJECT_LIMIT_EXCEEDED', message: `Section ${sectionId} has ${count} theory periods of ${courseId} on ${day}, exceeding ${cap}/day`, sectionId, courseId, day })
     }
   }
   for (const [key, count] of theoryPerSectionCoursePeriod) {

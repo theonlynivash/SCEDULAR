@@ -4,21 +4,22 @@ import type { Page } from '../types'
 import { api, type ComponentType, type Course } from '../api'
 import { CYCLE_LABELS, CYCLE_VALUES, isOddSemester } from '../academicCycle'
 import { Download, Upload } from 'lucide-react'
+import {
+  getSubjectCategoryLabel,
+  getSubjectCategoryBadgeClasses,
+  getDeliveryTypeLabel,
+  getDeliveryTypeBadgeClasses,
+} from '../subjectConfig'
 
 // An "integrated" subject (theory + lab, e.g. OOP + OOP_LAB) is always two
-// paired course rows -- one Integrated Theory row, one Integrated Lab row
-// -- never a single row carrying both counts, whether or not the same
-// faculty teaches both halves. Lab Only has no theory counterpart at all
-// (e.g. TSP). Mandatory (Constitution of India, Aptitude) and Additional
-// (Skills for Career Development, Library) are both theory-only but kept
-// distinct since Additional periods are not compulsory curriculum.
+// paired course rows -- one Integrated Theory row, one Integrated Lab row.
+// ComponentType is derived from the deliveryType axis only (never category).
 const componentTypeLabels: Record<ComponentType, string> = {
   INTEGRATED_THEORY: 'Integrated Theory',
   INTEGRATED_LAB: 'Integrated Lab',
-  LAB_ONLY: 'Lab Only',
-  THEORY_ONLY: 'Theory Only',
-  MANDATORY: 'Mandatory',
-  ADDITIONAL: 'Additional (Non-Mandatory)',
+  LAB_ONLY: 'Lab',
+  THEORY_ONLY: 'Theory',
+  PROJECT: 'Project',
 }
 
 const componentTypeTones: Record<ComponentType, 'accent' | 'neutral' | 'warning' | 'success'> = {
@@ -26,8 +27,7 @@ const componentTypeTones: Record<ComponentType, 'accent' | 'neutral' | 'warning'
   INTEGRATED_LAB: 'success',
   LAB_ONLY: 'success',
   THEORY_ONLY: 'neutral',
-  MANDATORY: 'warning',
-  ADDITIONAL: 'neutral',
+  PROJECT: 'accent',
 }
 
 const SUBJECT_TEMPLATE_HEADERS = ['CourseId', 'CourseName', 'ComponentType', 'WeeklyPeriods', 'LabBlockLength']
@@ -152,19 +152,26 @@ export default function SubjectManagement({ navigate }: { navigate: (p: Page) =>
                     <span className="text-slate-400 ml-1">· Sem {s.semester || 'III'}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-600 text-[10px]">
-                      {String(s.category || 'CORE').replace(/_/g, ' ')}
-                    </span>
+                    {(() => {
+                      const cat = s.category || 'CORE'
+                      const badge = getSubjectCategoryBadgeClasses(cat)
+                      return (
+                        <span className={`px-2 py-0.5 rounded font-600 text-[10px] ${badge.bg} ${badge.text}`}>
+                          {getSubjectCategoryLabel(cat)}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded font-700 text-[10px] ${
-                      s.deliveryType === 'INTEGRATED' ? 'bg-blue-100 text-blue-800' :
-                      s.deliveryType === 'LAB' ? 'bg-teal-100 text-teal-800' :
-                      s.deliveryType === 'PROJECT' ? 'bg-purple-100 text-purple-800' :
-                      'bg-slate-100 text-slate-700'
-                    }`}>
-                      {s.deliveryType || 'THEORY'}
-                    </span>
+                    {(() => {
+                      const dt = s.deliveryType || 'THEORY'
+                      const badge = getDeliveryTypeBadgeClasses(dt)
+                      return (
+                        <span className={`px-2 py-0.5 rounded font-700 text-[10px] ${badge.bg} ${badge.text}`}>
+                          {getDeliveryTypeLabel(dt)}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-center font-700 text-slate-700">{s.credits ?? 3}</td>
                   <td className="px-4 py-3 text-center font-mono text-slate-600">

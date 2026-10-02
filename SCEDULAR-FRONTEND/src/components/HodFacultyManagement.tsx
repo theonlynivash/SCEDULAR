@@ -3,6 +3,7 @@ import { PageHeader, Btn, Field, GlassPanel, Chip, IconBtn } from './ui'
 import { Users, Settings, Plus, Save, Shield, X, Edit3, Trash2, Layers, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { api, type Subject, type Section } from '../api'
 import { DEFAULT_ALLOCATION_CONFIG, type AllocationConfig } from '../utils/allocationPolicy'
+import { getDeliveryTypeBadgeClasses, getDeliveryTypeLabel } from '../subjectConfig'
 
 export default function HodFacultyManagement() {
   const [activeTab, setActiveTab] = useState<'faculty' | 'policy' | 'status'>('faculty')
@@ -538,7 +539,14 @@ export default function HodFacultyManagement() {
                         <p className="font-mono text-[10px] text-slate-400">{row.code}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <Chip tone={row.deliveryType === 'INTEGRATED' ? 'accent' : 'neutral'}>{row.deliveryType}</Chip>
+                        {(() => {
+                          const cls = getDeliveryTypeBadgeClasses(row.deliveryType)
+                          return (
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-700 ${cls.bg} ${cls.text}`}>
+                              {getDeliveryTypeLabel(row.deliveryType)}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600 font-500">
                         {row.year} · Sem {row.semester}

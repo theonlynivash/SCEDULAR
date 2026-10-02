@@ -15,12 +15,14 @@ export function Btn({
   onClick,
   disabled,
   title,
+  className = '',
 }: {
   children: ReactNode
   variant?: 'primary' | 'secondary' | 'outline' | 'danger'
   onClick?: () => void
   disabled?: boolean
   title?: string
+  className?: string
 }) {
   const styles: Record<string, string> = {
     primary:
@@ -34,7 +36,7 @@ export function Btn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-500 transition-all disabled:opacity-50 disabled:pointer-events-none ${styles[variant]}`}
+      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-500 transition-all disabled:opacity-50 disabled:pointer-events-none ${styles[variant]} ${className}`}
     >
       {children}
     </button>
@@ -166,5 +168,18 @@ export function IconBtn({ children, onClick, title, tone = 'neutral' }: { childr
     <button onClick={onClick} title={title} className={`p-1.5 rounded-lg transition ${tones[tone]}`}>
       {children}
     </button>
+  )
+}
+
+/** Segmented liquid tabs. `value` is the active id. */
+export function PillTabs<T extends string>({ tabs, value, onChange, className = '' }: { tabs: { id: T; label: ReactNode; disabled?: boolean; title?: string }[]; value: T; onChange: (id: T) => void; className?: string }) {
+  return (
+    <div className={`tabs-liquid ${className}`} role="tablist">
+      {tabs.map(t => (
+        <button key={t.id} role="tab" aria-selected={value === t.id} data-active={value === t.id} disabled={t.disabled} title={t.title} onClick={() => onChange(t.id)} className="disabled:opacity-40 disabled:cursor-not-allowed">
+          {t.label}
+        </button>
+      ))}
+    </div>
   )
 }

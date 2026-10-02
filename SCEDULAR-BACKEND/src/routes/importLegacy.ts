@@ -36,7 +36,10 @@ import {
 export const legacyImportRouter = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
-const componentTypeSchema = z.enum(['INTEGRATED_THEORY', 'INTEGRATED_LAB', 'LAB_ONLY', 'THEORY_ONLY', 'MANDATORY', 'ADDITIONAL'])
+const componentTypeSchema = z.enum([
+  'INTEGRATED_THEORY', 'INTEGRATED_LAB', 'LAB_ONLY', 'THEORY_ONLY',
+  'PROJECT',
+])
 
 const rowSchema = z.object({
   FacultyId: z.union([z.string(), z.number()]).transform(String),

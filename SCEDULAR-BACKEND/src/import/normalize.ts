@@ -1,4 +1,4 @@
-import type { Faculty, Lab, Section, Subject } from '../types.js'
+import type { Faculty, Lab, Section, Subject, SubjectCategory } from '../types.js'
 import type { CanonicalImportDataset, ImportDiagnostic } from './types.js'
 
 const REQUIRED = ['SECTIONS', 'SUBJECTS', 'SECTION_SUBJECTS', 'FACULTY', 'TEACHING_ASSIGNMENTS', 'LABS', 'LAB_MAPPING']
@@ -21,49 +21,88 @@ function rowNo(row: Record<string, unknown>): number | undefined {
 }
 
 /**
- * Fix 1 — Map academic short-code categories to the canonical set the
- * solver understands.  Real timetable Excel files use codes like BS, PC, ES,
- * OE, PE that originate from UG curriculum nomenclature; we map them rather
+ * Map academic short-code categories to the canonical curriculum category
+ * enum (official Panimalar AI & DS R2023 taxonomy).  Real timetable Excel
+ * files use codes like BS, PC, ES, OE, PE, HS, EEC that originate from UG
+ * curriculum nomenclature; we map them to the full canonical category rather
  * than reject the subject.
  */
 function mapCategory(raw: string): Subject['category'] {
   const u = raw.trim().toUpperCase()
-  // Already canonical
-  if (u === 'CORE')       return 'CORE'
-  if (u === 'ELECTIVE')   return 'ELECTIVE'
-  if (u === 'MANDATORY')  return 'MANDATORY'
-  if (u === 'ADDITIONAL') return 'ADDITIONAL'
-  if (u === 'OTHER')      return 'OTHER'
 
-  // Academic short-codes → CORE (Basic Science / Engineering Science / Professional Core)
-  if (['BS', 'ES', 'PC', 'EEC', 'HS', 'COMMON', 'PC / PRACTICAL'].includes(u)) return 'CORE'
+  // Already canonical (underscore-separated SubjectCategory enum) — pass through
+  const canonical = [
+    'CORE', 'BASIC_SCIENCE', 'ENGINEERING_SCIENCE', 'HUMANITIES',
+    'INTEGRATED', 'THEORY', 'LAB_ONLY', 'MANDATORY', 'ADDITIONAL',
+    'PROFESSIONAL_ELECTIVE', 'OPEN_ELECTIVE', 'PROJECT', 'TRAINING',
+    'VALUE_ADDED', 'OTHER',
+  ] as const
+  for (const c of canonical) {
+    if (u === c) return c
+  }
 
-  // Professional/Open Elective → ELECTIVE
-  if (['PE', 'OE'].includes(u)) return 'ELECTIVE'
+  // Legacy space-separated taxonomy from old DB snapshots — map to canonical
+  const legacyMap: Record<string, SubjectCategory> = {
+    'BASIC SCIENCE': 'BASIC_SCIENCE',
+    'ENGINEERING SCIENCE': 'ENGINEERING_SCIENCE',
+    'PROFESSIONAL CORE': 'CORE',
+    'HUMANITIES': 'HUMANITIES',
+    'EMPLOYABILITY': 'ADDITIONAL',
+    'LABORATORY': 'LAB_ONLY',
+    'PROFESSIONAL ELECTIVE': 'PROFESSIONAL_ELECTIVE',
+    'OPEN ELECTIVE': 'OPEN_ELECTIVE',
+    'EEC': 'ADDITIONAL',
+    'MC': 'MANDATORY',
+    'SKILL': 'ADDITIONAL',
+  }
+  const legacy = legacyMap[u]
+  if (legacy) return legacy
 
-  // Everything else (LAB, PROJECT, SEMINAR, INTERNSHIP, VALUE ADDED, ACTIVITY,
-  // ODD-SEMESTER CLASS TIMETABLE, etc.) → OTHER, which is schedulable
-  return 'OTHER'
+  // Academic short-codes from Anna University curriculum nomenclature
+  if (u === 'BS')    return 'BASIC_SCIENCE'
+  if (u === 'ES')    return 'ENGINEERING_SCIENCE'
+  if (u === 'HS')    return 'HUMANITIES'
+  if (u === 'PC')    return 'CORE'
+  if (u === 'PE')    return 'PROFESSIONAL_ELECTIVE'
+  if (u === 'OE')    return 'OPEN_ELECTIVE'
+  if (u === 'MC')    return 'MANDATORY'
+  if (u === 'EEC')   return 'ADDITIONAL'
+  if (['COMMON', 'PC / PRACTICAL'].includes(u)) return 'CORE'
+
+  // Syllabus-level strings
+  if (u.includes('MANDATORY')) return 'MANDATORY'
+  if (u.includes('EMPLOYABILITY') || u.includes('SKILL')) return 'ADDITIONAL'
+  if (u.includes('ADDITIONAL') || u.includes('EEC') || u.includes('VALUE')) return 'ADDITIONAL'
+  if (u.includes('TRAINING') || u.includes('INTERNSHIP')) return 'TRAINING'
+  if (u.includes('PROJECT'))   return 'PROJECT'
+  if (u.includes('LAB'))       return 'LAB_ONLY'
+  if (u.includes('ELECTIVE'))  return 'PROFESSIONAL_ELECTIVE'
+
+  // Everything else → CORE (schedulable placeholder)
+  return 'CORE'
 }
 
 /**
- * Fix 2 — Map non-standard delivery types to the canonical set the solver
- * understands.  Returns the mapped type plus a flag if a warning should be
- * emitted so the caller can add it without needing the diagnostics array here.
+ * Map non-standard delivery types to the canonical SubjectDeliveryType enum.
+ * Returns the mapped type plus a flag if a warning should be emitted.
+ *
+ * IMPORTANT: curriculum category and delivery type are independent axes — a
+ * subject's scheduling behavior is determined by its delivery type, and its
+ * *classification* stays whatever the curriculum category is.  Delivery type
+ * is NEVER derived from category (and vice versa).
  */
 function mapDeliveryType(raw: string): { type: Subject['deliveryType']; warned: boolean } {
   const u = raw.trim().toUpperCase()
   // Pure theory
-  if (['THEORY', 'LECTURE'].includes(u))                                                              return { type: 'THEORY',     warned: false }
+  if (['THEORY', 'LECTURE'].includes(u)) return { type: 'THEORY', warned: false }
   // Pure lab
-  if (['LAB', 'PRACTICAL', 'LABORATORY'].includes(u))                                                 return { type: 'LAB',        warned: false }
+  if (['LAB', 'PRACTICAL', 'LABORATORY'].includes(u)) return { type: 'LAB', warned: false }
   // Integrated (theory + practical component in same course)
-  // Covers official syllabus values: 'Theory + Practical', 'Lab-integrated'
   if (['INTEGRATED', 'THEORY & PRACTICAL', 'THEORY + PRACTICAL', 'LAB-INTEGRATED', 'LABINTEGRATED'].includes(u)) return { type: 'INTEGRATED', warned: false }
-  // Non-schedulable course types from the official B.Tech AI&DS Regulation 2024 syllabus:
-  // Seminar, Non-credit, Project, Internship, Value Added, Course, Mandatory, Elective.
-  // We accept them as THEORY slots (1+ periods still need to be timetabled or just appear
-  // as placeholders) and emit a WARNING so the operator is aware of the remapping.
+  // Project-style delivery
+  if (['PROJECT', 'MINI PROJECT', 'PROJECT WORK'].includes(u)) return { type: 'PROJECT', warned: false }
+  // Non-standard types (SEMINAR, INTERNSHIP, VALUE ADDED, etc.)
+  // Map to THEORY so they get schedulable blocks, but warn the operator.
   return { type: 'THEORY', warned: true }
 }
 function matchYearOrSem(val1: string | null | undefined, query: string): boolean {
@@ -164,7 +203,7 @@ export function normalizeWorkbook(sheets: Map<string, Array<Record<string, unkno
     }
     // Fix 1 — Map academic short-code categories (BS, PC, ES, OE, PE …) to the
     // canonical set.  Unknown values fall through to OTHER rather than rejecting.
-    const rawCategory = text(row, 'category') || 'OTHER'
+    const rawCategory = text(row, 'category') || 'PROFESSIONAL CORE'
     const category = mapCategory(rawCategory)
     subjects.push({ id, code, name, deliveryType, category })
   }

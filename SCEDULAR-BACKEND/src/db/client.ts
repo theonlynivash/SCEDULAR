@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defaultScheduleConfig } from '../utils/grid.js'
+import { deriveComponentType } from '../subjectConfig.js'
 import { REAL_FACULTY_ROSTER } from '../seed/facultyRoster.js'
 import { REGULATION_2024_CURRICULUM } from '../seed/curriculumRoster.js'
 import { KNOWN_SECTIONS_ROSTER, KNOWN_LABS_ROSTER, KNOWN_LAB_MAPPINGS } from '../seed/resourceRoster.js'
@@ -156,7 +157,7 @@ export function ensureInitialized(): Promise<void> {
                 [s.code, s.code, s.name, 'LAB_ONLY', s.lab_periods || 3]
               )
             } else {
-              const comp = s.category === 'MANDATORY' ? 'MANDATORY' : s.category === 'ADDITIONAL' ? 'ADDITIONAL' : 'THEORY_ONLY'
+              const comp = deriveComponentType(s.category, s.delivery_type)
               await pool.query(
                 `INSERT INTO courses (id, code, name, component_type, lab_block_length)
                  VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type FacultyProfile as FacultyProfileType } from '../api'
+import ProfileResults from './ProfileResults'
 
 interface FacultyProfileProps {
   facultyId: string
@@ -25,6 +26,10 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
   const [allocExp, setAllocExp] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [contactMsg, setContactMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [savingContact, setSavingContact] = useState(false)
 
   async function load() {
     if (!facultyId) {
@@ -39,6 +44,8 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
       setPrevExp(p.previousExperience != null ? String(p.previousExperience) : '')
       setCurrExp(p.currentExperience != null ? String(p.currentExperience) : '')
       setAllocExp(p.allocationExperience != null ? String(p.allocationExperience) : '')
+      setEmail(p.email ?? '')
+      setPhone(p.phone ?? '')
       setError(null)
     } catch {
       setError('Unable to load profile.')
@@ -80,6 +87,17 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
     }
   }
 
+  async function saveContact() {
+    setSavingContact(true); setContactMsg(null)
+    try {
+      const r = await api.contact.update({ email: email.trim() || null, phone: phone.trim() || null })
+      setEmail(r.email ?? ''); setPhone(r.phone ?? '')
+      setProfile(p => (p ? { ...p, email: r.email, phone: r.phone } : p))
+      setContactMsg({ ok: true, text: 'Contact details saved.' })
+    } catch (e: any) { setContactMsg({ ok: false, text: e?.message || 'Could not save.' }) }
+    finally { setSavingContact(false) }
+  }
+
   const totalExperience =
     profile && (profile.previousExperience != null || profile.currentExperience != null)
       ? (profile.previousExperience ?? 0) + (profile.currentExperience ?? 0)
@@ -90,7 +108,7 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div>
         <h1 className="font-display font-700 text-2xl text-slate-900 tracking-tight">Faculty Profile</h1>
         <p className="text-sm text-slate-500 mt-1">Your details as recorded in the department database.</p>
@@ -151,6 +169,23 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
               {saveMsg && <span className="text-sm text-slate-600">{saveMsg}</span>}
             </div>
           </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
+            <h2 className="font-700 text-lg text-slate-900 mb-1">Contact details</h2>
+            <p className="text-xs text-slate-500 mb-5">Your email is where the HOD can reach you (announcements, awards, login details).</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="block"><span className="block text-xs font-600 text-slate-500 mb-1.5">Email (Gmail)</span>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@gmail.com" className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F4C81]/40" /></label>
+              <label className="block"><span className="block text-xs font-600 text-slate-500 mb-1.5">Phone</span>
+                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Optional" className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F4C81]/40" /></label>
+            </div>
+            <div className="flex items-center gap-3 mt-5">
+              <button onClick={saveContact} disabled={savingContact} className="text-white font-600 py-2.5 px-5 rounded-xl text-sm bg-gradient-to-br from-[#0e254f] to-[#081a38] ring-1 ring-[#f3c326]/60 shadow hover:brightness-110 disabled:opacity-60">{savingContact ? 'Saving…' : 'Save contact details'}</button>
+              {contactMsg && <span className={`text-sm ${contactMsg.ok ? 'text-slate-600' : 'text-rose-600'}`}>{contactMsg.text}</span>}
+            </div>
+          </div>
+
+          <ProfileResults />
         </>
       )}
     </div>

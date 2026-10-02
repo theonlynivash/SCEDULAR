@@ -1,634 +1,414 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { Page } from '../types'
-import { PageHeader, GlassPanel, Chip, Btn } from './ui'
-import { api, type MasterDatasetStatus } from '../api'
-import {
-  Activity,
-  AlertTriangle,
-  Award,
-  CheckCircle2,
-  ChevronRight,
-  Code,
-  Cpu,
-  Database,
-  GraduationCap,
-  Layers,
-  Play,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Zap,
-} from 'lucide-react'
+import { api } from '../api'
+import { ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react'
 
-/* ---------- Scroll reveal wrapper ---------- */
+/* ──────────────────────────── content ──────────────────────────── */
+
+const ACCENTS = ['#2f6fc4', '#0f766e', '#6d5bd0', '#b8860b', '#0e254f', '#2e8b57', '#c2410c', '#9d3c72']
+const STEPS = [
+  { label: 'Set up', phrase: 'The HOD builds sections, syllabus and teachers.' },
+  { label: 'Log in', phrase: 'Every teacher gets a personal login.' },
+  { label: 'Choose', phrase: 'Teachers pick subjects that match their experience.' },
+  { label: 'Assign', phrase: 'The HOD approves and fills each section from templates.' },
+  { label: 'Solve', phrase: 'The solver places every period without a clash.' },
+  { label: 'Verify', phrase: 'A second checker replays every rule on the result.' },
+  { label: 'Print', phrase: 'Class timetables export as PDFs, section by section.' },
+  { label: 'Review', phrase: 'Reports track workload, needs and teacher results.' },
+]
+
+const RULES = [
+  { t: 'One place at a time', d: 'A teacher is never in two classes in the same period.' },
+  { t: 'One class per lab', d: 'A lab room serves a single section at once.' },
+  { t: 'One subject per slot', d: 'A section never has two classes in a period.' },
+  { t: 'Labs stay whole', d: 'Lab blocks run in consecutive periods.' },
+  { t: 'No daily flooding', d: 'A subject is capped per day for each section.' },
+  { t: 'Leave is respected', d: 'Marked unavailability is never scheduled over.' },
+]
+
+const ROLES = {
+  HOD: ['Builds sections, syllabus and teachers', 'Approves what teachers choose', 'Assigns teachers using workload templates', 'Generates, prints and mails'],
+  Teacher: ['Signs in with a personal ID', 'Picks preferred subjects', 'Records past pass percentages', 'Sees a personal timetable'],
+} as const
+
+/* ──────────────────────────── helpers ──────────────────────────── */
+
+function scrollParentOf(el: HTMLElement | null): HTMLElement | null {
+  for (let p = el?.parentElement ?? null; p; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY
+    if ((o === 'auto' || o === 'scroll') && p.scrollHeight > p.clientHeight) return p
+  }
+  return null
+}
+
 function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; delay?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
-  const [visible, setVisible] = useState(false)
+  const [seen, setSeen] = useState(false)
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const obs = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting) {
-          setVisible(true)
-          obs.disconnect()
-        }
-      },
-      { threshold: 0.15 }
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect() } }, { threshold: 0.15 })
+    io.observe(el)
+    return () => io.disconnect()
   }, [])
-  return (
-    <div ref={ref} className={`reveal ${visible ? 'in-view' : ''} ${className}`} style={{ transitionDelay: `${delay}ms` }}>
-      {children}
-    </div>
-  )
+  return <div ref={ref} className={`ab-reveal ${seen ? 'ab-in' : ''} ${className}`} style={{ transitionDelay: `${delay}ms` }}>{children}</div>
 }
 
-/* ---------- Count-up number ---------- */
-function CountUp({ to, className = '' }: { to: number; className?: string }) {
+function CountUp({ to }: { to: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [n, setN] = useState(0)
   useEffect(() => {
     const el = ref.current
     if (!el) return
     let raf = 0
-    const obs = new IntersectionObserver(
-      entries => {
-        if (!entries[0].isIntersecting) return
-        obs.disconnect()
-        const t0 = performance.now()
-        const dur = 1200
-        const tick = (t: number) => {
-          const p = Math.min(1, (t - t0) / dur)
-          setN(Math.round(to * (1 - Math.pow(1 - p, 3))))
-          if (p < 1) raf = requestAnimationFrame(tick)
-        }
-        raf = requestAnimationFrame(tick)
-      },
-      { threshold: 0.4 }
-    )
-    obs.observe(el)
-    return () => {
-      obs.disconnect()
-      cancelAnimationFrame(raf)
-    }
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return
+      io.disconnect()
+      const t0 = performance.now()
+      const tick = (t: number) => { const p = Math.min(1, (t - t0) / 1100); setN(Math.round(to * (1 - Math.pow(1 - p, 3)))); if (p < 1) raf = requestAnimationFrame(tick) }
+      raf = requestAnimationFrame(tick)
+    }, { threshold: 0.5 })
+    io.observe(el)
+    return () => { io.disconnect(); cancelAnimationFrame(raf) }
   }, [to])
-  return <span ref={ref} className={className}>{n}</span>
+  return <span ref={ref}>{n}</span>
 }
 
-/* ---------- Section Title ---------- */
-function SectionTitle({ kicker, title, desc }: { kicker: string; title: string; desc?: string }) {
-  return (
-    <Reveal>
-      <div className="mb-6">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#f3c326]/15 border border-[#f3c326]/30 text-[#c98f00] text-[11px] font-700 tracking-wider uppercase mb-2">
-          <Sparkles size={12} />
-          {kicker}
-        </div>
-        <h3 className="font-editorial font-600 text-2xl md:text-3xl text-slate-900 tracking-tight">{title}</h3>
-        {desc && <p className="text-sm text-slate-500 mt-1.5 max-w-2xl">{desc}</p>}
-      </div>
-    </Reveal>
-  )
-}
+/* ──────────────────────── pinned horizontal workflow ──────────────────────── */
 
-/* ---------- Pipeline Data ---------- */
-const STAGES = [
-  {
-    step: '01',
-    tag: 'Stage 01 · Input',
-    title: 'Structured Master Workbook',
-    desc: 'Upload normalized Excel datasets (.xlsx) containing Sections, Subjects, Teaching Assignments, Labs, and Faculty Unavailability.',
-    detail: 'Parses 7 required sheets with transactional integrity. Multi-section teaching assignments are preserved without duplicating faculty entries.',
-    icon: Database,
-  },
-  {
-    step: '02',
-    tag: 'Stage 02 · Validate',
-    title: 'Pre-Flight Diagnostic Filter',
-    desc: 'Malformed rows, invalid course codes, missing faculty IDs, or structural inconsistencies are flagged before generation.',
-    detail: 'Ensures bad data never reaches the solver. Clean error bounds give pinpoint sheet and row references.',
-    icon: ShieldCheck,
-  },
-  {
-    step: '03',
-    tag: 'Stage 03 · Expand',
-    title: 'Requirement Explosion',
-    desc: 'Weekly demand (e.g. 5 theory periods + 3-period lab block) is exploded into individual schedulable units.',
-    detail: 'Determines block constraints, contiguous lab requirements, and multi-period lab teacher assignments.',
-    icon: Layers,
-  },
-  {
-    step: '04',
-    tag: 'Stage 04 · Solve',
-    title: 'MRV Constraint Backtracking CSP',
-    desc: 'Dynamic Most-Constrained-First (Minimum Remaining Values) search across periods, rooms, and faculty.',
-    detail: 'Evaluates thousands of states per second, prioritizing heavily constrained lab blocks and overloaded faculty first.',
-    icon: Cpu,
-  },
-  {
-    step: '05',
-    tag: 'Stage 05 · Verify',
-    title: 'Independent Post-Validation',
-    desc: 'An independent validator replays 13 hard constraints against the output grid to guarantee zero fabricated results.',
-    detail: 'Checks for teacher double-booking, section room conflicts, daily subject caps, and contiguous lab continuity.',
-    icon: CheckCircle2,
-  },
-  {
-    step: '06',
-    tag: 'Stage 06 · Output',
-    title: 'GREEN / RED Status Contract',
-    desc: 'Yields a verified master schedule (GREEN) when feasible, or a detailed conflict matrix (RED) if infeasible.',
-    detail: 'Never silently masks broken constraints or produces partial broken schedules.',
-    icon: Zap,
-  },
-  {
-    step: '07',
-    tag: 'Stage 07 · Views',
-    title: 'Projections & Exports',
-    desc: 'Generates Class, Faculty, Lab, and Conflict views — all projecting the single authoritative master timetable.',
-    detail: 'Enables instant filtering by Department, Year (I–IV), and Semester (I–VIII).',
-    icon: Activity,
-  },
-]
+function Workflow() {
+  const wrap = useRef<HTMLDivElement>(null)
+  const [p, setP] = useState(0)            // 0..1 progress through the pinned section
+  const [viewH, setViewH] = useState(520)
+  const parentRef = useRef<HTMLElement | null>(null)
+  const N = STEPS.length
 
-const HARD_CONSTRAINTS = [
-  { id: 1, title: 'No Section Conflict', desc: 'A section cannot have two classes assigned to the exact same period.' },
-  { id: 2, title: 'No Faculty Clash', desc: 'A teacher cannot teach two different sections simultaneously.' },
-  { id: 3, title: 'No Physical Lab Overlap', desc: 'A physical lab space cannot host multiple sections concurrently.' },
-  { id: 4, title: 'Exact Weekly Load', desc: 'Required theory & lab period counts must be satisfied completely for every section.' },
-  { id: 5, title: 'Faculty Subject Eligibility', desc: 'Teachers are assigned strictly to subjects/components they are qualified for.' },
-  { id: 6, title: 'Teacher Availability & Caps', desc: 'Max daily periods, max weekly load, and explicit unavailable times are strictly respected.' },
-  { id: 7, title: 'Break & Lunch Exclusion', desc: 'Scheduled tea breaks and lunch intervals never host academic assignments.' },
-  { id: 8, title: 'Contiguous Lab Blocks', desc: 'Practical lab sessions occupy continuous 3-period blocks without interruption.' },
-  { id: 9, title: 'No Lab Boundary Cross', desc: 'Lab blocks cannot cross tea break or lunch boundary times.' },
-  { id: 10, title: 'Lab Teacher Continuity', desc: 'Assigned lab faculty remain occupied for the entire contiguous lab session.' },
-  { id: 11, title: 'Completeness Guarantee', desc: 'No partial or duplicate period assignment is accepted as complete.' },
-  { id: 12, title: 'Strict Pre-validation', desc: 'Malformed data is rejected before solver execution begins.' },
-  { id: 13, title: 'Zero False Success', desc: 'Infeasible constraint combinations yield explicit conflict diagnostics, never silent errors.' },
-]
-
-const SOFT_CONSTRAINTS = [
-  { id: 1, title: 'Faculty Load Balancing', desc: 'Evens out weekly teaching hours across department faculty members.' },
-  { id: 2, title: 'Gap Minimization', desc: 'Reduces idle free periods between classes for individual teachers.' },
-  { id: 3, title: 'Avoid Overwork Blocks', desc: 'Prevents faculty from having more than 3 consecutive heavy teaching periods.' },
-  { id: 4, title: 'Subject Weekly Spacing', desc: 'Spreads multiple occurrences of a subject evenly across the 5 working days.' },
-  { id: 5, title: 'Section Load Distribution', desc: 'Balances daily academic work for students to avoid heavy single-day schedules.' },
-  { id: 6, title: 'Optimal Lab Timing', desc: 'Prefers morning or early afternoon placement for lab blocks.' },
-  { id: 7, title: 'Teacher Preferences', desc: 'Accommodates department-configured preferred teaching slots where possible.' },
-]
-
-/* ---------- Mini Interactive Solver Simulation Widget ---------- */
-function SolverSimulation() {
-  const [running, setRunning] = useState(false)
-  const [step, setStep] = useState(0)
-  const [grid, setGrid] = useState<string[]>(Array(15).fill('EMPTY'))
-
-  const subjects = ['DBMS Lab', 'AI & ML', 'Python', 'DS Lab', 'Maths IV', 'Networks', 'OS Lab', 'Web Dev', 'Cyber Sec', 'DBMS Lab', 'AI & ML', 'Python', 'DS Lab', 'Maths IV', 'Networks']
-  const colors = ['#dbeafe', '#dcfce7', '#fce7f3', '#fef3c7', '#ede9fe', '#ffedd5', '#e0f2fe', '#fee2e2']
-
-  useEffect(() => {
-    if (!running) return
-    const interval = setInterval(() => {
-      setStep(prev => {
-        if (prev >= subjects.length) {
-          setRunning(false)
-          return prev
-        }
-        setGrid(g => {
-          const next = [...g]
-          next[prev] = subjects[prev]
-          return next
-        })
-        return prev + 1
-      })
-    }, 180)
-    return () => clearInterval(interval)
-  }, [running])
-
-  function resetSim() {
-    setRunning(false)
-    setStep(0)
-    setGrid(Array(15).fill('EMPTY'))
-  }
-
-  function startSim() {
-    resetSim()
-    setTimeout(() => setRunning(true), 50)
-  }
-
-  return (
-    <GlassPanel strong className="p-6 overflow-hidden relative border border-white/80">
-      <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-        <div>
-          <div className="inline-flex items-center gap-1.5 text-xs font-700 uppercase tracking-wider text-slate-500">
-            <Cpu size={14} className="text-[#0e254f]" />
-            Interactive Solver Sandbox
-          </div>
-          <h4 className="font-display font-800 text-lg text-slate-900 mt-0.5">
-            MRV Backtracking Algorithm in Action
-          </h4>
-        </div>
-        <div className="flex items-center gap-2">
-          <Btn variant="secondary" onClick={resetSim} disabled={step === 0 && !running}>
-            <RefreshCw size={14} className={running ? 'animate-spin' : ''} /> Reset
-          </Btn>
-          <Btn onClick={startSim} disabled={running}>
-            <Play size={14} /> {running ? 'Solving...' : 'Play Solver Demo'}
-          </Btn>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-5 gap-2 my-4">
-        {grid.map((cell, idx) => {
-          const filled = cell !== 'EMPTY'
-          const bg = filled ? colors[idx % colors.length] : 'rgba(255,255,255,0.3)'
-          return (
-            <div
-              key={idx}
-              className={`rounded-xl p-3 text-center transition-all duration-300 border min-h-[64px] flex flex-col items-center justify-center ${
-                filled
-                  ? 'border-slate-300/80 shadow-sm scale-100'
-                  : 'border-dashed border-slate-300/50 scale-95 opacity-60'
-              }`}
-              style={{ background: bg }}
-            >
-              <span className="text-[10px] font-700 text-slate-400 uppercase tracking-wider">
-                P{idx + 1}
-              </span>
-              <span className={`text-xs font-700 mt-0.5 truncate w-full ${filled ? 'text-slate-800' : 'text-slate-400'}`}>
-                {cell}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200/60">
-        <span>Assigned: <strong className="text-slate-800 font-700">{step} / {subjects.length}</strong> slots</span>
-        <span className="flex items-center gap-1 text-emerald-700 font-600">
-          <CheckCircle2 size={14} /> Hard Constraints Enforced: 100%
-        </span>
-      </div>
-    </GlassPanel>
-  )
-}
-
-/* ---------- Person Card ---------- */
-function PersonCard({
-  name,
-  role,
-  email,
-  initials,
-  badge,
-}: {
-  name: string
-  role: string
-  email: string
-  initials: string
-  badge: string
-}) {
-  return (
-    <GlassPanel className="p-6 flex items-start gap-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_20px_40px_rgba(7,20,51,0.14)] group relative overflow-hidden border border-white/70">
-      <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-[#0e254f] to-[#081a38] ring-2 ring-[#f3c326]/60 text-white font-display font-800 text-xl shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
-        {initials}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-800 uppercase tracking-wider bg-[#0e254f]/10 text-[#0e254f] mb-1">
-          {badge}
-        </div>
-        <p className="font-editorial font-700 text-lg text-slate-900 group-hover:text-[#0e254f] transition">{name}</p>
-        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{role}</p>
-        <a
-          href={`mailto:${email}`}
-          className="inline-flex items-center gap-1.5 text-xs text-[#0e254f] hover:text-[#081a38] font-700 mt-2 transition"
-        >
-          {email} <ChevronRight size={12} />
-        </a>
-      </div>
-    </GlassPanel>
-  )
-}
-
-export default function About({ navigate }: { navigate: (p: Page) => void }) {
-  const [activeStage, setActiveStage] = useState(3)
-  const [constraintTab, setConstraintTab] = useState<'all' | 'hard' | 'soft'>('all')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [liveStatus, setLiveStatus] = useState<MasterDatasetStatus | null>(null)
-
-  useEffect(() => {
-    api.importMaster.status().then(setLiveStatus).catch(() => setLiveStatus(null))
+  const measure = useCallback(() => {
+    const el = wrap.current, parent = parentRef.current
+    if (!el || !parent) return
+    const total = el.offsetHeight - parent.clientHeight
+    const scrolled = parent.getBoundingClientRect().top - el.getBoundingClientRect().top
+    setP(Math.max(0, Math.min(1, total > 0 ? scrolled / total : 0)))
   }, [])
 
-  const filteredHard = HARD_CONSTRAINTS.filter(
-    c => c.title.toLowerCase().includes(searchQuery.toLowerCase()) || c.desc.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-  const filteredSoft = SOFT_CONSTRAINTS.filter(
-    c => c.title.toLowerCase().includes(searchQuery.toLowerCase()) || c.desc.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  useLayoutEffect(() => {
+    const parent = scrollParentOf(wrap.current)
+    parentRef.current = parent
+    if (!parent) return
+    const resize = () => { setViewH(Math.max(380, parent.clientHeight)); measure() }
+    resize()
+    parent.addEventListener('scroll', measure, { passive: true })
+    window.addEventListener('resize', resize)
+    return () => { parent.removeEventListener('scroll', measure); window.removeEventListener('resize', resize) }
+  }, [measure])
 
-  const counts = liveStatus?.counts ?? {}
+  const pos = p * (N - 1)
+  const active = Math.round(pos)
+
+  const jump = (i: number) => {
+    const el = wrap.current, parent = parentRef.current
+    if (!el || !parent) return
+    const total = el.offsetHeight - parent.clientHeight
+    const top = el.getBoundingClientRect().top - parent.getBoundingClientRect().top + parent.scrollTop + (i / (N - 1)) * total
+    parent.scrollTo({ top: Math.round(top) + (i === 0 ? 1 : 0), behavior: 'smooth' })
+  }
+
+  // arrow keys step through while the section is on screen
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (p <= 0 || p >= 1) return
+      if (e.key === 'ArrowRight') { e.preventDefault(); jump(Math.min(N - 1, active + 1)) }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); jump(Math.max(0, active - 1)) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  const filled = Math.round(p * 40)
+  const accent = ACCENTS[Math.min(N - 1, active)]
 
   return (
-    <div className="space-y-12 pb-8">
-      <PageHeader title="About SCEDULAR">
-        <button
-          onClick={() => navigate('dashboard')}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-600 text-slate-600 glass-pill transition hover:bg-white/60"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to Dashboard
-        </button>
-      </PageHeader>
-
-      {/* Hero */}
-      <GlassPanel strong className="liquid-edge sheen relative overflow-hidden p-8 md:p-14 text-center about-hero border border-white/80">
-        <div className="about-hero-glow" aria-hidden="true" />
-        <div className="relative z-10 max-w-3xl mx-auto">
-          <Reveal>
-            <div className="mx-auto mb-5 transition-transform duration-500 hover:scale-[1.04]" style={{ width: 'fit-content' }}>
-              <img src="/SCEDULAR_LOGO.png" alt="SCEDULAR timetable system" className="block w-full max-w-[340px] h-auto drop-shadow-md" />
-            </div>
-          </Reveal>
-          <Reveal delay={100}>
-            <h2 className="font-editorial font-700 text-3xl md:text-5xl leading-[1.12] tracking-tight text-gradient-brand">
-              Timetables that solve themselves.
-            </h2>
-          </Reveal>
-          <Reveal delay={200}>
-            <p className="text-base text-slate-600 max-w-2xl mx-auto mt-4 leading-relaxed font-400">
-              Deterministic, constraint-driven college timetable engine built for Panimalar Engineering College — designed & developed by KERNUL TECH.
-            </p>
-          </Reveal>
-          <Reveal delay={300}>
-            <div className="flex justify-center gap-2.5 mt-6 flex-wrap">
-              <Chip tone="accent">Department-Wide</Chip>
-              <Chip tone="success">Any Year (I–IV) · Any Semester (I–VIII)</Chip>
-              <Chip tone="warning">Zero Fabricated Results</Chip>
-              <Chip tone="neutral">MRV CSP Backtracking</Chip>
-            </div>
-          </Reveal>
+    <section ref={wrap} style={{ height: `${viewH * (N + 1.4)}px` }} className="relative">
+      <div className="sticky top-0 overflow-hidden" style={{ height: viewH, ['--accent' as any]: accent }}>
+        <div className="absolute inset-0 transition-[background] duration-700" style={{ background: `radial-gradient(55% 65% at 72% 62%, color-mix(in srgb, ${accent} 20%, transparent), transparent 70%), radial-gradient(40% 50% at 8% 20%, color-mix(in srgb, ${accent} 10%, transparent), transparent 70%)` }} aria-hidden />
+        {/* timetable that fills in as you move through the steps */}
+        <div className="absolute right-[4%] bottom-[12%] hidden md:grid gap-1.5 opacity-90" style={{ gridTemplateColumns: 'repeat(8, 2.6rem)', gridTemplateRows: 'repeat(5, 1.9rem)' }} aria-hidden>
+          {Array.from({ length: 40 }, (_, i) => {
+            const col = i % 8, row = Math.floor(i / 8)
+            const order = col * 5 + row
+            return <span key={i} className="rounded-md border transition-all duration-500" style={{ borderColor: order < filled ? `color-mix(in srgb, ${accent} 40%, transparent)` : 'rgba(14,37,79,.14)', background: order < filled ? `color-mix(in srgb, ${accent} 28%, transparent)` : 'rgba(255,255,255,.35)', transform: order < filled ? 'none' : 'scale(.94)' }} />
+          })}
         </div>
-      </GlassPanel>
 
-      {/* Live System Metrics & Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { icon: Database, v: liveStatus ? counts.sections ?? 0 : 12, label: 'Active Sections Loaded', sub: 'Canonical Workload' },
-          { icon: GraduationCap, v: liveStatus ? counts.faculty ?? 0 : 31, label: 'Faculty Members', sub: 'Max Load Enforced' },
-          { icon: Cpu, v: HARD_CONSTRAINTS.length, label: 'Hard Constraints', sub: 'Strictly Enforced' },
-          { icon: Sparkles, v: SOFT_CONSTRAINTS.length, label: 'Soft Optimizations', sub: 'Load Balanced' },
-        ].map((s, i) => (
-          <Reveal key={s.label} delay={i * 80}>
-            <GlassPanel className="p-5 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(7,20,51,0.12)] border border-white/70">
-              <div className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center bg-gradient-to-br from-[#0e254f] to-[#081a38] text-[#f3c326] mb-3 shadow-md">
-                <s.icon size={20} strokeWidth={2} />
+        <div className="absolute left-0 top-6 right-0 px-6 md:px-10 flex items-baseline gap-3">
+          <span className="text-[11px] font-600 uppercase tracking-[0.2em] text-slate-500">How it works</span>
+          <span className="ml-auto text-[11px] text-slate-400 hidden sm:inline">Scroll, or use ← →</span>
+        </div>
+
+        {/* horizontally sliding track */}
+        <div className="absolute inset-0 flex items-center" style={{ width: `${N * 100}%`, transform: `translate3d(${-(pos * 100) / N}%,0,0)`, transition: 'transform .35s cubic-bezier(.2,.7,.2,1)', willChange: 'transform' }}>
+          {STEPS.map((s, i) => {
+            const d = Math.abs(i - pos)
+            return (
+              <div key={s.label} className="px-6 md:px-16" style={{ width: `${100 / N}%`, opacity: Math.max(0.12, 1 - d * 0.75), transform: `translateY(${Math.min(d, 1) * 10}px)`, transition: 'opacity .35s, transform .35s' }}>
+                <div className="max-w-2xl">
+                  <p className="font-display text-[5.5rem] md:text-[8rem] leading-none font-300 select-none" style={{ color: `color-mix(in srgb, ${ACCENTS[i]} 22%, transparent)` }}>{String(i + 1).padStart(2, '0')}</p>
+                  <p className="mt-1 text-[11px] font-700 uppercase tracking-[0.22em]" style={{ color: ACCENTS[i] }}>{s.label}</p>
+                  <p className="mt-2 font-editorial text-[1.9rem] md:text-[2.7rem] leading-[1.15] tracking-tight text-slate-900">{s.phrase}</p>
+                </div>
               </div>
-              <p className="font-display font-800 text-3xl text-[#0e254f]">
-                <CountUp to={s.v} />
-              </p>
-              <p className="text-xs font-700 text-slate-800 mt-1">{s.label}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{s.sub}</p>
-            </GlassPanel>
-          </Reveal>
+            )
+          })}
+        </div>
+
+        {/* progress rail */}
+        <div className="absolute left-0 right-0 bottom-6 pl-6 md:pl-10 pr-6 md:pr-44">
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => jump(Math.max(0, active - 1))} disabled={active === 0} aria-label="Previous step" className="p-1.5 rounded-full text-slate-500 hover:bg-slate-900/5 disabled:opacity-30"><ArrowLeft size={15} /></button>
+            <div className="flex-1 flex items-center">
+              {STEPS.map((s, i) => (
+                <button key={s.label} onClick={() => jump(i)} className="group flex-1 flex flex-col items-start gap-1.5 text-left" aria-label={`Go to ${s.label}`}>
+                  <span className="relative block h-[3px] w-full rounded-full bg-slate-900/10 overflow-hidden">
+                    <span className="absolute inset-y-0 left-0 rounded-full" style={{ background: ACCENTS[i], width: `${Math.max(0, Math.min(1, pos - i + 1)) * 100}%`, transition: 'width .35s' }} />
+                  </span>
+                  <span className={`text-[10.5px] tracking-wide transition-colors ${i === active ? 'text-slate-900 font-700' : 'text-slate-400 group-hover:text-slate-600'} hidden sm:block pr-2`}>{s.label}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => jump(Math.min(N - 1, active + 1))} disabled={active === N - 1} aria-label="Next step" className="p-1.5 rounded-full text-slate-500 hover:bg-slate-900/5 disabled:opacity-30"><ArrowRight size={15} /></button>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ──────────────────────── horizontal rule cards ──────────────────────── */
+
+function Rules() {
+  const row = useRef<HTMLDivElement>(null)
+  const by = (dir: number) => row.current?.scrollBy({ left: dir * 300, behavior: 'smooth' })
+  return (
+    <section className="py-16">
+      <Reveal>
+        <div className="flex items-end gap-3 mb-5 px-1">
+          <div>
+            <p className="text-[11px] font-600 uppercase tracking-[0.2em] text-slate-500">Guarantees</p>
+            <h2 className="font-editorial text-3xl md:text-4xl tracking-tight text-slate-900 mt-1">Rules it never breaks</h2>
+          </div>
+          <div className="ml-auto flex gap-1.5">
+            <button onClick={() => by(-1)} aria-label="Scroll left" className="p-2 rounded-full border border-slate-300/70 text-slate-600 hover:bg-white/70"><ArrowLeft size={14} /></button>
+            <button onClick={() => by(1)} aria-label="Scroll right" className="p-2 rounded-full border border-slate-300/70 text-slate-600 hover:bg-white/70"><ArrowRight size={14} /></button>
+          </div>
+        </div>
+      </Reveal>
+      <div ref={row} className="ab-hscroll flex gap-3.5 overflow-x-auto pb-3 -mx-1 px-1 snap-x snap-mandatory">
+        {RULES.map((r, i) => (
+          <article key={r.t} className="snap-start shrink-0 w-[250px] rounded-2xl border border-slate-300/60 bg-white/55 p-5 transition-all duration-300 hover:-translate-y-1 hover:bg-white/85 hover:shadow-[0_10px_30px_-14px_rgba(14,37,79,.35)]">
+            <span className="block h-1 w-9 rounded-full" style={{ background: ACCENTS[i % ACCENTS.length] }} />
+            <p className="mt-4 text-[11px] font-700 tracking-widest" style={{ color: ACCENTS[i % ACCENTS.length] }}>{String(i + 1).padStart(2, '0')}</p>
+            <h3 className="mt-3 font-display font-700 text-[1.05rem] text-slate-900">{r.t}</h3>
+            <p className="mt-1.5 text-[13px] leading-snug text-slate-500">{r.d}</p>
+          </article>
         ))}
       </div>
+    </section>
+  )
+}
 
-      {/* Interactive Solver Sandbox */}
-      <Reveal delay={150}>
-        <SolverSimulation />
+/* ──────────────────────── who does what ──────────────────────── */
+
+function Roles() {
+  const [who, setWho] = useState<keyof typeof ROLES>('HOD')
+  return (
+    <section className="py-16">
+      <Reveal>
+        <p className="text-[11px] font-600 uppercase tracking-[0.2em] text-slate-500">Roles</p>
+        <h2 className="font-editorial text-3xl md:text-4xl tracking-tight text-slate-900 mt-1">Who does what</h2>
+        <div className="inline-flex mt-5 p-1 rounded-full bg-slate-900/[0.06]">
+          {(Object.keys(ROLES) as (keyof typeof ROLES)[]).map(k => (
+            <button key={k} onClick={() => setWho(k)} className={`px-5 py-1.5 rounded-full text-[13px] font-600 transition-all ${who === k ? 'bg-white text-[#0e254f] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{k}</button>
+          ))}
+        </div>
       </Reveal>
+      <ul key={who} className="mt-6 grid sm:grid-cols-2 gap-3">
+        {ROLES[who].map((line, i) => (
+          <li key={line} className="ab-pop rounded-2xl border border-slate-300/60 bg-white/55 px-5 py-4 flex items-start gap-3" style={{ animationDelay: `${i * 70}ms` }}>
+            <span className="mt-0.5 text-[11px] font-700 tracking-widest" style={{ color: ACCENTS[(i + (who === 'HOD' ? 0 : 3)) % ACCENTS.length] }}>{String(i + 1).padStart(2, '0')}</span>
+            <span className="text-[14px] text-slate-800">{line}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
 
-      {/* Interactive 7-Stage Pipeline Explorer */}
-      <div>
-        <SectionTitle
-          kicker="Architecture & Pipeline"
-          title="From Raw Excel to Conflict-Free Master Grid"
-          desc="Click any pipeline stage below to inspect its operational role, diagnostics, and algorithm phase."
-        />
+/* ──────────────────────── scroll-driven text band ──────────────────────── */
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Stage Buttons */}
-          <div className="lg:col-span-5 space-y-2">
-            {STAGES.map((st, idx) => {
-              const active = activeStage === idx
-              const IconComp = st.icon
-              return (
-                <button
-                  key={st.step}
-                  onClick={() => setActiveStage(idx)}
-                  className={`w-full text-left p-4 rounded-2xl transition-all duration-300 flex items-center gap-3.5 border ${
-                    active
-                      ? 'bg-gradient-to-r from-[#0e254f] to-[#081a38] text-white shadow-lg border-transparent scale-[1.02]'
-                      : 'bg-white/40 hover:bg-white/70 text-slate-800 border-white/60'
-                  }`}
-                >
-                  <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center font-display font-800 text-xs flex-shrink-0 ${
-                      active ? 'bg-[#f3c326] text-[#0e254f]' : 'bg-[#0e254f]/10 text-[#0e254f]'
-                    }`}
-                  >
-                    {st.step}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[10px] font-700 tracking-wider uppercase ${active ? 'text-[#f3c326]' : 'text-slate-400'}`}>
-                      {st.tag}
-                    </p>
-                    <p className="font-display font-700 text-sm truncate">{st.title}</p>
-                  </div>
-                  <IconComp size={18} className={active ? 'text-[#f3c326]' : 'text-slate-400'} />
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Stage Details Panel */}
-          <div className="lg:col-span-7">
-            <GlassPanel strong className="p-7 min-h-[380px] flex flex-col justify-between border border-white/80">
-              <div>
-                <div className="flex items-center justify-between gap-3 mb-4 border-b border-slate-200/70 pb-4">
-                  <span className="px-3 py-1 rounded-full text-xs font-800 uppercase tracking-wider bg-[#0e254f] text-[#f3c326]">
-                    {STAGES[activeStage].tag}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">Stage {activeStage + 1} of 7</span>
-                </div>
-
-                <h4 className="font-editorial font-700 text-2xl text-slate-900 mb-2">
-                  {STAGES[activeStage].title}
-                </h4>
-
-                <p className="text-sm text-slate-600 leading-relaxed mb-5">
-                  {STAGES[activeStage].desc}
-                </p>
-
-                <div className="rounded-xl bg-[#0e254f]/[0.04] border border-[#0e254f]/10 p-4 mb-4">
-                  <p className="text-xs font-700 text-[#0e254f] uppercase tracking-wider mb-1">
-                    Technical Mechanism
-                  </p>
-                  <p className="text-xs text-slate-700 leading-relaxed font-mono">
-                    {STAGES[activeStage].detail}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-slate-200/70 text-xs">
-                <button
-                  onClick={() => setActiveStage(prev => Math.max(0, prev - 1))}
-                  disabled={activeStage === 0}
-                  className="text-slate-500 hover:text-slate-900 font-600 disabled:opacity-30"
-                >
-                  ← Previous Stage
-                </button>
-                <div className="flex gap-1">
-                  {STAGES.map((_, i) => (
-                    <span
-                      key={i}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        activeStage === i ? 'bg-[#0e254f] w-5' : 'bg-slate-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={() => setActiveStage(prev => Math.min(STAGES.length - 1, prev + 1))}
-                  disabled={activeStage === STAGES.length - 1}
-                  className="text-slate-900 hover:text-[#0e254f] font-700 disabled:opacity-30"
-                >
-                  Next Stage →
-                </button>
-              </div>
-            </GlassPanel>
-          </div>
-        </div>
-      </div>
-
-      {/* Dynamic Rule Explorer & Filter */}
-      <div>
-        <SectionTitle
-          kicker="Validation Contract"
-          title="Engineered Guarantees & Constraints"
-          desc="Search or filter the 13 strict hard constraints and 7 soft optimization objectives enforced by the solver."
-        />
-
-        <GlassPanel className="p-6 border border-white/70">
-          <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-            <div className="flex gap-1 glass-pill rounded-full p-1">
-              <button
-                onClick={() => setConstraintTab('all')}
-                className={`px-4 py-1.5 rounded-full text-xs font-700 transition ${
-                  constraintTab === 'all' ? 'glass-pill-active text-[#0e254f]' : 'text-slate-600'
-                }`}
-              >
-                All Rules ({HARD_CONSTRAINTS.length + SOFT_CONSTRAINTS.length})
-              </button>
-              <button
-                onClick={() => setConstraintTab('hard')}
-                className={`px-4 py-1.5 rounded-full text-xs font-700 transition ${
-                  constraintTab === 'hard' ? 'glass-pill-active text-rose-700' : 'text-slate-600'
-                }`}
-              >
-                Hard Constraints ({HARD_CONSTRAINTS.length})
-              </button>
-              <button
-                onClick={() => setConstraintTab('soft')}
-                className={`px-4 py-1.5 rounded-full text-xs font-700 transition ${
-                  constraintTab === 'soft' ? 'glass-pill-active text-amber-700' : 'text-slate-600'
-                }`}
-              >
-                Soft Optimizations ({SOFT_CONSTRAINTS.length})
-              </button>
-            </div>
-
-            <div className="relative min-w-[240px]">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search constraint rules..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="glass-input w-full pl-9 pr-3 py-1.5 text-xs rounded-full"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(constraintTab === 'all' || constraintTab === 'hard') && (
-              <div className="space-y-3">
-                <p className="text-xs font-800 uppercase tracking-wider text-rose-700 flex items-center gap-1.5">
-                  <ShieldCheck size={14} /> Hard Constraints (Strict / Mandatory)
-                </p>
-                {filteredHard.map(rule => (
-                  <div
-                    key={rule.id}
-                    className="p-3.5 rounded-xl bg-white/50 border border-rose-200/50 hover:border-rose-300 transition"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-rose-400/15 text-rose-700 text-[10px] font-800 flex items-center justify-center">
-                        {rule.id}
-                      </span>
-                      <h5 className="text-xs font-700 text-slate-900">{rule.title}</h5>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1 pl-7 leading-relaxed">{rule.desc}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {(constraintTab === 'all' || constraintTab === 'soft') && (
-              <div className="space-y-3">
-                <p className="text-xs font-800 uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
-                  <Sparkles size={14} /> Soft Constraints (Optimizations)
-                </p>
-                {filteredSoft.map(rule => (
-                  <div
-                    key={rule.id}
-                    className="p-3.5 rounded-xl bg-white/50 border border-amber-200/50 hover:border-amber-300 transition"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-amber-400/15 text-amber-700 text-[10px] font-800 flex items-center justify-center">
-                        {rule.id}
-                      </span>
-                      <h5 className="text-xs font-700 text-slate-900">{rule.title}</h5>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1 pl-7 leading-relaxed">{rule.desc}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </GlassPanel>
-      </div>
-
-      {/* Creator & Institutional Credits */}
-      <div>
-        <SectionTitle
-          kicker="Engineering & Leadership"
-          title="Developed by KERNUL TECH"
-          desc="Engineered for Panimalar Engineering College, Artificial Intelligence & Data Science Department."
-        />
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <PersonCard
-            name="Srinivash Karthikeyan"
-            role="Lead System Architect & Developer · B.Tech AI & DS (2nd Year)"
-            email="theonlynivash@gmail.com"
-            initials="SK"
-            badge="Lead Developer"
-          />
-          <PersonCard
-            name="Prof. Suganya Devi J"
-            role="Faculty Advisor & Academic Domain Expert · M.Tech, Panimalar Engineering College"
-            email="suganyadevipec@gmail.com"
-            initials="SD"
-            badge="Faculty Collaborator"
-          />
-        </div>
+function Band({ words, reverse = false }: { words: string[]; reverse?: boolean }) {
+  const line = [...words, ...words, ...words].join('   ·   ')
+  return (
+    <div className="overflow-hidden py-6 select-none" aria-hidden>
+      <div className="whitespace-nowrap font-editorial text-[3.6rem] md:text-[5.5rem] leading-none tracking-tight" style={{ transform: reverse ? 'translateX(calc(var(--sy,0) * 0.28px - 1500px))' : 'translateX(calc(var(--sy,0) * -0.28px))', color: 'transparent', WebkitTextStroke: '1px rgba(14,37,79,.28)' }}>
+        {line}   ·   {line}
       </div>
     </div>
   )
 }
+
+/* ──────────────────────── legacy & developers ──────────────────────── */
+
+const PEOPLE = [
+  { name: 'Srinivash Karthikeyan', role: 'Lead System Architect & Developer', sub: 'B.Tech AI & DS (2nd Year)', email: 'theonlynivash@gmail.com', initials: 'SK', badge: 'Lead Developer', color: '#2f6fc4' },
+  { name: 'Prof. Suganya Devi J', role: 'Faculty Advisor & Academic Domain Expert', sub: 'M.Tech, Panimalar Engineering College', email: 'suganyadevipec@gmail.com', initials: 'SD', badge: 'Faculty Collaborator', color: '#b8860b' },
+]
+
+function Legacy() {
+  return (
+    <section className="py-20">
+      <Reveal>
+        <p className="text-[11px] font-600 uppercase tracking-[0.2em] text-slate-500">Legacy</p>
+        <h2 className="font-editorial text-3xl md:text-5xl tracking-tight text-slate-900 mt-1">Built for Panimalar,<br />by KERNUL TECH</h2>
+        <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-slate-600">Engineered for the Department of Artificial Intelligence &amp; Data Science, Panimalar Engineering College, Chennai, so that every coming semester starts from a working timetable instead of a blank sheet.</p>
+      </Reveal>
+      <div className="mt-9 grid md:grid-cols-2 gap-4">
+        {PEOPLE.map((m, i) => (
+          <Reveal key={m.name} delay={i * 120}>
+            <article className="group relative overflow-hidden rounded-3xl border border-slate-300/60 bg-white/60 p-6 transition-all duration-300 hover:-translate-y-1 hover:bg-white/90 hover:shadow-[0_18px_40px_-20px_rgba(14,37,79,.4)]">
+              <span className="absolute -right-10 -top-10 h-36 w-36 rounded-full opacity-[.12] transition-transform duration-500 group-hover:scale-125" style={{ background: m.color }} />
+              <div className="relative flex items-start gap-4">
+                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-[15px] font-700 text-white" style={{ background: m.color }}>{m.initials}</span>
+                <div className="min-w-0">
+                  <span className="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-700 uppercase tracking-wider" style={{ background: `color-mix(in srgb, ${m.color} 14%, transparent)`, color: m.color }}>{m.badge}</span>
+                  <h3 className="mt-2 font-display text-[1.15rem] font-700 text-slate-900">{m.name}</h3>
+                  <p className="text-[13px] text-slate-600">{m.role}</p>
+                  <p className="text-[12px] text-slate-400">{m.sub}</p>
+                  <a href={`mailto:${m.email}`} className="mt-3 inline-flex items-center gap-1 text-[12.5px] font-600 hover:underline" style={{ color: m.color }}>{m.email}<ArrowUpRight size={13} /></a>
+                </div>
+              </div>
+            </article>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* ──────────────────────────── page ──────────────────────────── */
+
+export default function About({ navigate }: { navigate: (p: Page) => void }) {
+  const root = useRef<HTMLDivElement>(null)
+  const [bgH, setBgH] = useState(700)
+  // publish the scroll position as CSS variables so the backdrop, bands and progress bar move with it without re-rendering
+  useLayoutEffect(() => {
+    const el = root.current
+    const parent = scrollParentOf(el)
+    if (!el || !parent) return
+    const upd = () => {
+      el.style.setProperty('--sy', String(parent.scrollTop))
+      el.style.setProperty('--sp', String(parent.scrollTop / Math.max(1, parent.scrollHeight - parent.clientHeight)))
+      setBgH(parent.clientHeight)
+    }
+    upd()
+    parent.addEventListener('scroll', upd, { passive: true })
+    window.addEventListener('resize', upd)
+    return () => { parent.removeEventListener('scroll', upd); window.removeEventListener('resize', upd) }
+  }, [])
+  const [stats, setStats] = useState<{ label: string; n: number }[] | null>(null)
+  useEffect(() => {
+    api.setup.overview().then(o => setStats([
+      { label: 'Teachers', n: o.teachers.total },
+      { label: 'Sections', n: o.semesters.reduce((a, s) => a + s.sections, 0) },
+      { label: 'Subjects', n: o.semesters.reduce((a, s) => a + s.subjects, 0) },
+      { label: 'Labs', n: o.labs },
+    ])).catch(() => setStats(null))
+  }, [])
+
+  return (
+    <div ref={root} className="relative -m-5 px-5 md:px-10 pt-5 min-h-full">
+      <style>{CSS}</style>
+      <div className="sticky top-0 z-30 -mx-5 md:-mx-10 h-[3px] -mt-5 mb-[2px]"><div className="h-full origin-left" style={{ transform: 'scaleX(var(--sp,0))', background: 'linear-gradient(90deg,#2f6fc4,#0f766e,#b8860b,#c2410c,#9d3c72)' }} /></div>
+      {/* backdrop: stays in view while scrolling; coloured shapes drift and shift at different speeds */}
+      <div className="sticky top-0 h-0 z-0 pointer-events-none" aria-hidden>
+        <div className="ab-bg" style={{ height: bgH }}>
+          <div className="ab-grid" />
+          {[
+            ['6%', '12%', 190, 0, '#2f6fc4', 0.10, 0.06],
+            ['70%', '8%', 240, -6, '#0f766e', 0.09, 0.11],
+            ['52%', '56%', 160, -11, '#b8860b', 0.10, 0.04],
+            ['12%', '68%', 220, -3, '#6d5bd0', 0.08, 0.09],
+            ['84%', '74%', 170, -8, '#c2410c', 0.07, 0.05],
+          ].map(([l, t, w, delay, c, op, sp], i) => (
+            <span key={i} className="ab-blob" style={{ left: l as string, top: t as string, width: w as number, height: w as number, background: c as string, opacity: op as number, animationDelay: `${delay}s`, animationDuration: `${26 + i * 6}s`, translate: `0 calc(var(--sy,0) * -${sp}px)` }} />
+          ))}
+          {[['10%', '30%', 150], ['66%', '24%', 210], ['40%', '80%', 120], ['88%', '52%', 130]].map(([l, t, w], i) => (
+            <span key={i} className="ab-block" style={{ left: l as string, top: t as string, width: w as number, animationDelay: `${-4 - i * 5}s`, animationDuration: `${24 + i * 5}s`, translate: `0 calc(var(--sy,0) * -${0.03 + i * 0.03}px)` }} />
+          ))}
+        </div>
+      </div>
+
+      <div className="relative max-w-5xl mx-auto">
+        {/* hero */}
+        <header className="min-h-[68vh] flex flex-col justify-center py-16">
+          <Reveal>
+            <p className="text-[11px] font-600 uppercase tracking-[0.24em] text-slate-500">Panimalar Engineering College · AI &amp; Data Science</p>
+            <h1 className="mt-4 font-editorial text-[3.2rem] md:text-[5.2rem] leading-[1.02] tracking-tight text-[#0e254f]">SCEDULAR</h1>
+            <p className="mt-5 max-w-xl text-[1.15rem] md:text-[1.3rem] leading-snug text-slate-700">One department. Every teacher, subject and lab, scheduled without a clash.</p>
+          </Reveal>
+          <Reveal delay={120}>
+            <div className="mt-9 flex items-center gap-4">
+              <button onClick={() => navigate('dashboard')} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#0e254f] text-white text-[13px] font-600 hover:bg-[#081a38] transition">Open dashboard <ArrowUpRight size={15} /></button>
+              <span className="text-[12px] text-slate-400">Scroll to see how it works ↓</span>
+            </div>
+          </Reveal>
+          {stats && (
+            <Reveal delay={200}>
+              <dl className="mt-14 flex flex-wrap gap-x-12 gap-y-5">
+                {stats.map(s => (
+                  <div key={s.label}>
+                    <dt className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{s.label}</dt>
+                    <dd className="font-display text-[2.2rem] font-300 text-slate-900 leading-tight"><CountUp to={s.n} /></dd>
+                  </div>
+                ))}
+              </dl>
+            </Reveal>
+          )}
+        </header>
+      </div>
+
+      <div className="relative -mx-5 md:-mx-10"><Band words={['Timetables', 'Workload', 'Labs', 'Results']} /></div>
+
+      {/* pinned horizontal story */}
+      <div className="relative -mx-5 md:-mx-10"><Workflow /></div>
+
+      <div className="relative max-w-5xl mx-auto pb-24">
+        <Rules />
+        <div className="relative -mx-5 md:-mx-24"><Band words={['No clashes', 'Verified', 'Printable', 'Fair']} reverse /></div>
+        <Roles />
+        <Legacy />
+        <Reveal>
+          <footer className="mt-10 pt-6 border-t border-slate-300/60 flex flex-wrap items-center gap-3 text-[12px] text-slate-500">
+            <span>SCEDULAR · AI &amp; DS Timetable Suite</span>
+            <button onClick={() => navigate('dashboard')} className="ml-auto text-[#0e254f] font-600 hover:underline">Back to dashboard</button>
+          </footer>
+        </Reveal>
+      </div>
+    </div>
+  )
+}
+
+const CSS = `
+.ab-reveal{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+.ab-reveal.ab-in{opacity:1;transform:none}
+.ab-pop{animation:ab-pop .5s cubic-bezier(.2,.7,.2,1) both}
+@keyframes ab-pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.ab-hscroll{scrollbar-width:none}.ab-hscroll::-webkit-scrollbar{display:none}
+.ab-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.ab-grid{position:absolute;inset:-80px;background-image:linear-gradient(rgba(14,37,79,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(14,37,79,.07) 1px,transparent 1px);background-size:88px 64px;animation:ab-drift 60s linear infinite;mask-image:radial-gradient(ellipse at 50% 30%,#000 25%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 25%,transparent 75%)}
+@keyframes ab-drift{to{transform:translate(88px,64px)}}
+.ab-blob{position:absolute;border-radius:46% 54% 58% 42% / 48% 44% 56% 52%;filter:blur(38px);animation:ab-morph ease-in-out infinite alternate}
+@keyframes ab-morph{0%{transform:translate(0,0) rotate(0) scale(1)}50%{transform:translate(40px,-30px) rotate(40deg) scale(1.12)}100%{transform:translate(-30px,34px) rotate(-30deg) scale(.94)}}
+.ab-block{position:absolute;height:44px;border-radius:12px;background:rgba(14,37,79,.06);border:1px solid rgba(14,37,79,.09);animation:ab-float ease-in-out infinite alternate}
+@keyframes ab-float{from{transform:translate(0,0)}to{transform:translate(36px,-28px)}}
+@media (prefers-reduced-motion:reduce){.ab-grid,.ab-block,.ab-blob,.ab-pop{animation:none}.ab-reveal{opacity:1;transform:none;transition:none}}
+`

@@ -1,3 +1,4 @@
+import { notifyPasswordChanged } from '../mail/notify.js'
 import { Router, type Request, type Response } from 'express'
 import bcrypt from 'bcryptjs'
 import {
@@ -18,6 +19,8 @@ import {
   listSubjects,
   listSectionSubjects,
   listTeachingAssignments,
+  listLabSubjectMappings,
+  getScheduleConfig,
   resetWorkflowStateRepo,
   getCurrentAcademicCycle,
   setCurrentAcademicCycle,
@@ -44,27 +47,12 @@ import {
 } from '../utils/academicCycle.js'
 import { createSession, destroySession, extractBearerToken } from '../auth/session.js'
 import { requireAuth, requireRole } from '../auth/middleware.js'
+import { verifyFacultyPassword } from '../auth/passwords.js'
+import { callLlm as callGrokLlm } from '../ai/llm.js'
 
 export const facultyAllocationRouter = Router()
 
-function resolveMasterPassword(): string {
-  const v = process.env.SCEDULAR_MASTER_PASSWORD
-  if (v && v.trim().length > 0) return v.trim()
-  return 'SCEDULAR_AIDS'
-}
-const MASTER_PASSWORD = resolveMasterPassword()
 const RESET_PASSKEY = process.env.SCEDULAR_RESET_PASSKEY?.trim() || 'SCEDULAR_RESET'
-
-async function verifyFacultyPassword(facultyId: string, plain: string): Promise<boolean> {
-  try {
-    const stored = await getFacultyPasswordHash(facultyId)
-    if (stored) {
-      const ok = await bcrypt.compare(plain, stored)
-      if (ok) return true
-    }
-  } catch { /* fall through */ }
-  return plain === MASTER_PASSWORD
-}
 
 function findFacultyByIdOrEmail(input: string): (Faculty & { passwordHash?: string | null }) | undefined {
   const id = String(input || '').trim().toLowerCase()
@@ -237,18 +225,18 @@ async function validatePreferenceBatch(opts: {
     }
     seenRanks.add(rank)
 
+    // Teachers only choose subjects. The HOD decides how many sections each
+    // teacher gets, so requestedSections is optional (kept as 1 for storage).
     const maxSections = await maxRequestedSectionsFor(subject)
-    const requested = item.requestedSections
+    const requested = item.requestedSections ?? 1
     if (typeof requested !== 'number' || !Number.isInteger(requested) || requested < 1 || requested > maxSections) {
       return fail(400, 'INVALID_REQUESTED_SECTIONS',
         `Requested section capacity for ${subject.code} must be a whole number between 1 and ${maxSections}.`)
     }
 
+    // Whoever teaches an integrated subject handles both theory and lab, so
+    // the lab responsibility is implicit in choosing it.
     const isIntegrated = subject.deliveryType === 'INTEGRATED'
-    if (isIntegrated && !item.labConfirmed) {
-      return fail(400, 'INTEGRATED_LAB_REQUIRED',
-        `${subject.code} is an INTEGRATED subject (Theory + Lab). You must explicitly confirm laboratory responsibility.`)
-    }
 
     yearCounts[year] = (yearCounts[year] || 0) + 1
     if (yearCounts[year] > policy.maxPreferencesPerYear) {
@@ -297,8 +285,10 @@ facultyAllocationRouter.post('/auth/login', async (req: Request, res: Response) 
 
   // 1. Primary: live DB (Neon / local JSON)
   let found: (Faculty & { passwordHash?: string | null }) | undefined
+  let dbHasFaculty = false
   try {
     const allFaculty = await listFaculty()
+    dbHasFaculty = allFaculty.length > 0
     found = allFaculty.find(
       f => f.id.toLowerCase() === idInput.toLowerCase() ||
            (f.email && String(f.email).toLowerCase() === idInput.toLowerCase())
@@ -308,7 +298,9 @@ facultyAllocationRouter.post('/auth/login', async (req: Request, res: Response) 
   }
 
   // 2. Failsafe: compiled roster (critical for first Vercel cold start)
-  if (!found) {
+  // Only when the database has no teachers at all (first cold start). A teacher the HOD has deleted must NOT
+  // be able to log in through the built-in roster.
+  if (!found && !dbHasFaculty) {
     found = findFacultyByIdOrEmail(idInput)
   }
 
@@ -359,6 +351,7 @@ facultyAllocationRouter.post('/auth/set-password', requireAuth, requireRole('HOD
   }
   const hash = await bcrypt.hash(pw, 10)
   await upsertFacultyPasswordHash(targetId, hash)
+  await notifyPasswordChanged(target.id, 'set-by-hod')
   return res.json({ success: true, message: `Password set for ${target.name} (${targetId}).` })
 })
 
@@ -708,6 +701,9 @@ facultyAllocationRouter.get('/hod/preferences', requireAuth, requireRole('HOD'),
       requestedSections: p.requestedSections,
       labConfirmed: p.labConfirmed,
       status: p.status,
+      reviewedBy: p.reviewedBy,
+      reviewedAt: p.reviewedAt,
+      hodComment: p.hodComment,
     })
   }
   const facultyRows = Array.from(rowsByFaculty.values()).map(row => {
@@ -723,16 +719,29 @@ facultyAllocationRouter.get('/hod/preferences', requireAuth, requireRole('HOD'),
   })
 
   // DB-derived review summary (no hardcoded counts): per-semester faculty
-  // workflow coverage for the HOD header cards.
+  // workflow coverage for the HOD header cards. The cards distinguish the real
+  // lifecycle states (Submitted / Approved / Changes Requested / Rejected / Not
+  // Submitted) — an APPROVED preference is never counted as "pending". Each
+  // faculty is bucketed by their highest-priority overall status, exactly the
+  // same aggregate shown on the row's Status badge (APPROVED > SUBMITTED >
+  // CHANGES_REQUESTED > REJECTED > DRAFT), so the header numbers always equal
+  // the visible rows.
   const facultyWithPrefs = new Set(prefs.map(p => p.facultyId))
-  const submittedFaculty = new Set(prefs.filter(p => p.status === 'SUBMITTED').map(p => p.facultyId))
-  const pendingFaculty = new Set(
-    prefs.filter(p => p.status !== 'SUBMITTED' && p.status !== 'APPROVED').map(p => p.facultyId)
-  )
+  const overallByFaculty = new Map<string, string>()
+  for (const p of prefs) {
+    const current = overallByFaculty.get(p.facultyId)
+    if (!current || STATUS_AGGREGATE.indexOf(p.status) < STATUS_AGGREGATE.indexOf(current)) {
+      overallByFaculty.set(p.facultyId, p.status)
+    }
+  }
+  const countOverall = (status: string) =>
+    Array.from(overallByFaculty.values()).filter(v => v === status).length
   const summary = {
     totalFaculty: allFaculty.length,
-    submitted: submittedFaculty.size,
-    pending: pendingFaculty.size,
+    submitted: countOverall('SUBMITTED'),
+    approved: countOverall('APPROVED'),
+    changesRequested: countOverall('CHANGES_REQUESTED'),
+    rejected: countOverall('REJECTED'),
     notSubmitted: allFaculty.filter(f => !facultyWithPrefs.has(f.id)).length,
   }
 
@@ -1036,53 +1045,6 @@ facultyAllocationRouter.patch('/hod/faculty/:id', requireAuth, requireRole('HOD'
   return res.json({ success: true, facultyId, allocationExperience })
 })
 
-// GroqCloud / Grok API Cloud LLM Integration Helper
-async function callGrokLlm(messages: Array<{ role: string; content: string }>): Promise<string | null> {
-  const apiKey =
-    process.env.GROQ_API_KEY ||
-    process.env.GROK_API_KEY ||
-    process.env.XAI_API_KEY ||
-    process.env.LLM_API_KEY
-
-  if (!apiKey || apiKey.includes('your_')) {
-    return null
-  }
-
-  const isGroq = apiKey.startsWith('gsk_') || process.env.LLM_PROVIDER === 'groq'
-  const defaultBase = isGroq ? 'https://api.groq.com/openai/v1' : 'https://api.x.ai/v1'
-  const defaultModel = isGroq ? 'qwen/qwen3.8-27b' : 'grok-beta'
-
-  const apiBase = process.env.GROQ_API_BASE || process.env.GROK_API_BASE || defaultBase
-  const model = process.env.GROQ_MODEL || process.env.GROK_MODEL || defaultModel
-
-  try {
-    const response = await fetch(`${apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.3,
-      }),
-    })
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '')
-      console.warn(`[Groq API] Request failed (${response.status}): ${errText}`)
-      return null
-    }
-
-    const data: any = await response.json()
-    return data?.choices?.[0]?.message?.content ?? null
-  } catch (err) {
-    console.warn('[Groq API] Error calling Groq LLM API:', err)
-    return null
-  }
-}
-
 // POST /api/ai/explain-generation-failure - cloud LLM explanation of infeasibility report
 facultyAllocationRouter.post('/ai/explain-generation-failure', async (req: Request, res: Response) => {
   const { report } = req.body
@@ -1139,7 +1101,12 @@ facultyAllocationRouter.post('/ai/chat', requireAuth, async (req: Request, res: 
     }
   }
 
-  const [allFaculty, allSections, allLabs, currentCycle, readiness, allSubjects, allPreferences] = await Promise.all([
+  // ── Gather ALL live data from existing APIs ──
+  const [
+    allFaculty, allSections, allLabs, currentCycle, readiness, allSubjects,
+    allPreferences, allSectionSubjects, allTeachingAssignments, scheduleConfig,
+    labSubjectMappings,
+  ] = await Promise.all([
     listFaculty(),
     listSections(),
     listLabs(),
@@ -1147,7 +1114,28 @@ facultyAllocationRouter.post('/ai/chat', requireAuth, async (req: Request, res: 
     getSemesterReadinessStatus(),
     listSubjects(),
     getFacultyPreferences(),
+    listSectionSubjects(),
+    listTeachingAssignments(),
+    getScheduleConfig(),
+    listLabSubjectMappings(),
   ])
+
+  // Latest timetable run
+  let latestRun: any = null
+  let latestAssignments: any[] = []
+  let latestConflicts: any[] = []
+  let latestUnscheduled: any[] = []
+  try {
+    const repo = await import('../db/repo.js')
+    latestRun = await repo.getLatestValidRun()
+    if (latestRun) {
+      ;[latestAssignments, latestConflicts, latestUnscheduled] = await Promise.all([
+        repo.getAssignmentsForRun(latestRun.id),
+        repo.getConflictsForRun(latestRun.id),
+        repo.getUnscheduledForRun(latestRun.id),
+      ])
+    }
+  } catch { /* timetable data optional */ }
 
   const dbData = {
     facultyCount: allFaculty.length || 58,
@@ -1155,111 +1143,99 @@ facultyAllocationRouter.post('/ai/chat', requireAuth, async (req: Request, res: 
     labCount: allLabs.length || 10,
   }
 
-  // 1. Direct Intent Routing Check for exact factual questions -- kept as a
-  // fast, deterministic floor for common queries so the assistant still
-  // works usefully even without an LLM provider key configured.
-  const directReply = getKnowledgeResponse(userText, currentRole, dbData)
+  // Build lookup maps for intent router and system prompt
+  const sectionSubjectMap = new Map(allSectionSubjects.map((ss: any) => [ss.id, ss]))
+  const sectionMap = new Map(allSections.map((s: any) => [s.id, s]))
+  const subjectMap = new Map(allSubjects.map((s: any) => [s.id, s]))
+  const facultyMap = new Map(allFaculty.map((f: any) => [f.id, f]))
+
+  // 1. Direct Intent Routing — data-aware intelligent answers without LLM
+  const directReply = getKnowledgeResponse(userText, currentRole, {
+    facultyCount: dbData.facultyCount, sectionCount: dbData.sectionCount, labCount: dbData.labCount,
+    allFaculty, allSections, allSubjects, allPreferences, allSectionSubjects,
+    allTeachingAssignments, allLabs, readiness, currentCycle,
+    sectionMap, subjectMap, facultyMap, sectionSubjectMap,
+    latestAssignments, latestConflicts, latestUnscheduled, latestRun,
+    scheduleConfig, labSubjectMappings,
+    authFacultyId: req.auth?.facultyId,
+  })
   if (directReply) {
     return res.json({ reply: directReply, role: currentRole, provider: 'intent-router' })
   }
 
-  // Live per-semester readiness, summarized for the prompt. This lets the
-  // assistant answer "why can't I generate the timetable for X" or "what's
-  // blocking Semester III" with the actual current reasons, not a guess.
-  const readinessLines = readiness
-    .map(r => {
-      const status = r.canGenerate ? 'READY' : 'NOT READY'
-      const reasons = r.canGenerate ? '' : ` — ${r.missingItems.slice(0, 3).join('; ')}${r.missingItems.length > 3 ? ` (+${r.missingItems.length - 3} more)` : ''}`
-      return `${r.year} Semester ${r.semester}: ${status}${reasons}`
-    })
-    .join('\n')
+  // ── Build all data strings for the system prompt ──
+  const readinessLines = readiness.map(r => {
+    const s = r.canGenerate ? '✅ READY' : '❌ NOT READY'
+    const reasons = r.canGenerate ? '' : ` — ${r.missingItems.slice(0, 3).join('; ')}${r.missingItems.length > 3 ? ` (+${r.missingItems.length - 3})` : ''}`
+    return `${r.year} Sem ${r.semester}: ${s}${reasons}`
+  }).join('\n')
 
-  // Subject catalog -- public curriculum info, safe for both roles. Lets the
-  // assistant answer things like "any programming subjects for Sem III" or
-  // "which subjects are INTEGRATED / MANDATORY" directly from real data.
-  const subjectLines = allSubjects
-    .map(s => `${s.code} | ${s.name} | ${s.year ?? '—'} Sem ${s.semester ?? '—'} | ${s.deliveryType} | ${s.category}`)
-    .join('\n')
+  const subjectLines = allSubjects.map(s => `${s.code} | ${s.name} | ${s.year ?? '—'} Sem ${s.semester ?? '—'} | ${s.deliveryType} | ${s.category}`).join('\n')
 
-  // Faculty roster + preference detail is HOD-only (matches the existing
-  // privacy rule: a FACULTY user never sees another faculty member's
-  // individual experience or preference data, only aggregate interest
-  // counts elsewhere in the app). A FACULTY user gets their OWN row only.
+  const sectionSubjectLines = allSectionSubjects.map((ss: any) => {
+    const sec = sectionMap.get(ss.sectionId); const subj = subjectMap.get(ss.subjectId)
+    return sec && subj ? `${sec.name} | ${subj.code} | T:${ss.theoryPeriods ?? 0}/wk L:${ss.labPeriods ?? 0}/wk` : null
+  }).filter(Boolean).join('\n')
+
+  const teachingLines = allTeachingAssignments.map((ta: any) => {
+    const ss = sectionSubjectMap.get(ta.sectionSubjectId)
+    if (!ss) return null
+    const sec = sectionMap.get(ss.sectionId); const subj = subjectMap.get(ss.subjectId); const fac = facultyMap.get(ta.facultyId)
+    return sec && subj && fac ? `${fac.name} → ${sec.name} | ${subj.code} | ${ta.component}` : null
+  }).filter(Boolean).join('\n')
+
+  const labLines = allLabs.map((l: any) => `${l.id}(${l.name})`).join(', ')
+  const labMapLines = labSubjectMappings.map((m: any) => {
+    const subj = subjectMap.get(m.subjectId); const sec = m.sectionId ? sectionMap.get(m.sectionId) : null
+    return `${m.labId} → ${subj?.code ?? m.subjectId}${sec ? ` (${sec.name})` : ''}`
+  }).join('\n')
+
+  const scheduleLines = `Days: ${scheduleConfig.workingDays.join(', ')} | Periods: ${scheduleConfig.periods.map((p: any) => `${p.label}(${p.schedulable ? 'S' : 'B'})`).join(', ')}`
+
+  const activeSections = allSections.filter((s: any) => s.active !== false)
+  const sectionLines = activeSections.map(s => `${s.id} | ${s.name} | Y${s.year} S${s.semester} | students=${s.studentCount ?? '—'}`).join('\n')
+
   const facultyForPrompt = currentRole === 'HOD' ? allFaculty : allFaculty.filter(f => f.id === req.auth!.facultyId)
-  const facultyLines = facultyForPrompt
-    .map(f => `${f.id} | ${f.name} | ${f.designation ?? '—'} | allocationExperience=${f.allocationExperience ?? 'NOT SET'}`)
-    .join('\n')
+  const facultyLines = facultyForPrompt.map(f => `${f.id} | ${f.name} | ${f.designation ?? '—'} | exp=${f.allocationExperience ?? 'NOT SET'}`).join('\n')
 
   const prefsForPrompt = currentRole === 'HOD' ? allPreferences : allPreferences.filter(p => p.facultyId === req.auth!.facultyId)
-  const subjectById = new Map(allSubjects.map(s => [s.id, s]))
-  const preferenceLines = prefsForPrompt
-    .map(p => {
-      const subj = subjectById.get(p.subjectId)
-      const facName = facultyForPrompt.find(f => f.id === p.facultyId)?.name ?? p.facultyId
-      return `${p.facultyId} (${facName}) | ${subj?.code ?? p.subjectId} | rank ${p.preferenceRank} | ${p.status} | requestedSections=${p.requestedSections}`
-    })
-    .join('\n')
-  const notSubmittedFaculty = currentRole === 'HOD'
-    ? allFaculty.filter(f => !allPreferences.some(p => p.facultyId === f.id)).map(f => `${f.id} (${f.name})`).join(', ') || 'none'
-    : null
+  const prefLines = prefsForPrompt.map(p => {
+    const subj = subjectMap.get(p.subjectId); const fn = facultyForPrompt.find(f => f.id === p.facultyId)?.name ?? p.facultyId
+    return `${fn} | ${subj?.code ?? p.subjectId} | rank${p.preferenceRank} | ${p.status} | sec=${p.requestedSections}`
+  }).join('\n')
+  const noSubmit = currentRole === 'HOD' ? allFaculty.filter(f => !allPreferences.some(p => p.facultyId === f.id)).map(f => f.name).join(', ') : null
 
-  // 2. Cloud LLM with a comprehensive, accurate system prompt covering the
-  // real product architecture and constraints, plus live DB/readiness state,
-  // so the assistant can answer substantive technical questions (not just
-  // identity trivia) and explain what's actually blocking the user on screen.
-  const systemPrompt = `You are SCEDULAR AI Assistant, embedded inside the SCEDULAR application for Panimalar Engineering College (AI & DS Dept). You help the logged-in user (role: ${currentRole}) understand the product, its data, and what's currently blocking them on screen.
+  let timetableInfo = 'No timetable generated yet.'
+  if (latestRun) {
+    timetableInfo = `Run#${latestRun.id}: ${latestRun.status} at ${latestRun.generatedAt}\nScheduled: ${latestAssignments.length} | Conflicts: ${latestConflicts.length} | Unscheduled: ${latestUnscheduled.length}`
+    if (latestConflicts.length > 0) timetableInfo += `\nConflicts(first 5): ${latestConflicts.slice(0, 5).map((c: any) => c.type + ': ' + (c.description ?? '')).join('; ')}`
+    if (latestUnscheduled.length > 0) timetableInfo += `\nUnscheduled(first 5): ${latestUnscheduled.slice(0, 5).map((u: any) => (u.subjectId ?? '') + ' ' + (u.sectionId ?? '') + ' ' + (u.reason ?? '')).join('; ')}`
+  }
 
-OFFICIAL PROJECT IDENTITY:
-- PROJECT NAME: SCEDULAR — a college academic resource allocation + timetable scheduling system.
-- CREATOR / DEVELOPMENT TEAM: KERNUL TECH, led by COE Srinivash (2nd-Year B.Tech AI & DS student, Section K, Panimalar Engineering College), in collaboration with Suganya Devi J (Faculty, Panimalar Engineering College).
-- Only state this identity information when actually asked who made the project — do not append it to unrelated answers.
+  const systemPrompt = `You are SCEDULAR AI for Panimalar Engg College (AI&DS Dept). Answer ANY question about the project using this live data. Be conversational, helpful, and concise. SCEDULAR by KERNUL TECH / Nivash.
 
-PRODUCT WORKFLOW (what the app actually does, in order):
-1. Canonical data: faculty, subjects (curriculum), sections, labs are seeded/imported once and rarely change.
-2. Faculty subject allocation: a faculty member submits which subject(s) they want to teach, based on an experience-band policy (0–9 yrs → Year 1/2 eligible, max 1 preference; 10–<13 yrs → Year 2/3/4 eligible, max 2 preferences, max 1 per year; 13+ yrs → Year 3/4 eligible, max 2 preferences, max 1 per year). Lifecycle: DRAFT → SUBMITTED → HOD reviews → APPROVED/REJECTED/CHANGES_REQUESTED. An APPROVED preference is locked.
-3. Section allocation: the HOD assigns approved faculty to exact sections for each subject (Faculty X teaches Subject Y is different from Faculty X teaches Section Y2-A specifically). Stored in teaching_assignments (facultyId, sectionSubjectId, component THEORY/LAB, batch).
-4. Readiness: before a timetable can be generated, every prerequisite must be real — curriculum loaded, sections configured, faculty exist, weekly theory/lab period weightage configured per section-subject, labs configured AND mapped to the specific sections/subjects that need them, schedule configuration (working days/periods) set, and full teaching-assignment coverage for every section-subject's required component(s).
-5. Timetable generation: a deterministic Constraint Satisfaction Problem (CSP) solver assigns TIME and ROOM/LAB only — it never decides which faculty teaches which subject, that's already fixed by step 3.
+WORKFLOW: faculty submit prefs → HOD reviews → HOD assigns sections → readiness check → CSP solver generates timetable.
 
-HARD CONSTRAINTS the timetable solver enforces (all must hold in the final schedule):
-- No faculty teaches two different classes at the same time slot (faculty collision).
-- No section attends two different classes at the same time slot (section collision).
-- No lab room hosts two different classes at the same time slot (lab collision).
-- A lab session only uses a lab room that is actually mapped (compatible) to that subject/section.
-- A faculty member is never scheduled during their declared unavailable periods.
-- Every section-subject's required weekly THEORY periods and LAB periods are fully placed — not more, not less.
-- A lab session occupies a contiguous block of the configured length (commonly 3 periods) and cannot be split across, or cross over, the lunch break.
-- Only active faculty and active sections can be scheduled; inactive ones are excluded entirely.
-- The solver never invents a teaching assignment — if no faculty is assigned to a section-subject's component, that class simply cannot be scheduled (it is reported as unscheduled with a reason), it is not silently dropped or guessed.
-- Generation is deterministic: the same input data always produces the same output.
-- If prerequisites for a section-subject are genuinely missing (no lab mapped, no faculty assigned, weightage not configured), the system reports that specific gap rather than producing a fake or partial timetable.
+LABS: ${labLines}
+SCHEDULE: ${scheduleLines}
+READINESS: ${readinessLines}
 
-CURRENT LIVE STATE (real data, read fresh on every question — never stale or invented):
-- Current academic cycle: ${currentCycle}
-- Faculty records: ${dbData.facultyCount}
-- Active sections: ${dbData.sectionCount}
-- Physical lab rooms: ${dbData.labCount}
-- Per-semester timetable readiness:
-${readinessLines}
+SUBJECTS (code|name|sem|type):
+${subjectLines.split('\n').slice(0, 50).join('\n')}${subjectLines.split('\n').length > 50 ? '\n...(' + (subjectLines.split('\n').length - 50) + ' more)' : ''}
 
-SUBJECT CATALOG (code | name | year+semester | deliveryType | category):
-${subjectLines}
+SECTIONS: ${sectionLines.split('\n').slice(0, 20).join('\n')}${sectionLines.split('\n').length > 20 ? '\n...(' + (sectionLines.split('\n').length - 20) + ' more)' : ''}
 
-FACULTY (id | name | designation | allocation experience)${currentRole === 'FACULTY' ? ' — only your own record is visible to you' : ''}:
-${facultyLines}
+FACULTY${currentRole === 'FACULTY' ? '(you)' : ''} (id|name|designation|exp):
+${facultyLines.split('\n').slice(0, 25).join('\n')}${facultyLines.split('\n').length > 25 ? '\n...(' + (facultyLines.split('\n').length - 25) + ' more)' : ''}
 
-FACULTY SUBJECT PREFERENCES (facultyId+name | subject | rank | status | requested sections)${currentRole === 'FACULTY' ? ' — only your own preferences are visible to you' : ''}:
-${preferenceLines || '(none submitted yet)'}
-${notSubmittedFaculty !== null ? `\nFaculty who have NOT submitted any preference yet: ${notSubmittedFaculty}` : ''}
+TEACHING (faculty→section|subject|component):
+${teachingLines.split('\n').slice(0, 25).join('\n') || '(none)'}${teachingLines.split('\n').length > 25 ? '\n...(' + (teachingLines.split('\n').length - 25) + ' more)' : ''}
 
-RULES:
-1. Actually answer what was asked — including technical/conceptual questions about constraints, architecture, or the workflow above, AND specific data questions like "what is the experience of Dr X", "what subject did Y prefer", "how many preferences have been submitted", "who hasn't submitted yet", "which faculty selected an INTEGRATED/MANDATORY subject", "are there any programming subjects this semester". Answer these directly from the SUBJECT CATALOG / FACULTY / FACULTY SUBJECT PREFERENCES data above — count, filter, and list precisely; do not approximate. Do not deflect a substantive question back to the project-identity blurb.
-2. Keep answers concise and structured (short paragraphs or a short bullet list), not a wall of text.
-3. When asked why something is blocked, is not ready, or "what's wrong on screen", use the CURRENT LIVE STATE above to give the real, specific reason(s) — never a generic "it's just not ready" non-answer.
-4. Never claim the Department, HOD, or the AI itself created SCEDULAR.
-5. Never assume the user is HOD unless their role above is literally 'HOD'. A FACULTY user only ever sees their own row in the FACULTY and FACULTY SUBJECT PREFERENCES data above (already filtered before it reached you) — if asked about another specific faculty member's experience or preferences, say that information is only available to the HOD, don't guess or infer it.
-6. If something genuinely isn't in the data given to you, say so plainly ("I don't have that information in the current SCEDULAR data") — do not fabricate a plausible-sounding answer.
-7. You are an explain/guide assistant only — you cannot and must not claim to change any allocation, approval, or timetable data yourself; direct the user to the relevant page/action instead.`
+TIMETABLE: ${timetableInfo}
+
+CONSTRAINTS: No faculty/section/lab collisions. Labs must be mapped. Unavailable periods respected. Lab sessions are 3-period contiguous blocks. Deterministic output.
+
+Rules: Answer from data only. Be concise. If data not in prompt, say what IS available. Never invent facts.`
 
   const grokMessages = [
     { role: 'system', content: systemPrompt },
@@ -1271,115 +1247,400 @@ RULES:
     return res.json({ reply: llmReply, role: currentRole, provider: 'groq' })
   }
 
-  // Fallback answer
-  let fallbackReply = 'SCEDULAR is the college timetable scheduling and academic allocation system for Panimalar Engineering College (AI&DS Dept).'
-  if (currentRole === 'HOD') {
-    fallbackReply += ' You are logged in as HOD and can review preferences, perform section allocations, and manage laboratory resources.'
+  // Fallback answer — smart contextual reply when LLM is unavailable
+  const lowerQ = (userText || '').toLowerCase()
+  let fallbackReply = ''
+
+  if (lowerQ.includes('who is hod') || lowerQ.includes('hod name') || lowerQ.includes('who is the hod')) {
+    fallbackReply = 'The HOD (Head of Department) for AI & DS at Panimalar Engineering College manages faculty allocations, reviews preferences, assigns teaching loads, and oversees timetable generation. You are currently logged in as HOD.'
+  } else if (lowerQ.includes('what is') || lowerQ.includes('what does') || lowerQ.includes('use of') || lowerQ.includes('purpose')) {
+    fallbackReply = 'SCEDULAR is a timetable scheduling and academic resource allocation system for the Department of AI & Data Science at Panimalar Engineering College. It handles:\n- Faculty subject preference collection and review\n- Teaching assignment allocation (faculty → section → subject)\n- Readiness validation for each semester\n- Deterministic CSP-based timetable generation with conflict detection\n- Lab room mapping and scheduling\n\nYou can explore these features from the sidebar navigation.'
+  } else if (lowerQ.includes('how to') || lowerQ.includes('how do') || lowerQ.includes('where is') || lowerQ.includes('open') || lowerQ.includes('navigate')) {
+    fallbackReply = 'Here are the main pages in SCEDULAR:\n- **Dashboard** — overview of project status and AI summary\n- **Faculty Management** — manage faculty records and experience\n- **Subject Management** — view curriculum and subjects\n- **Faculty Allocation** — submit/review subject preferences\n- **Section Allocation** — assign faculty to sections (HOD only)\n- **Generate Timetable** — run the CSP solver for a semester\n- **View Timetable** — view generated schedules\n- **Settings** — configure schedule, lab rooms, and AI settings\n\nUse the sidebar to navigate between pages.'
+  } else if (lowerQ.includes('conflict') || lowerQ.includes('error') || lowerQ.includes('fail')) {
+    fallbackReply = 'Timetable generation can fail due to:\n- Missing teaching assignments for some section-subjects\n- Unmapped lab rooms for lab-required subjects\n- Unavailable faculty periods conflicting with required slots\n- Insufficient time slots for all required classes\n\nCheck the Generate Timetable page for readiness status, or ask me a specific question about a semester.'
+  } else if (lowerQ.includes('who created') || lowerQ.includes('who made') || lowerQ.includes('who built') || lowerQ.includes('who developed')) {
+    fallbackReply = 'SCEDULAR was developed by KERNUL TECH, under the leadership of Nivash, a 2nd-year B.Tech Artificial Intelligence and Data Science student (Section K) at Panimalar Engineering College, in collaboration with Suganya Devi J, Faculty Member at Panimalar Engineering College. KERNUL TECH focuses on developing intelligent, technology-driven solutions that address real-world academic and institutional challenges.'
   } else {
-    fallbackReply += ' You can view your teaching timetable and submit subject preferences based on your allocation experience band.'
+    fallbackReply = `I'm SCEDULAR AI. I can help with questions about:\n- **Faculty** — who teaches what, workload, preferences\n- **Subjects** — curriculum, codes, delivery types\n- **Sections** — which sections exist, their subjects\n- **Timetable** — generation status, conflicts, free slots\n- **Labs** — room mappings, occupancy\n- **Readiness** — what's blocking generation\n- **Project** — what SCEDULAR does, who created it\n\nTry asking something like "Who teaches DBMS?" or "Show me Semester III readiness."`
   }
 
   return res.json({ reply: fallbackReply, role: currentRole, provider: 'fallback' })
 })
 
-function getKnowledgeResponse(query: string, currentRole: string, dbData: { facultyCount: number; sectionCount: number; labCount: number }): string | null {
+function getKnowledgeResponse(query: string, currentRole: string, dbData: {
+  facultyCount: number; sectionCount: number; labCount: number;
+  allFaculty: any[]; allSections: any[]; allSubjects: any[];
+  allPreferences: any[]; allSectionSubjects: any[];
+  allTeachingAssignments: any[]; allLabs: any[];
+  readiness: any[]; currentCycle: string;
+  sectionMap: Map<string, any>; subjectMap: Map<string, any>;
+  facultyMap: Map<string, any>; sectionSubjectMap: Map<string, any>;
+  latestAssignments: any[]; latestConflicts: any[];
+  latestUnscheduled: any[]; latestRun: any;
+  scheduleConfig: any; labSubjectMappings: any[];
+  authFacultyId?: string;
+}): string | null {
   const lower = query.toLowerCase().trim()
+  const { allFaculty, allSections, allSubjects, allPreferences, allSectionSubjects,
+    allTeachingAssignments, allLabs, readiness, currentCycle,
+    sectionMap, subjectMap, facultyMap, sectionSubjectMap,
+    latestAssignments, latestConflicts, latestUnscheduled, latestRun,
+    scheduleConfig, labSubjectMappings, authFacultyId } = dbData
 
-  // Category A: PROJECT IDENTITY
-  if (
-    lower.includes('who created') ||
-    lower.includes('creator') ||
-    lower.includes('who developed') ||
-    lower.includes('who built') ||
-    lower.includes('who made this')
-  ) {
-    return 'SCEDULAR was created by KERNUL TECH, led by COE Srinivash, a 2nd-year B.Tech Artificial Intelligence and Data Science student from Section K at Panimalar Engineering College, in collaboration with Suganya Devi J, Faculty at Panimalar Engineering College.'
-  }
-  if (
-    lower.includes('who is srinivash') ||
-    lower === 'srinivash' ||
-    lower.includes('who is coe srinivash')
-  ) {
-    return 'COE Srinivash is the student project lead for SCEDULAR and is a 2nd-year B.Tech Artificial Intelligence and Data Science student from Section K at Panimalar Engineering College.'
-  }
-  if (
-    lower.includes('who collaborated') ||
-    lower.includes('collaborator') ||
-    lower.includes('collaboration')
-  ) {
-    return 'SCEDULAR was developed by KERNUL TECH / COE Srinivash in collaboration with Suganya Devi J, Faculty at Panimalar Engineering College.'
+  // ── IDENTITY ──
+  if (lower.includes('who created') || lower.includes('who made') || lower.includes('who built') || lower.includes('who developed') || lower === 'who are you' || lower === 'what are you') {
+    return '**SCEDULAR** was developed by **KERNUL TECH**, under the leadership of **Nivash**, a 2nd-year B.Tech AI & DS student (Section K) at Panimalar Engineering College, in collaboration with **Suganya Devi J**, Faculty Member. KERNUL TECH focuses on intelligent, technology-driven solutions for academic and institutional challenges.'
   }
 
-  // Category B: PROJECT OVERVIEW
-  if (
-    lower.includes('what is scedular') ||
-    lower === 'scedular' ||
-    lower.includes('about scedular') ||
-    lower.includes('what does scedular do') ||
-    lower.includes('what problem does it solve')
-  ) {
-    return 'SCEDULAR is a timetable scheduling and academic allocation system designed for the Department of Artificial Intelligence and Data Science at Panimalar Engineering College.'
+  // ── MY TIMETABLE ──
+  if (lower.includes('my timetable') || lower.includes('my schedule') || lower.includes('my classes') || lower.includes('my time table')) {
+    if (currentRole === 'FACULTY' && authFacultyId) {
+      const myAssignments = latestAssignments.filter((a: any) => a.facultyId === authFacultyId)
+      if (myAssignments.length === 0) return 'No timetable has been generated yet, or you have no scheduled classes. Ask the HOD to generate the timetable first.'
+      const lines = myAssignments.map((a: any) => {
+        const sec = sectionMap.get(a.sectionId) ?? sectionMap.get(a.sectionName)
+        const subj = subjectMap.get(a.subjectId) ?? subjectMap.get(a.subjectCode)
+        return `- **${a.day ?? '—'}** Period ${a.period ?? '—'}: ${sec?.name ?? a.sectionId ?? '—'} | ${subj?.name ?? a.subjectId ?? '—'} (${a.component ?? '—'})`
+      })
+      return `**Your Timetable (${myAssignments.length} classes/week):**\n${lines.join('\n')}`
+    }
+    if (latestAssignments.length === 0) return 'No timetable has been generated yet. Go to Generate Timetable to create one.'
+    const secs = [...new Set(latestAssignments.map((a: any) => a.sectionId ?? a.sectionName))].length
+    return `**Timetable Overview:** ${latestAssignments.length} total scheduled classes across ${secs} sections. Use **View Timetable** to see the full schedule.`
   }
 
-  // Category C: FACULTY ALLOCATION
-  if (
-    lower.includes('what does faculty allocation do') ||
-    lower.includes('faculty allocation work') ||
-    lower.includes('faculty preference work')
-  ) {
-    return 'Faculty allocation allows faculty members to submit subject preferences based on their allocation experience policy band (0–9 yrs: Y1/Y2; 10–13 yrs: Y2/Y3/Y4; 13+ yrs: Y3/Y4). The HOD then reviews preferences and performs section-level teaching allocations.'
+  // ── SECTION TIMETABLE ──
+  if ((lower.includes('show') || lower.includes('view') || lower.includes('list')) && (lower.includes('timetable') || lower.includes('schedule')) && !lower.includes('readiness')) {
+    const secMatch = allSections.find((s: any) => {
+      const sn = s.name.toLowerCase(); const sid = s.id.toLowerCase()
+      if (lower.includes(sn) || lower.includes(sid)) return true
+      const m = lower.match(/(?:year|yr|y)\s*(\d)/); const l = lower.match(/\b([a-k])\b/)
+      return m && l && (sid === `y${m[1]}-${l[1]}`)
+    })
+    if (secMatch) {
+      const secAssignments = latestAssignments.filter((a: any) => (a.sectionId ?? a.sectionName) === secMatch.id)
+      if (secAssignments.length === 0) return `No timetable generated yet for Section **${secMatch.name}**.`
+      const lines = secAssignments.map((a: any) => {
+        const subj = subjectMap.get(a.subjectId) ?? subjectMap.get(a.subjectCode)
+        const fac = facultyMap.get(a.facultyId)
+        return `- **${a.day ?? '—'}** P${a.period ?? '—'}: ${subj?.name ?? a.subjectId ?? '—'} — ${fac?.name ?? a.facultyId ?? '—'} (${a.component ?? '—'})`
+      })
+      return `**${secMatch.name} Timetable (${secAssignments.length} classes):**\n${lines.join('\n')}`
+    }
   }
 
-  // Category D: HOD CONFIGURATION
-  if (
-    lower.includes('what can hod configure') ||
-    lower.includes('hod configure') ||
-    lower.includes('hod options')
-  ) {
-    return 'The HOD can review submitted faculty subject preferences, approve or reject preferences, assign approved faculty to specific section-subjects, adjust section student counts, manage allocation experience settings, and configure physical lab room resources.'
+  // ── PREFERENCES STATUS ──
+  if (lower.includes('submit') && lower.includes('preference') || lower.includes('submitted their preference') || lower.includes('submitted preference') || lower.includes('preference submitted') || lower.includes('who submitted') || lower.includes('preferences status') || lower.includes('preference status')) {
+    const submitted = allPreferences.filter((p: any) => p.status !== 'DRAFT')
+    const draft = allPreferences.filter((p: any) => p.status === 'DRAFT')
+    const notSubmitted = allFaculty.filter((f: any) => !allPreferences.some((p: any) => p.facultyId === f.id))
+    let reply = `**Preference Submission Status:**\n- ✅ Submitted: **${submitted.length}** faculty\n- 📝 Draft: **${draft.length}** faculty\n- ❌ Not submitted: **${notSubmitted.length}** faculty`
+    if (notSubmitted.length > 0) reply += `\n\n**Did not submit:** ${notSubmitted.map((f: any) => f.name).join(', ')}`
+    return reply
+  }
+  if (lower.includes('who did not submit') || lower.includes('who hasn') || lower.includes('not submitted') || lower.includes('missing preference')) {
+    const notSubmitted = allFaculty.filter((f: any) => !allPreferences.some((p: any) => p.facultyId === f.id))
+    if (notSubmitted.length === 0) return '**All faculty have submitted their preferences!** ✅'
+    return `**Faculty who have NOT submitted preferences (${notSubmitted.length}):**\n${notSubmitted.map((f: any) => `- **${f.name}** (${f.id}) — ${f.designation ?? 'Faculty'}`).join('\n')}`
   }
 
-  // Category E: TIMETABLE GENERATION
-  if (
-    lower.includes('how is timetable generated') ||
-    lower.includes('timetable generated') ||
-    lower.includes('how does solver work')
-  ) {
-    return 'Timetables are generated using a deterministic Constraint Satisfaction Problem (CSP) solver engine. It verifies semester readiness prerequisites first, then places conflict-free time slots respecting teacher, section, and lab constraints.'
+  // ── FACULTY LIST ──
+  if (lower.includes('how many faculty') || lower.includes('faculty count') || lower.includes('list faculty') || lower.includes('all faculty') || lower.includes('faculty list') || lower.includes('who is the faculty')) {
+    const lines = allFaculty.map((f: any) => `- **${f.name}** (${f.id}) — ${f.designation ?? 'Faculty'} | Exp: ${f.allocationExperience ?? 'NOT SET'} yrs`)
+    return `**Faculty (${allFaculty.length} total):**\n${lines.join('\n')}`
   }
 
-  // Category F: LIVE DATABASE FACTS
-  if (
-    lower.includes('how many faculty') ||
-    lower.includes('faculty count') ||
-    lower.includes('faculty in the database')
-  ) {
-    return `There are currently ${dbData.facultyCount} real AI & DS faculty records in the SCEDULAR database.`
-  }
-  if (
-    lower.includes('how many section') ||
-    lower.includes('active sections') ||
-    lower.includes('section count')
-  ) {
-    return `There are currently ${dbData.sectionCount} active operational sections in the SCEDULAR database (12 in Year 2, 8 in Year 3, and 8 in Year 4).`
-  }
-  if (
-    lower.includes('what labs') ||
-    lower.includes('available labs') ||
-    lower.includes('lab count') ||
-    lower.includes('how many labs')
-  ) {
-    return `There are ${dbData.labCount} physical computer center / lab resources in the SCEDULAR database: CC15, CC16, CC17, CC18, CC19, CC23, CC24, CC25, CC43, and CC46.`
+  // ── WHO TEACHES SUBJECT ──
+  if (lower.startsWith('who teach') || lower.startsWith('who teaches') || (lower.includes('teaches ') && !lower.includes('timetable'))) {
+    const words = query.replace(/who\s+teach(es)?\s*/i, '').replace(/\?/g, '').trim()
+    const match = findSubject(words, allSubjects)
+    if (match) {
+      const sectionSubjs = allSectionSubjects.filter((ss: any) => ss.subjectId === match.id)
+      const assigned = allTeachingAssignments.filter((ta: any) => sectionSubjs.some((ss: any) => ss.id === ta.sectionSubjectId))
+      if (assigned.length === 0) return `**${match.name} (${match.code})** — No faculty assigned yet.`
+      const lines = assigned.map((ta: any) => {
+        const ss = sectionSubjectMap.get(ta.sectionSubjectId)
+        const sec = ss ? sectionMap.get(ss.sectionId) : null
+        const fac = facultyMap.get(ta.facultyId)
+        return `- **${fac?.name ?? ta.facultyId}** → ${sec?.name ?? '—'} (${ta.component})`
+      })
+      return `**Who teaches ${match.name} (${match.code}):**\n${lines.join('\n')}`
+    }
   }
 
-  // Category G: INFEASIBILITY / FAILURE
-  if (
-    lower.includes('generation fails') ||
-    lower.includes('timetable fails') ||
-    lower.includes('when timetable generation fails')
-  ) {
-    return 'When timetable generation fails or is infeasible, SCEDULAR produces a structured deterministic report listing violated constraints, affected sections/faculty/labs, and suggested input fixes for HOD action.'
+  // ── SECTION COUNT / LIST ──
+  if (lower.includes('how many section') || lower.includes('section count') || lower.includes('list section') || lower.includes('all section')) {
+    const semMatch = query.match(/(?:sem|semester)\s*(\d+|[ivx]+)/i)
+    let sections = allSections.filter((s: any) => s.active !== false)
+    if (semMatch) {
+      const romanMap: Record<string, string> = { '1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V', '6': 'VI', '7': 'VII', '8': 'VIII' }
+      const sem = romanMap[semMatch[1]] || semMatch[1].toUpperCase()
+      sections = sections.filter((s: any) => s.semester === sem)
+    }
+    const lines = sections.map((s: any) => `- **${s.name}** (${s.id}) — Year ${s.year} Sem ${s.semester}`)
+    return `**Sections (${sections.length} total):**\n${lines.join('\n')}`
+  }
+
+  // ── SUBJECT LIST ──
+  if (lower.includes('how many subject') || lower.includes('subject count') || lower.includes('list subject') || lower.includes('all subject') || lower.includes('what subject') || lower.includes('subjects in') || lower.includes('subjects for') || lower.includes('subjects taught')) {
+    const semMatch = query.match(/(?:sem|semester)\s*(\d+|[ivx]+)/i)
+    const yearMatch = query.match(/(?:year|yr)\s*(\d)/i)
+    const typeMatch = query.match(/(lab|integrated|theory|project)/i)
+    let subjects = allSubjects
+    if (semMatch) {
+      const romanMap: Record<string, string> = { '1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V', '6': 'VI', '7': 'VII', '8': 'VIII' }
+      const sem = romanMap[semMatch[1]] || semMatch[1].toUpperCase()
+      subjects = subjects.filter((s: any) => s.semester === sem)
+    } else if (yearMatch) {
+      const yearNum = parseInt(yearMatch[1])
+      const yearLabel = `Year ${yearNum}`
+      const semesters = ['I','II','III','IV','V','VI','VII','VIII']
+      const yearSems = semesters.slice((yearNum - 1) * 2, yearNum * 2)
+      subjects = subjects.filter((s: any) => yearSems.includes(s.semester))
+    } else if (typeMatch) {
+      const type = typeMatch[1].toUpperCase()
+      subjects = subjects.filter((s: any) => s.deliveryType?.toUpperCase().includes(type))
+    }
+    const lines = subjects.map((s: any) => `- **${s.code}** — ${s.name} (Sem ${s.semester ?? '—'}, ${s.deliveryType})`)
+    return `**Subjects (${subjects.length} total):**\n${lines.join('\n')}`
+  }
+
+  // ── LAB LIST ──
+  if (lower.includes('lab') && (lower.includes('available') || lower.includes('list') || lower.includes('what') || lower.includes('which') || lower.includes('how many') || lower.includes('show lab'))) {
+    const labLines = allLabs.map((l: any) => `- **${l.id}** — ${l.name}`)
+    if (labLines.length === 0) return 'No labs configured yet.'
+    return `**Labs (${allLabs.length} total):**\n${labLines.join('\n')}`
+  }
+
+  // ── TEACHING ASSIGNMENTS ──
+  if (lower.includes('teaching assignment') || lower.includes('who teaches what') || lower.includes('all assignment') || lower.includes('show allocation')) {
+    if (allTeachingAssignments.length === 0) return 'No teaching assignments have been made yet.'
+    const lines = allTeachingAssignments.map((ta: any) => {
+      const ss = sectionSubjectMap.get(ta.sectionSubjectId)
+      const sec = ss ? sectionMap.get(ss.sectionId) : null
+      const subj = ss ? subjectMap.get(ss.subjectId) : null
+      const fac = facultyMap.get(ta.facultyId)
+      return `- **${fac?.name ?? ta.facultyId}** → ${sec?.name ?? '—'} | ${subj?.code ?? '—'} (${ta.component})`
+    })
+    return `**Teaching Assignments (${allTeachingAssignments.length} total):**\n${lines.join('\n')}`
+  }
+
+  // ── READINESS ──
+  if (lower.includes('readiness') || lower.includes('ready') || lower.includes('can generate') || lower.includes('generation status')) {
+    const lines = readiness.map((r: any) => {
+      const icon = r.canGenerate ? '✅' : '❌'
+      return `- ${icon} **${r.year} Sem ${r.semester}:** ${r.canGenerate ? 'READY' : 'NOT READY — ' + r.missingItems.slice(0, 3).join('; ')}`
+    })
+    return `**Semester Readiness:**\n${lines.join('\n')}`
+  }
+  if (lower.includes('why') && (lower.includes('not ready') || lower.includes('cannot generate') || lower.includes("can't generate") || lower.includes('block'))) {
+    const notReady = readiness.filter((r: any) => !r.canGenerate)
+    if (notReady.length === 0) return 'All semesters are ready for generation! ✅'
+    const lines = notReady.map((r: any) => `- **${r.year} Sem ${r.semester}:** ${r.missingItems.map((m: string) => '• ' + m).join('\n  ')}`)
+    return `**Why generation is blocked:**\n${lines.join('\n')}`
+  }
+
+  // ── CONFLICTS ──
+  if (lower.includes('conflict') || lower.includes('clash')) {
+    if (latestConflicts.length > 0) {
+      const lines = latestConflicts.slice(0, 10).map((c: any) => `- **${c.type}:** ${c.description ?? ''}`)
+      return `**Conflicts Found (${latestConflicts.length}):**\n${lines.join('\n')}`
+    }
+    return '✅ No scheduling conflicts detected.'
+  }
+
+  // ── UNSCHEDULED ──
+  if (lower.includes('unscheduled') || lower.includes('missing class') || lower.includes('not placed')) {
+    if (latestUnscheduled.length > 0) {
+      const lines = latestUnscheduled.slice(0, 10).map((u: any) => `- ${u.subjectId ?? ''} ${u.sectionId ?? ''} — ${u.reason ?? 'No reason'}`)
+      return `**Unscheduled (${latestUnscheduled.length}):**\n${lines.join('\n')}`
+    }
+    return '✅ All classes have been scheduled.'
+  }
+
+  // ── TIMETABLE STATUS ──
+  if (lower.includes('timetable') && (lower.includes('generated') || lower.includes('status') || lower.includes('last'))) {
+    if (!latestRun) return 'No timetable has been generated yet.'
+    return `**Latest Run #${latestRun.id}:** ${latestRun.status} | ${latestAssignments.length} classes | ${latestConflicts.length} conflicts | ${latestUnscheduled.length} unscheduled`
+  }
+
+  // ── LAB QUERIES ──
+  if (lower.includes('lab') && (lower.includes('room') || lower.includes('list') || lower.includes('how many'))) {
+    const lines = allLabs.map((l: any) => `- **${l.id}** — ${l.name}`)
+    return `**Lab Rooms (${allLabs.length} total):**\n${lines.join('\n')}`
+  }
+
+  // ── EXPERIENCE ──
+  if (lower.includes('experience') && (lower.includes('set') || lower.includes('allocation') || lower.includes('which'))) {
+    const lines = allFaculty.map((f: any) => `- **${f.name}** — ${f.allocationExperience != null ? f.allocationExperience + ' yrs' : 'NOT SET'}`)
+    return `**Faculty Experience:**\n${lines.join('\n')}`
+  }
+
+  // ── HOD ──
+  if (lower.includes('who is hod') || lower.includes('hod name') || lower.includes('who is the hod')) {
+    return 'The **HOD** manages faculty preferences, teaching assignments, section config, lab mapping, and timetable generation. You are logged in as **HOD**.'
+  }
+
+  // ── WORKFLOW ──
+  if (lower.includes('workflow') || lower.includes('how does') || lower.includes('how is') || lower.includes('how do')) {
+    const days = scheduleConfig?.workingDays?.join(', ') ?? 'Monday–Saturday'
+    const periodCount = scheduleConfig?.periods?.length ?? 8
+    return `**Workflow:**\n1. Seed data → 2. Faculty submit preferences → 3. HOD reviews → 4. HOD assigns sections → 5. Readiness check → 6. CSP solver generates timetable\n\n**Schedule:** ${days}, ${periodCount} periods/day.`
+  }
+
+  // ── MY PREFERENCES ──
+  if (lower.includes('my preference') || lower.includes('show my pref')) {
+    if (currentRole === 'FACULTY' && authFacultyId) {
+      const myPrefs = allPreferences.filter((p: any) => p.facultyId === authFacultyId)
+      if (myPrefs.length === 0) return 'No preferences submitted yet.'
+      const lines = myPrefs.map((p: any) => {
+        const subj = subjectMap.get(p.subjectId)
+        return `- **${subj?.code ?? p.subjectId}** — ${subj?.name ?? '?'} | Rank ${p.preferenceRank} | ${p.status}`
+      })
+      return `**Your Preferences:**\n${lines.join('\n')}`
+    }
+    return null
+  }
+
+  // ── ABOUT ──
+  if (lower.includes('what is scedular') || lower.includes('about scedular') || lower.includes('what does scedular do') || lower.includes('use of') || lower.includes('purpose')) {
+    return '**SCEDULAR** is a timetable scheduling and academic resource allocation system for AI & DS at Panimalar Engineering College. It handles faculty preferences, teaching assignments, readiness validation, and CSP-based timetable generation.'
+  }
+
+  // ── FREE SLOTS ──
+  if (lower.includes('free') && (lower.includes('teacher') || lower.includes('faculty') || lower.includes('period'))) {
+    if (latestAssignments.length === 0) return 'No timetable generated yet.'
+    const occupied = new Set(latestAssignments.map((a: any) => `${a.day}-${a.period}`))
+    const days = scheduleConfig?.workingDays?.length ?? 6
+    const periods = scheduleConfig?.periods?.filter((p: any) => p.schedulable).length ?? 8
+    return `**Slot Utilization:** ${occupied.size} occupied / ${days * periods} total = ${days * periods - occupied.size} free slots`
+  }
+
+  // ── SUBJECT + SECTION (fuzzy) ──
+  if (lower.includes('handling') || lower.includes('handle') || lower.includes('assigned to') ||
+      lower.includes('for section') || lower.includes('in section') || lower.includes('for y') || lower.includes('in y')) {
+    const words = query.replace(/\?/g, '').trim()
+    const wordsLower = words.toLowerCase()
+    const subjMatch = findSubject(words, allSubjects)
+    const secMatch = allSections.find((s: any) => {
+      const sid = s.id.toLowerCase()
+      if (wordsLower.includes(sid)) return true
+      const m = wordsLower.match(/(?:year|yr|y)\s*(\d)/); const l = wordsLower.match(/\b([a-k])\b/)
+      return m && l && (sid === `y${m[1]}-${l[1]}`)
+    })
+    if (subjMatch && secMatch) {
+      const ss = allSectionSubjects.find((s: any) => s.subjectId === subjMatch.id && s.sectionId === secMatch.id)
+      if (!ss) return `**${subjMatch.name} (${subjMatch.code})** is not mapped to Section **${secMatch.name}**.`
+      const assigned = allTeachingAssignments.filter((ta: any) => ta.sectionSubjectId === ss.id)
+      if (assigned.length === 0) return `**${subjMatch.name} (${subjMatch.code})** in **${secMatch.name}** — ❌ No faculty assigned.`
+      const lines = assigned.map((ta: any) => {
+        const fac = facultyMap.get(ta.facultyId)
+        return `- **${fac?.name ?? ta.facultyId}** (${ta.component})`
+      })
+      return `**${subjMatch.name} (${subjMatch.code})** → **${secMatch.name}:**\n${lines.join('\n')}`
+    }
+    if (subjMatch) {
+      const sectionSubjs = allSectionSubjects.filter((ss: any) => ss.subjectId === subjMatch.id)
+      const assigned = allTeachingAssignments.filter((ta: any) => sectionSubjs.some((ss: any) => ss.id === ta.sectionSubjectId))
+      if (assigned.length === 0) return `**${subjMatch.name} (${subjMatch.code})** — No faculty assigned.`
+      const lines = assigned.map((ta: any) => {
+        const ss = sectionSubjectMap.get(ta.sectionSubjectId)
+        const sec = ss ? sectionMap.get(ss.sectionId) : null
+        const fac = facultyMap.get(ta.facultyId)
+        return `- **${fac?.name ?? ta.facultyId}** → ${sec?.name ?? '—'} (${ta.component})`
+      })
+      return `**${subjMatch.name} (${subjMatch.code})** assignments:\n${lines.join('\n')}`
+    }
+    if (secMatch) {
+      const sectionSubjs = allSectionSubjects.filter((ss: any) => ss.sectionId === secMatch.id)
+      if (sectionSubjs.length === 0) return `Section **${secMatch.name}** has no subjects.`
+      const lines = sectionSubjs.map((ss: any) => {
+        const subj = subjectMap.get(ss.subjectId)
+        const assigned = allTeachingAssignments.filter((ta: any) => ta.sectionSubjectId === ss.id)
+        const facNames = assigned.map((ta: any) => facultyMap.get(ta.facultyId)?.name ?? ta.facultyId).join(', ') || '❌ Unassigned'
+        return `- **${subj?.code ?? ss.subjectId}** — ${subj?.name ?? '?'} | ${facNames}`
+      })
+      return `**${secMatch.name} — Subjects & Faculty:**\n${lines.join('\n')}`
+    }
+  }
+
+  // ── CSP / SOLVER / UNAVAILABLE / GENERAL KNOWLEDGE ──
+  if (lower.includes('csp') || lower.includes('solver') || lower.includes('constraint')) {
+    return '**CSP (Constraint Satisfaction Problem) Solver** is the timetable generation engine:\n1. Takes teaching assignments, lab mappings, schedule config as input\n2. Assigns TIME slots and ROOM/LAB to each class\n3. Enforces: no faculty/section/lab collisions, respects unavailable periods\n4. Lab sessions: 3-period contiguous blocks, no crossing lunch\n5. Deterministic: same input always gives same output\n6. Reports unschedulable items with reasons on failure'
+  }
+  if (lower.includes('unavailable') || lower.includes('not available') || lower.includes('leave')) {
+    return '**Faculty Unavailability:** Faculty can declare periods they are unavailable (e.g., on leave, other duties). The CSP solver respects these and never schedules them during those periods. Check Faculty Management to view/edit unavailability records.'
+  }
+  if (lower.includes('period') && (lower.includes('how many') || lower.includes('count') || lower.includes('per day'))) {
+    const periodCount = scheduleConfig?.periods?.filter((p: any) => p.schedulable).length ?? 8
+    const days = scheduleConfig?.workingDays?.join(', ') ?? 'Mon–Fri'
+    return `**Schedule:** ${periodCount} schedulable periods per day, working days: ${days}. Total weekly slots: ${scheduleConfig?.workingDays?.length ?? 5} × ${periodCount} = ${(scheduleConfig?.workingDays?.length ?? 5) * periodCount}.`
+  }
+  if (lower.includes('lab session') || lower.includes('lab block') || lower.includes('contiguous')) {
+    return '**Lab Sessions** are scheduled as contiguous blocks of 3 periods (configurable). They cannot be split across time slots or cross the lunch break. Each lab session needs a mapped lab room (CC15–CC46).'
+  }
+  if (lower.includes('experience band') || lower.includes('allocation experience') || lower.includes('years eligible')) {
+    return '**Experience Band Policy:**\n- 0–9 yrs: Eligible for Year 1/2 subjects, max 1 preference\n- 10–<13 yrs: Eligible for Year 2/3/4, max 2 preferences (max 1 per year)\n- 13+ yrs: Eligible for Year 3/4, max 2 preferences (max 1 per year)\n\nThis determines which subjects a faculty can submit preferences for.'
+  }
+  if (lower.includes('what is') && (lower.includes('section') || lower.includes('subject') || lower.includes('teaching'))) {
+    return '**Section-Subject mapping** defines which subjects are taught to which sections, with weekly theory and lab period counts. **Teaching assignments** link a specific faculty member to a section-subject pair (e.g., Dr. X teaches DBMS to Section Y2-A). Both must be configured before timetable generation.'
+  }
+  if (lower.includes('project') && (lower.includes('what is') || lower.includes('tell me') || lower.includes('about'))) {
+    return '**SCEDULAR** is a timetable scheduling and academic resource allocation system for the Dept of AI & Data Science at Panimalar Engineering College. Developed by **KERNUL TECH** (led by Nivash). It handles faculty preferences, teaching assignments, CSP-based timetable generation, conflict detection, and lab scheduling.'
+  }
+  if (lower.includes('indegrated') || lower.includes('integrated') || lower.includes('lab subject') || lower.includes('lab required')) {
+    const labSubjects = allSubjects.filter((s: any) => s.deliveryType === 'INTEGRATED' || s.deliveryType === 'LAB')
+    if (labSubjects.length === 0) return 'No lab subjects found.'
+    const lines = labSubjects.map((s: any) => `- **${s.code}** — ${s.name} (Sem ${s.semester ?? '—'}, ${s.deliveryType})`)
+    return `**Lab/Integrated Subjects (${labSubjects.length}):**\n${lines.join('\n')}`
+  }
+  if (lower.includes('how to') || lower.includes('how do') || lower.includes('where is') || lower.includes('navigate')) {
+    return '**SCEDULAR Pages:**\n- **Dashboard** — overview & AI summary\n- **Faculty Management** — manage faculty records\n- **Subject Management** — view curriculum\n- **Faculty Allocation** — submit/review preferences\n- **Section Allocation** — assign faculty to sections (HOD)\n- **Generate Timetable** — run CSP solver\n- **View Timetable** — view schedules\n- **Settings** — configure schedule, labs, AI'
+  }
+  if (lower.includes('conflict') || lower.includes('clash') || lower.includes('collision')) {
+    if (latestConflicts.length > 0) {
+      const lines = latestConflicts.slice(0, 10).map((c: any) => `- **${c.type}:** ${c.description ?? ''}`)
+      return `**Conflicts Found (${latestConflicts.length}):**\n${lines.join('\n')}`
+    }
+    return '**No conflicts** currently. Conflicts detected during generation:\n- Faculty collision (same teacher, 2 classes at same time)\n- Section collision (same section, 2 classes at same time)\n- Lab collision (same lab room, 2 classes at same time)\n- Unavailable period violation'
   }
 
   return null
+}
+
+// ── Helper: fuzzy subject match ──
+function findSubject(query: string, allSubjects: any[]): any {
+  const q = query.toLowerCase().replace(/\?/g, '').trim()
+  const abbrevMap: Record<string, string> = { 'oops': 'object oriented', 'dbms': 'database', 'os': 'operating system', 'cn': 'computer network', 'se': 'software engineering', 'ml': 'machine learning', 'dl': 'deep learning', 'ai': 'artificial intelligence', 'ds': 'data structure', 'aies': 'ai & ethics', 'java': 'java', 'python': 'python', 'coi': 'computer organization' }
+  const stopWords = new Set(['the', 'a', 'an', 'for', 'in', 'of', 'to', 'and', 'or', 'is', 'my', 'i', 'we', 'you', 'do', 'did', 'does', 'has', 'have', 'had', 'was', 'were', 'will', 'can', 'may', 'all', 'any', 'each', 'who', 'what', 'which', 'how', 'when', 'where', 'why', 'section', 'sections', 'subject', 'subjects', 'faculty', 'teacher', 'teach', 'teaches', 'handling', 'handle', 'assigned', 'semester', 'sem', 'year'])
+
+  // First pass: try abbreviation matches (highest confidence)
+  for (const qw of q.split(/\s+/)) {
+    if (abbrevMap[qw]) {
+      const match = allSubjects.find((s: any) => s.name.toLowerCase().includes(abbrevMap[qw]))
+      if (match) return match
+    }
+  }
+
+  // Second pass: exact code/name match
+  const exactMatch = allSubjects.find((s: any) => {
+    const sl = s.name.toLowerCase(); const sc = s.code.toLowerCase()
+    return q.includes(sc) || q.includes(sl) || sl.includes(q) || q.includes(sl)
+  })
+  if (exactMatch) return exactMatch
+
+  // Third pass: word-level fuzzy match (skip stop words)
+  return allSubjects.find((s: any) => {
+    const sl = s.name.toLowerCase()
+    const nameWords = sl.split(/\s+/)
+    for (const qw of q.split(/\s+/)) {
+      if (qw.length < 3 || stopWords.has(qw)) continue
+      for (const nw of nameWords) {
+        if (nw.length < 3) continue
+        if (nw.startsWith(qw) || qw.startsWith(nw)) return true
+      }
+    }
+    return false
+  })
 }

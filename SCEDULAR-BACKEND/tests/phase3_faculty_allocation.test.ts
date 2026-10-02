@@ -18,7 +18,7 @@ const HOD = 'FAC-001' // Dr.S.MALATHI — HOD
 const SEM4_Y2_THEORY_A = 'SUB-23MA1405' // Year 2, Semester IV, THEORY (EVEN)
 const SEM4_Y2_THEORY_B = 'SUB-23AD1401' // Year 2, Semester IV, THEORY (EVEN)
 const SEM6_Y3_THEORY = 'SUB-23AD1601' // Year 3, Semester VI, THEORY (EVEN)
-const SEM4_Y2_INTEGRATED = 'SUB-23AD1404' // Year 2, Semester IV, INTEGRATED (EVEN)
+const SEM5_Y3_INTEGRATED = 'SUB-23AD1506' // Year 3, Semester V, INTEGRATED (ODD): Data Analytics
 const SEM3_Y2_THEORY_ODD = 'SUB-23MA1304' // Year 2, Semester III, THEORY (ODD)
 
 beforeAll(async () => {
@@ -33,8 +33,8 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   // Every test starts from a clean transactional state (no leftover preferences),
-  // with FAC-002's allocation experience unset, and the academic cycle reset to
-  // the canonical EVEN default so cycle-mutating tests never leak into others.
+  // with FAC-002's allocation experience unset, and the academic cycle reset to EVEN
+  // for cycle-specific test cases.
   await resetWorkflowStateRepo()
   await setCurrentAcademicCycle('EVEN')
   const db = getLocalDb()
@@ -49,9 +49,9 @@ beforeEach(async () => {
 
 afterAll(async () => {
   // Restore the pristine seed: no test preferences, no injected experience, and
-  // the academic cycle back to its canonical EVEN default.
+  // the academic cycle set to ODD for runtime default.
   await resetWorkflowStateRepo()
-  await setCurrentAcademicCycle('EVEN')
+  await setCurrentAcademicCycle('ODD')
   const db = getLocalDb()
   for (const id of [FACULTY, HOD]) {
     const f = db.faculty.find((x) => x.id === id)
@@ -281,23 +281,19 @@ describe('Phase 3 — Real Faculty Subject Allocation Workflow', () => {
     expect(zero.body.error).toBe('INVALID_REQUESTED_SECTIONS')
   })
 
-  // 12. INTEGRATED subjects require explicit lab confirmation.
-  it('12: an INTEGRATED subject without lab confirmation is blocked, with it is accepted', async () => {
-    setAllocationExperience(FACULTY, 5) // Year 2 eligible
+  // 12. INTEGRATED subjects are accepted without a separate lab confirmation:
+  // whoever teaches it handles both theory and lab.
+  it('12: an INTEGRATED subject is accepted without lab confirmation and stored as lab-confirmed', async () => {
+    await setCurrentAcademicCycle('ODD')   // Semester V belongs to the ODD cycle
+    setAllocationExperience(FACULTY, 15)   // 13+ years: Years 3 and 4 are open
     const { token } = await login(FACULTY)
-    const blocked = await authed('/api/faculty/preferences/draft', token, {
-      method: 'POST',
-      body: JSON.stringify({ items: [item(SEM4_Y2_INTEGRATED, 1, 1)] }),
-    })
-    expect(blocked.status).toBe(400)
-    expect(blocked.body.error).toBe('INTEGRATED_LAB_REQUIRED')
-
     const ok = await authed('/api/faculty/preferences/draft', token, {
       method: 'POST',
-      body: JSON.stringify({ items: [item(SEM4_Y2_INTEGRATED, 1, 1, { labConfirmed: true })] }),
+      body: JSON.stringify({ items: [{ subjectId: SEM5_Y3_INTEGRATED, preferenceRank: 1 }] }),
     })
     expect(ok.status).toBe(200)
     expect(ok.body.preferences[0].labConfirmed).toBe(true)
+    expect(ok.body.preferences[0].requestedSections).toBe(1)
   })
 
   // 13. A DRAFT persists and survives a re-read (refresh).
