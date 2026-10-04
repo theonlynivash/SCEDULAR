@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search, Check } from 'lucide-react'
-import { api, type AssignBoard, type AssignBoardSubject } from '../api'
+import { api, type AssignBoard, type AssignBoardSubject, type BoardTeacher } from '../api'
+import TeacherPicker from './TeacherPicker'
 
 type Filter = 'open' | 'all' | 'done'
 const tl = (t: number, l: number) => (l > 0 ? `${t}T + ${l}L` : `${t}T`)
@@ -40,7 +41,6 @@ export default function HodAssignWorkspace({ board, semester, onChanged, say }: 
   const [q, setQ] = useState('')
   const [selected, setSelected] = useState<string>('')
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [showOthers, setShowOthers] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const list = useMemo(() => {
@@ -60,7 +60,7 @@ export default function HodAssignWorkspace({ board, semester, onChanged, say }: 
     if (board.subjects.some(s => s.subjectId === selected)) return
     setSelected((board.subjects.find(s => s.assignedCount < s.sectionCount) ?? board.subjects[0])?.subjectId ?? '')
   }, [board, selected])
-  useEffect(() => { setCounts({}); setShowOthers(false) }, [selected, semester])
+  useEffect(() => { setCounts({}) }, [selected, semester])
   useEffect(() => { setFilter(board.subjects.some(s => s.assignedCount < s.sectionCount) ? 'open' : 'all') }, [semester]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sub = board.subjects.find(s => s.subjectId === selected)
@@ -96,36 +96,32 @@ export default function HodAssignWorkspace({ board, semester, onChanged, say }: 
       </div>
 
       {/* RIGHT: workspace */}
-      {sub ? <Detail key={sub.subjectId} sub={sub} board={board} semester={semester} counts={counts} setCounts={setCounts} showOthers={showOthers} setShowOthers={setShowOthers} busy={busy} setBusy={setBusy} onChanged={onChanged} say={say} /> : <p className="text-sm text-slate-500 text-center py-16">Select a subject.</p>}
+      {sub ? <Detail key={sub.subjectId} sub={sub} board={board} semester={semester} counts={counts} setCounts={setCounts} busy={busy} setBusy={setBusy} onChanged={onChanged} say={say} /> : <p className="text-sm text-slate-500 text-center py-16">Select a subject.</p>}
     </div>
   )
 }
 
-function Detail({ sub, board, semester, counts, setCounts, showOthers, setShowOthers, busy, setBusy, onChanged, say }: {
+function Detail({ sub, board, semester, counts, setCounts, busy, setBusy, onChanged, say }: {
   sub: AssignBoardSubject; board: AssignBoard; semester: string
   counts: Record<string, number>; setCounts: (c: Record<string, number>) => void
-  showOthers: boolean; setShowOthers: (b: boolean) => void
+  showOthers?: boolean; setShowOthers?: (b: boolean) => void
   busy: boolean; setBusy: (b: boolean) => void
   onChanged: () => void; say: (ok: boolean, text: string) => void
 }) {
+  const [changing, setChanging] = useState<string | null>(null)   // teacher whose sections are being moved
   const remaining = sub.sectionCount - sub.assignedCount
   const per = sub.perSection.theory + sub.perSection.lab
-  const requiredPeriods = sub.sectionCount * per
-  const coveredPeriods = sub.assignedCount * per
-  const byId = new Map(board.teachers.map(t => [t.facultyId, t]))
-  const interestedIds = new Set(sub.interested.map(i => i.facultyId))
-  const others = board.teachers.filter(t => !interestedIds.has(t.facultyId))
   const nFor = (id: string) => Math.max(1, Math.min(remaining, counts[id] ?? 1))
 
-  async function assign(facultyId: string, override = false): Promise<void> {
-    const t = byId.get(facultyId)!, n = nFor(facultyId)
+  async function assign(facultyId: string, name: string, override = false): Promise<void> {
+    const n = nFor(facultyId)
     setBusy(true)
     try {
       const r = await api.facultyAllocation.assignSections({ semester, subjectId: sub.subjectId, facultyId, sectionCount: n, override })
-      say(true, `${t.name} · ${n} section${n === 1 ? '' : 's'} of ${sub.code} (+${r.addedPeriods} periods). Load ${r.facultyLoad}/${r.facultyMax}.`)
+      say(true, `${name} · ${n} section${n === 1 ? '' : 's'} of ${sub.code} (+${r.addedPeriods} periods). Load ${r.facultyLoad}/${r.facultyMax}.`)
       onChanged()
     } catch (e: any) {
-      if (e?.code === 'FACULTY_CAPACITY_EXCEEDED' && window.confirm(`${e.message}\n\nAssign anyway?`)) { setBusy(false); return assign(facultyId, true) }
+      if (e?.code === 'FACULTY_CAPACITY_EXCEEDED' && window.confirm(`${e.message}\n\nAssign anyway?`)) { setBusy(false); return assign(facultyId, name, true) }
       say(false, e?.message || 'Could not assign.')
     } finally { setBusy(false) }
   }
@@ -135,32 +131,31 @@ function Detail({ sub, board, semester, counts, setCounts, showOthers, setShowOt
     catch (e: any) { say(false, e?.message || 'Could not remove.') }
     finally { setBusy(false) }
   }
+  async function move(fromId: string, toId: string, toName: string, override = false): Promise<void> {
+    setBusy(true)
+    try {
+      const r = await api.facultyAllocation.reassign({ subjectId: sub.subjectId, fromFacultyId: fromId, toFacultyId: toId, override })
+      say(true, `Moved ${sub.code} to ${toName} (+${r.movedPeriods} periods, load ${r.newLoad}/${r.max}).`)
+      setChanging(null); onChanged()
+    } catch (e: any) {
+      if (e?.code === 'FACULTY_CAPACITY_EXCEEDED' && window.confirm(`${e.message}\n\nMove anyway?`)) { setBusy(false); return move(fromId, toId, toName, true) }
+      say(false, e?.message || 'Could not change the teacher.')
+    } finally { setBusy(false) }
+  }
 
-  const Candidate = ({ id, tag }: { id: string; tag?: React.ReactNode }) => {
-    const t = byId.get(id)
-    if (!t) return null
-    const n = nFor(id), after = t.load + n * per, over = false
-    const pct = Math.min(100, (100 * t.load) / t.max), pctAfter = Math.min(100, (100 * after) / t.max)
+  // stepper + Assign for the "fill the remaining sections" list
+  const assignControl = (t: BoardTeacher) => {
+    const n = nFor(t.facultyId), after = t.load + n * per
     return (
-      <div className="px-4 py-2 flex items-center gap-3 text-xs hover:bg-slate-50/60">
-        <div className="min-w-0 w-48">
-          <p className="font-600 text-slate-800 truncate">{t.name}</p>
-          <p className="text-[10px] text-slate-400">{t.experience != null ? `${t.experience} yrs` : 'experience not set'} {tag}</p>
-        </div>
-        <div className="flex-1 min-w-[120px]">
-          <div className="relative h-2 rounded-full bg-slate-100 overflow-hidden">
-            <div className={`absolute inset-y-0 left-0 ${over ? 'bg-rose-200' : 'bg-blue-200'}`} style={{ width: `${pctAfter}%` }} />
-            <div className="absolute inset-y-0 left-0 bg-[#0F4C81]" style={{ width: `${pct}%` }} />
-          </div>
-          <p className={`text-[10px] mt-0.5 ${over ? 'text-rose-600 font-700' : 'text-slate-500'}`}>{t.load} → <b>{after}</b> / {t.max} periods</p>
-        </div>
-        <div className="flex items-center border border-slate-200 rounded-md overflow-hidden">
-          <button disabled={remaining < 1} onClick={() => setCounts({ ...counts, [id]: Math.max(1, n - 1) })} className="px-2 py-1 hover:bg-slate-50">−</button>
+      <>
+        <span className={`text-[10.5px] w-24 text-right ${after > t.max ? 'text-amber-700 font-700' : 'text-slate-500'}`}>{t.load} → <b>{after}</b>/{t.max}</span>
+        <div className="flex items-center border border-slate-200 rounded-md overflow-hidden text-xs">
+          <button disabled={remaining < 1} onClick={() => setCounts({ ...counts, [t.facultyId]: Math.max(1, n - 1) })} className="px-2 py-1 hover:bg-slate-50">−</button>
           <span className="w-12 text-center font-700">{n} sec</span>
-          <button disabled={remaining < 1} onClick={() => setCounts({ ...counts, [id]: Math.min(remaining, n + 1) })} className="px-2 py-1 hover:bg-slate-50">+</button>
+          <button disabled={remaining < 1} onClick={() => setCounts({ ...counts, [t.facultyId]: Math.min(remaining, n + 1) })} className="px-2 py-1 hover:bg-slate-50">+</button>
         </div>
-        <button disabled={busy || remaining < 1} onClick={() => assign(id)} className="px-3 py-1.5 rounded-md bg-[#0F4C81] text-white font-700 hover:bg-[#0a3860] disabled:opacity-40">Assign</button>
-      </div>
+        <button disabled={busy || remaining < 1} onClick={() => assign(t.facultyId, t.name)} className="px-3 py-1.5 rounded-md bg-[#0F4C81] text-white text-xs font-700 hover:bg-[#0a3860] disabled:opacity-40">Assign</button>
+      </>
     )
   }
 
@@ -175,8 +170,8 @@ function Detail({ sub, board, semester, counts, setCounts, showOthers, setShowOt
           </div>
           <div className="ml-auto flex gap-2">
             <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-center"><p className="text-[9px] uppercase tracking-wider text-slate-400 font-700">Template</p><p className="text-sm font-800 text-slate-800">{tl(sub.perSection.theory, sub.perSection.lab)}</p><p className="text-[9px] text-slate-400">per section</p></div>
-            <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-center"><p className="text-[9px] uppercase tracking-wider text-slate-400 font-700">Need</p><p className="text-sm font-800 text-slate-800">{sub.sectionCount} sections</p><p className="text-[9px] text-slate-400">{requiredPeriods} periods / wk</p></div>
-            <div className={`px-3 py-1.5 rounded-lg border text-center ${remaining === 0 ? 'bg-[#2f6fc4]/6 border-[#2f6fc4]/15' : 'bg-amber-50 border-amber-200'}`}><p className="text-[9px] uppercase tracking-wider text-slate-500 font-700">Still open</p><p className={`text-sm font-800 ${remaining === 0 ? 'text-[#16367a]' : 'text-amber-800'}`}>{remaining} sections</p><p className="text-[9px] text-slate-500">{requiredPeriods - coveredPeriods} periods</p></div>
+            <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-center"><p className="text-[9px] uppercase tracking-wider text-slate-400 font-700">Need</p><p className="text-sm font-800 text-slate-800">{sub.sectionCount} sections</p><p className="text-[9px] text-slate-400">{sub.sectionCount * per} periods / wk{sub.teachersWanted ? ` · ${sub.teachersWanted} teachers` : ''}</p></div>
+            <div className={`px-3 py-1.5 rounded-lg border text-center ${remaining === 0 ? 'bg-[#2f6fc4]/6 border-[#2f6fc4]/15' : 'bg-amber-50 border-amber-200'}`}><p className="text-[9px] uppercase tracking-wider text-slate-500 font-700">Still open</p><p className="text-sm font-800 text-slate-800">{remaining} section{remaining === 1 ? '' : 's'}</p><p className="text-[9px] text-slate-400">{remaining * per} periods</p></div>
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -195,11 +190,28 @@ function Detail({ sub, board, semester, counts, setCounts, showOthers, setShowOt
           <p className="px-4 py-2 text-[10px] font-800 uppercase tracking-wider text-slate-400 bg-slate-50 border-b border-slate-100">Teaching it · {sub.teachers.length}</p>
           <div className="divide-y divide-slate-50">
             {sub.teachers.map(t => (
-              <div key={t.facultyId} className="px-4 py-2 flex items-center gap-3 text-xs">
-                <span className="font-600 text-slate-800 w-48 truncate">{t.facultyName}</span>
-                <span className="text-slate-500">{t.sectionIds.length} × ({tl(sub.perSection.theory, sub.perSection.lab)}) = <b className="text-slate-700">{tl(t.theory, t.lab)}</b></span>
-                <span className="text-slate-400">sections {t.sectionIds.map(letter).join(', ')}</span>
-                <button disabled={busy} onClick={() => remove(t.facultyId)} className="ml-auto text-rose-600 font-600 hover:underline disabled:opacity-40">Remove</button>
+              <div key={t.facultyId}>
+                <div className="px-4 py-2 flex items-center gap-3 text-xs">
+                  <span className="font-600 text-slate-800 w-48 truncate">{t.facultyName}</span>
+                  <span className="text-slate-500">{t.sectionIds.length} × ({tl(sub.perSection.theory, sub.perSection.lab)}) = <b className="text-slate-700">{tl(t.theory, t.lab)}</b></span>
+                  <span className="text-slate-400">sections {t.sectionIds.map(letter).join(', ')}</span>
+                  <span className="ml-auto flex items-center gap-3">
+                    <button disabled={busy} onClick={() => setChanging(changing === t.facultyId ? null : t.facultyId)} className="text-[#16367a] font-600 hover:underline disabled:opacity-40">{changing === t.facultyId ? 'Cancel' : 'Change teacher'}</button>
+                    <button disabled={busy} onClick={() => remove(t.facultyId)} className="text-rose-600 font-600 hover:underline disabled:opacity-40">Remove</button>
+                  </span>
+                </div>
+                {changing === t.facultyId && (
+                  <div className="px-4 pb-3 bg-blue-50/30">
+                    <p className="text-[11px] text-slate-500 py-2">Move {t.facultyName}'s {t.sectionIds.length} section{t.sectionIds.length === 1 ? '' : 's'} of {sub.code} ({t.theory + t.lab} periods) to:</p>
+                    <TeacherPicker teachers={board.teachers} subjectId={sub.subjectId} semester={semester} exclude={new Set([t.facultyId])} maxHeight={300}
+                      action={c => (
+                        <>
+                          <span className={`text-[10.5px] w-24 text-right ${c.load + t.theory + t.lab > c.max ? 'text-amber-700 font-700' : 'text-slate-500'}`}>{c.load} → <b>{c.load + t.theory + t.lab}</b>/{c.max}</span>
+                          <button disabled={busy} onClick={() => move(t.facultyId, c.facultyId, c.name)} className="px-3 py-1.5 rounded-md bg-[#0F4C81] text-white text-xs font-700 hover:bg-[#0a3860] disabled:opacity-40">Move here</button>
+                        </>
+                      )} />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -208,19 +220,9 @@ function Detail({ sub, board, semester, counts, setCounts, showOthers, setShowOt
 
       {/* candidates */}
       {remaining > 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <p className="px-4 py-2 text-[10px] font-800 uppercase tracking-wider text-slate-400 bg-slate-50 border-b border-slate-100">Fill the remaining {remaining} section{remaining === 1 ? '' : 's'}</p>
-          {sub.interested.length > 0 ? (
-            <div className="divide-y divide-slate-50">
-              {sub.interested.map(i => <Candidate key={i.facultyId} id={i.facultyId} tag={<span className={`ml-1.5 font-700 ${i.approved ? 'text-emerald-700' : 'text-blue-700'}`}>· chose it{i.approved ? ' ✓' : ''}</span>} />)}
-            </div>
-          ) : (
-            <p className="px-4 py-3 text-xs text-amber-800 bg-amber-50/60">Nobody chose this subject. Pick any teacher below.</p>
-          )}
-          <button onClick={() => setShowOthers(!showOthers)} className="w-full px-4 py-2 text-left text-[11px] font-700 text-[#0F4C81] hover:bg-slate-50 border-t border-slate-100">
-            {showOthers ? 'Hide' : 'Show'} other teachers ({others.length})
-          </button>
-          {showOthers && <div className="divide-y divide-slate-50 border-t border-slate-100 max-h-80 overflow-y-auto">{others.map(t => <Candidate key={t.facultyId} id={t.facultyId} />)}</div>}
+        <div className="space-y-2">
+          <p className="text-[10px] font-800 uppercase tracking-wider text-slate-400 px-1">Fill the remaining {remaining} section{remaining === 1 ? '' : 's'}{sub.interested.length === 0 ? ' · nobody chose this subject, pick any teacher' : ''}</p>
+          <TeacherPicker teachers={board.teachers} subjectId={sub.subjectId} semester={semester} action={assignControl} />
         </div>
       ) : (
         <p className="text-xs font-600 text-[#16367a] bg-[#2f6fc4]/6 border border-[#2f6fc4]/15 rounded-xl px-4 py-3">✓ Every section has a teacher.</p>

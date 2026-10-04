@@ -471,14 +471,14 @@ a readiness summary. Counts come from the real data.
 
 ### 10.3 Settings (gear icon)
 
-Settings has five tabs. All changes are saved immediately and a green or red banner confirms the result.
+Settings has seven tabs: Semester setup, Sections, Syllabus, Import, Class in-charge, Policy & cycle and Dataset. All changes are saved immediately and a green or red banner confirms the result.
 
 #### Tab 1 — Semester setup
 A read-out of each semester that has data: how many sections, subjects, offerings, how many offerings already have a
 teacher and how many teacher choices exist. Use it as a checklist: a semester is ready when every offering has a teacher.
 
-#### Tab 2 — Syllabus & sections
-Choose a semester with the pills at the top (Sem II … VIII).
+#### Tabs 2 and 3 — Sections and Syllabus
+These were one tab and are now two: **Sections** (add / delete sections, class in-charge list) and **Syllabus** (the subjects of one semester at a time, with search, code, short name, type, theory/lab periods, credits, category, lab rooms, sections, staffing, and **Edit / Delete / Add subject / Import from Excel**). Choose a semester with the pills at the top (Sem I … VIII).
 
 *Sections*
 * **Add sections** — enter how many and press the button. New sections are named with the next free letters and are
@@ -494,11 +494,27 @@ Choose a semester with the pills at the top (Sem II … VIII).
 * **Delete subject** — removes it from all sections, the teacher assignments for it, and any preferences for it (the dialog tells you how many).
 * The **short name** is what appears in the timetable grid (for example ARVR). If empty, the initials of the main words are used.
 
-#### Tab 3 — Class in-charge
+#### Tab 4 — Import (set a department up from Excel)
+Three steps, in order: **1 Sections → 2 Syllabus → 3 Teachers.** One **all-in-one workbook** (sheets *Sections*, *Syllabus*, *Teachers*, plus README and a Lists sheet of allowed values and your lab rooms) can be downloaded, filled, and uploaded once per step; each step also has its own template.
+
+How an import works (stage → fix → commit):
+1. Upload the file. **Nothing is saved yet.** Every row is checked against your live data and the rules the rest of SCEDULAR needs.
+2. The review window lists **exactly what is missing or wrong** ("Row 3 · Experience (years): Experience (years) is missing. A teacher cannot submit subject preferences without it.") in red (blocks the import) or amber (a warning), and each problem has a **Fix** button that jumps to the cell. Cells are edited right there (drop-downs for semester, type, category; a lab-room list); every edit is re-checked immediately. Rows can be removed or added.
+3. **Import** is enabled when no row has an error (or tick "skip the rows that still have errors"). New teachers receive generated IDs and one-time passwords (shown once, CSV download).
+4. A **readiness panel** then says whether the data is ready for teacher preferences and for timetable generation, and lists anything still missing (teachers without experience, lab subjects without a room, semesters with subjects but no sections, offerings still without a teacher).
+
+What is checked: *Sections* — semester I–VIII, one letter per row, duplicates, student count, class in-charge (warning if that teacher does not exist yet). *Syllabus* — semester, unique code (an existing code in the same semester is **updated**), type, periods that fit the type, lab rooms exist and are present when there are lab periods, sections exist, category, credits; a lab-only row that looks like the lab of a theory subject gets a warning to make it one integrated subject. *Teachers* — name, experience (required, because it decides the preference limits), email format and uniqueness (also inside the file), designation default; a Faculty ID in the file updates that teacher.
+
+**Teachers: add or replace.** The teacher import has two modes. *Add teachers* appends to the current list. *Replace all teachers* is a full rewrite for another department: every current teacher except the HOD is removed together with their logins, preferences, assignments, results and messages, class in-charges pointing at them are cleared, old timetables are removed, and the file becomes the new list. It needs the HOD password and the word REPLACE. Sections and the syllabus are never touched by it. Semester I is supported everywhere, so a department can be built from scratch for Semester I this way and its timetable generated.
+
+#### Theory + lab are one subject (xT + yL)
+A course such as AIES is one subject with theory and lab periods, and the teacher of a class handles **both** for that class. If a syllabus lists it twice ("AIES" and "AIES Laboratory"), the Syllabus tab shows a banner with each pair and **Combine** / **Combine all**. Combining turns the theory subject into one INTEGRATED subject (T + L), moves the lab rooms, makes the class's theory teacher take the lab too (or the lab teacher both, if only the lab had one), keeps teachers' choices of the lab as choices of the combined subject, deletes the separate lab subject and clears the old timetables (generate again). Integrated subjects are always assigned as one unit: the Assign screen, Auto-fill and the plan editor give theory and lab of a section to the same teacher.
+
+#### Tab 5 — Class in-charge
 Every section of every year in one place, grouped by year and semester. Pick the teacher from the drop-down next to
 each section. It saves at once and is printed on that section's timetable PDF.
 
-#### Tab 4 — Policy & cycle
+#### Tab 6 — Policy & cycle
 * **Academic cycle (ODD / EVEN / BOTH)** — decides which semesters teachers see for preferences. Changing it asks for your password
   because it changes what every teacher sees.
 * **Experience bands** — the preference policy (see §16). Edit the minimum/maximum experience, which years the band may
@@ -508,7 +524,7 @@ each section. It saves at once and is printed on that section's timetable PDF.
   teachers and the server refuses their questions. The HOD is never affected. (A fixed bug: the switch used to save only in memory and the knob was drawn out of place.)
 * **Department snapshot** — counts of faculty, bands and the current cycle.
 
-#### Tab 5 — Dataset
+#### Tab 7 — Dataset
 The only two erase actions in SCEDULAR. Each card shows what it would remove *right now* (for example "131 preferences" or
 "332 assignments · 2 timetable runs"), says what is kept, and asks for **your HOD password** before it does anything.
 
@@ -556,6 +572,7 @@ Shows every teacher choice for the semester, grouped by year and subject.
 * Status chips show Submitted / Approved / Rejected / Changes requested.
 
 #### Tab "Assign"
+(Picking teachers: the list is split into **Free teachers** — nothing assigned yet, with the preferences they submitted and the semester of each — and **Assigned teachers** — with how much room is left of their weekly cap and the subjects (with semester) they already carry. Those who chose the subject are listed first. Under "Teaching it", **Change teacher** moves a teacher's sections of the subject to another teacher in one step, with the same lists.)
 A two-sided board: subjects on the left with a ring/percentage showing how much of the subject's demand is covered;
 teachers on the right.
 1. Click a subject. The right side lists teachers who chose it first, then others (open "other teachers" to assign anyone).
@@ -567,7 +584,10 @@ teachers on the right.
 
 The goal is every subject at 100%. Subjects nobody has chosen can still be assigned to anyone.
 
-#### Tab "Templates & Auto-fill"
+#### Tab "Templates & Auto-fill" — editable plan
+**Build plan** proposes who takes how many sections of every open subject from the preferences. Then the HOD edits it: each teacher's share has a **− n +** stepper (workload = sections × periods per section, shown against the weekly cap across everything planned), teachers can be added from the free/assigned lists or removed, and the subject's remaining need moves with every change ("+2 still needed", "1 too many", "balanced"). **Fill the rest automatically** hands the uncovered sections to the teachers with the most room. **Assign** for a subject is enabled only when its sections add up exactly; after it the next subject opens. **Assign all balanced subjects** applies several at once. The staffing card above shows when more teachers are needed.
+
+(Older description of this tab:)
 * **Subject templates** — per subject, the teachers' section counts; **Workload** per teacher; **Auto-fill from
   preferences** distributes sections to teachers according to approved choices and their remaining capacity.
 * Run Auto-fill first, then fix the remainder on the Assign tab. (Details in §17.)
@@ -1096,7 +1116,7 @@ Never commit `.env`; it is git-ignored.
 ## 23. Testing
 
 ### 23.1 What exists
-Eighteen test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts`). At the time of writing **161 tests pass**; two files
+Twenty-two test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts`). At the time of writing **175 tests pass**; two files
 (`stage6.test.ts`, `facultyAllocationPolicy.test.mjs`) contain no runnable suites and are reported as "No test suite found" (this was
 already so before this build and does not indicate a failure of the product).
 
@@ -1112,6 +1132,10 @@ already so before this build and does not indicate a failure of the product).
 | `password_reset` | Forgot password flow, code checks, change notice never contains the password |
 | `messages` | Delivery both ways, unread counts, teacher→teacher refused, 30-day deletion |
 | `assistant` | Auth required, input checks, HOD switch disables teacher access |
+| `bulk_import` | Template, row-level problems, fixing and committing for sections / syllabus / teachers; teacher replace-all needs password + REPLACE |
+| `scratch_sem1_import` | From an empty dataset, Semester I only through Excel imports → preferences → approval → assignment → GREEN timetable → PDF |
+| `plan_assign` | The editable plan must cover the open sections exactly; change teacher; picker data |
+| `merge_lab` | Theory + lab pairs become one subject, one teacher per class, timetable regenerates |
 | `staffing` | Quota and "need more teachers" arithmetic (12 sections × 3 subjects × 4T example) and the server refusing a choice once a subject is full |
 | `data_erase` | The two erase actions are HOD + password only, keep what they must keep, and no bulk-erase routes exist |
 | `exports` | Teacher PDF only for self (HOD any), master PDF HOD only, valid PDF bytes |
@@ -1300,6 +1324,11 @@ All routes are under `/api`. "Auth" = needs `Authorization: Bearer <token>`; "HO
 | GET | `/hod/assign-board` | HOD | Assign board data per semester |
 | POST | `/hod/assign` · `/hod/unassign` · `/hod/auto-assign` | HOD | Assign, remove, auto-fill |
 | GET/POST | `/hod/allocation-settings` | HOD | Experience bands, AI switch, staffing weightage (`avgSectionsPerTeacher`, `maxWeeklyPeriods`) |
+| POST | `/hod/apply-plan` · `/hod/reassign` | HOD | Save one subject's edited plan (must cover the open sections exactly) · move a teacher's sections to another teacher |
+| GET | `/setup/import/template/:kind` (`sections`, `syllabus`, `teachers`, `all`) | HOD | Excel templates |
+| POST | `/setup/import/:kind/preview` · `/validate` · `/commit` | HOD | Stage an upload, re-check edited rows, save (teachers: `mode: replace` needs password + REPLACE) |
+| GET | `/setup/import/data-check` | HOD | What is still missing for preferences and timetable generation |
+| GET · POST | `/setup/subjects/merge-candidates` · `/setup/subjects/merge-lab` | HOD | Find / combine theory + lab pairs |
 | GET | `/hod/staffing` | HOD | Demand vs capacity, teachers needed, "need N more teachers", per-subject quota |
 | GET/POST | `/hod/academic-cycle` | HOD | Read / set the cycle (password) |
 | GET | `/hod/workload-summary`, `/hod/confirmed-allocation`, `/section-allocation` | HOD | Summaries |

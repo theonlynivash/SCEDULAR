@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, KeyRound, Trash2, Search, Download, X, Copy, Mail } from 'lucide-react'
+import { Plus, KeyRound, Trash2, Search, Download, X, Copy, Mail, FileSpreadsheet } from 'lucide-react'
+import ImportWizard from './ImportWizard'
 import { api, type Faculty, type IssuedLogin } from '../api'
 
 const inputCls = 'w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#0F4C81] bg-white'
@@ -27,6 +28,7 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
   const [issued, setIssued] = useState<IssuedLogin[]>([])
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [form, setForm] = useState({ name: '', designation: 'Assistant Professor', email: '', allocationExperience: '', maxWeeklyPeriods: '24' })
 
   const say = useCallback((ok: boolean, text: string) => { setNotice({ ok, text }); setTimeout(() => setNotice(null), 6000) }, [])
@@ -92,6 +94,7 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
         <div className="ml-auto flex items-center gap-2 flex-wrap">
           <div className="relative"><Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-400" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-48 focus:outline-none focus:border-[#0F4C81] bg-white" /></div>
           {missing > 0 && <button disabled={busy} onClick={bulk} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#0F4C81]/40 text-[#0F4C81] text-xs font-700 hover:bg-blue-50 disabled:opacity-40"><KeyRound className="w-3.5 h-3.5" /> Create {missing} missing login{missing === 1 ? '' : 's'}</button>}
+          <button onClick={() => setImporting(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#0F4C81]/40 text-[#0F4C81] text-xs font-700 hover:bg-blue-50"><FileSpreadsheet className="w-3.5 h-3.5" /> Import from Excel</button>
           <button onClick={() => setAdding(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0F4C81] text-white text-xs font-700"><Plus className="w-3.5 h-3.5" /> Add teacher</button>
         </div>
       </div>
@@ -181,6 +184,7 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
           </div>
         </div>
       )}
+      {importing && <ImportWizard kind="teachers" onClose={() => setImporting(false)} onDone={() => load()} />}
     </div>
   )
 }

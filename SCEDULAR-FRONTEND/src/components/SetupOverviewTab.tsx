@@ -4,7 +4,7 @@ import { api, type SetupOverview } from '../api'
 import type { Page } from '../types'
 
 /** One-glance checklist for getting a semester ready: sections → syllabus → teachers → choices → assignment. */
-export default function SetupOverviewTab({ navigate, goTo }: { navigate: (p: Page) => void; goTo: (tab: 'syllabus') => void }) {
+export default function SetupOverviewTab({ navigate, goTo }: { navigate: (p: Page) => void; goTo: (tab: 'sections' | 'syllabus' | 'import') => void }) {
   const [ov, setOv] = useState<SetupOverview | null>(null)
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => { api.setup.overview().then(setOv).catch(e => setErr(e?.message || 'Could not load.')) }, [])
@@ -32,7 +32,7 @@ export default function SetupOverviewTab({ navigate, goTo }: { navigate: (p: Pag
               <div className="flex items-center mb-1"><h3 className="text-sm font-700 text-slate-800">Semester {s.semester}</h3><span className="ml-2 text-[11px] text-slate-400">{s.year}</span>
                 <span className={`ml-auto text-[10px] font-700 px-2 py-0.5 rounded-full border ${staffOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>{staffOk ? 'Ready to generate' : 'In progress'}</span></div>
               <div className="divide-y divide-slate-50">
-                <Step done={secOk} title="Sections" detail={secOk ? `${s.sections} sections` : 'No sections yet'} action={{ label: secOk ? 'Manage' : 'Add', run: () => goTo('syllabus') }} />
+                <Step done={secOk} title="Sections" detail={secOk ? `${s.sections} sections` : 'No sections yet'} action={{ label: secOk ? 'Manage' : 'Add', run: () => goTo('sections') }} />
                 <Step done={subOk} title="Syllabus" detail={s.subjects === 0 ? 'No subjects yet' : `${s.subjects} subjects, ${s.subjectsOffered} offered to sections`} action={{ label: s.subjects ? 'Edit' : 'Add', run: () => goTo('syllabus') }} />
                 <Step done={s.choices > 0} title="Teachers' choices" detail={`${s.choices} subject choices received`} action={{ label: 'Review', run: () => navigate('hod-allocation-review') }} />
                 <Step done={staffOk} title="Assignment" detail={`${s.staffed} of ${s.offerings} section-subjects have a teacher`} action={{ label: 'Assign', run: () => navigate('hod-allocation-review') }} />

@@ -21,6 +21,7 @@ import { passwordResetRouter } from './routes/passwordReset.js'
 import { assistantRouter } from './routes/assistant.js'
 import { messagesRouter } from './routes/messages.js'
 import { dataEraseRouter } from './routes/dataErase.js'
+import { bulkImportRouter } from './routes/bulkImport.js'
 import { workloadTemplatesRouter } from './routes/workloadTemplates.js'
 
 function buildCorsOriginList(): (string | RegExp)[] {
@@ -84,6 +85,7 @@ app.use('/api', passwordResetRouter)
 app.use('/api', assistantRouter)
 app.use('/api', messagesRouter)
 app.use('/api', dataEraseRouter)
+app.use('/api', bulkImportRouter)
 app.use('/api', hodAssignRouter)
 app.use('/api', setupRouter)
 app.use('/api', teacherExtrasRouter)

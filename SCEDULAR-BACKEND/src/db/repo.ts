@@ -155,6 +155,22 @@ export async function eraseAllocation(): Promise<Omit<EraseSummary, 'preferences
   return { teachingAssignments: before.teachingAssignments, workloadAllocations: before.workloadAllocations, generatedRuns: before.generatedRuns }
 }
 
+/** Remove generated timetables only (runs, placements, conflicts); assignments and preferences stay. */
+export async function eraseGeneratedTimetables(): Promise<number> {
+  const n = (mem.generationRuns ?? []).length
+  mem.generationRuns = []; mem.assignments = []; mem.conflicts = []; mem.unscheduled = []; mem.nextRunId = 1
+  saveLocalDb()
+  try {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      for (const t of ['unscheduled', 'conflicts', 'assignments', 'generation_runs']) await client.query(`DELETE FROM ${t}`)
+      await client.query('COMMIT')
+    } catch (err) { await client.query('ROLLBACK'); throw err } finally { client.release() }
+  } catch { /* memory mode or DB offline */ }
+  return n
+}
+
 export async function clearAllData(): Promise<void> {
   mem.faculty = []
   mem.sections = []

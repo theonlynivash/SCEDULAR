@@ -468,13 +468,34 @@ export interface AutoAssignResult {
   plan: { subjectId: string; code: string; name: string; facultyId: string; facultyName: string; sectionIds: string[]; periods: number; loadAfter: number; max: number }[]
   leftover: { subjectId: string; code: string; name: string; remaining: number; reason: string }[]
   staffing?: StaffingReport
+  cap?: number
+  subjects?: { subjectId: string; code: string; name: string; open: number; offered: number; periodsPerSection: number; teachersWanted: number }[]
 }
 export interface AssignBoard {
   semester: string
   cycle: string
   subjects: AssignBoardSubject[]
-  teachers: { facultyId: string; name: string; experience: number | null; load: number; max: number }[]
+  teachers: BoardTeacher[]
+  avgSectionsPerTeacher?: number
+  maxWeeklyPeriods?: number
 }
+export interface BoardTeacher {
+  facultyId: string; name: string; experience: number | null; load: number; max: number
+  remaining: number; free: boolean
+  assigned: { subjectId: string; code: string; name: string; semester: string; sections: number; periods: number }[]
+  prefs: { subjectId: string; code: string; semester: string; status: string }[]
+}
+
+export type ImportKind = 'sections' | 'teachers' | 'syllabus'
+export type ImportMode = 'add' | 'replace'
+export interface ImportIssue { field: string; level: 'error' | 'warning'; message: string }
+export interface StagedRow { row: number; values: Record<string, string> }
+export interface CheckedRow extends StagedRow { issues: ImportIssue[]; action: 'create' | 'update'; note?: string }
+export interface ImportColumn { key: string; label: string; required?: boolean; hint: string; options?: string[]; width?: number }
+export interface ImportSummary { total: number; errors: number; ready: number; warnings: number; toCreate: number; toUpdate: number }
+export interface ImportPreview { kind: ImportKind; sheet: string; columns: ImportColumn[]; unknownColumns: string[]; rows: CheckedRow[]; summary: ImportSummary; lookups: { labs?: string[]; sections?: { id: string; semester: string | null }[] } }
+export interface ImportCommit { success: boolean; created: number; updated: number; skipped: number; removed?: number; logins: { facultyId: string; name: string; email: string | null; password: string }[]; subjects: string[] }
+export interface DataCheck { items: { level: 'error' | 'warning'; area: 'teachers' | 'syllabus' | 'sections' | 'assignment'; message: string; ref?: string }[]; ready: { preferences: boolean; timetable: boolean }; counts: { teachers: number; subjects: number; sections: number } }
 
 export interface MsgThread { id: string; name: string; designation: string | null; lastText: string | null; lastAt: string | null; lastFromMe: boolean | null; unread: number }
 export interface ChatMsg { id: number; fromId: string; toId: string; text: string; sentAt: string; readAt: string | null }
@@ -629,6 +650,16 @@ export const api = {
     preferences: (password: string) => request<{ success: boolean; erasedPreferences: number }>('/hod/erase/preferences', { method: 'POST', body: JSON.stringify({ password }) }),
     allocation: (password: string) => request<{ success: boolean; erased: { teachingAssignments: number; workloadAllocations: number; generatedRuns: number } }>('/hod/erase/allocation', { method: 'POST', body: JSON.stringify({ password }) }),
   },
+  bulkImport: {
+    preview: (kind: ImportKind, file: File, mode: ImportMode = 'add') => {
+      const fd = new FormData(); fd.append('mode', mode); fd.append('file', file)
+      return request<ImportPreview>(`/setup/import/${kind}/preview`, { method: 'POST', body: fd })
+    },
+    validate: (kind: ImportKind, rows: StagedRow[], mode: ImportMode = 'add') => request<{ rows: CheckedRow[]; summary: ImportSummary }>(`/setup/import/${kind}/validate`, { method: 'POST', body: JSON.stringify({ rows, mode }) }),
+    commit: (kind: ImportKind, rows: StagedRow[], skipInvalid = false, opts: { mode?: ImportMode; password?: string; confirm?: string } = {}) =>
+      request<ImportCommit>(`/setup/import/${kind}/commit`, { method: 'POST', body: JSON.stringify({ rows, skipInvalid, ...opts }) }),
+    dataCheck: () => request<DataCheck>('/setup/import/data-check'),
+  },
   assistant: {
     status: () => request<{ enabled: boolean }>('/assistant/status'),
     chat: (messages: { role: 'user' | 'assistant'; content: string }[]) =>
@@ -646,6 +677,8 @@ export const api = {
     listSubjects: () => request<SetupSubject[]>('/setup/subjects'),
     createSubject: (b: SetupSubjectInput) => request<{ id: string }>('/setup/subjects', { method: 'POST', body: JSON.stringify(b) }),
     updateSubject: (id: string, b: SetupSubjectInput) => request<{ id: string }>(`/setup/subjects/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(b) }),
+    mergeCandidates: () => request<{ semester: string; theoryId: string; theoryCode: string; theoryName: string; theoryPeriods: number; labId: string; labCode: string; labName: string; labPeriods: number }[]>('/setup/subjects/merge-candidates'),
+    mergeLab: (theoryId: string, labId: string) => request<{ success: boolean; id: string; clearedTimetableRuns: number }>('/setup/subjects/merge-lab', { method: 'POST', body: JSON.stringify({ theoryId, labId }) }),
     deleteSubject: (id: string) => request<{ success: boolean }>(`/setup/subjects/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     createSections: (semester: string, count: number) => request<{ created: string[] }>('/setup/sections', { method: 'POST', body: JSON.stringify({ semester, count }) }),
     setClassIncharge: (id: string, facultyId: string | null) => request<{ id: string; classIncharge: string | null }>(`/setup/sections/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ classIncharge: facultyId }) }),
@@ -759,6 +792,10 @@ export const api = {
     deletePreference: (id: number) =>
       request<{ success: boolean }>(`/hod/preferences/${id}`, { method: 'DELETE' }),
     staffing: () => request<StaffingReport>('/hod/staffing'),
+    applyPlan: (data: { semester: string; subjectId: string; allocations: { facultyId: string; sectionCount: number }[]; override?: boolean }) =>
+      request<{ success: boolean; assignedSections: number; staffing: StaffingReport }>('/hod/apply-plan', { method: 'POST', body: JSON.stringify(data) }),
+    reassign: (data: { subjectId: string; fromFacultyId: string; toFacultyId: string; sectionIds?: string[]; override?: boolean }) =>
+      request<{ success: boolean; movedPeriods: number; newLoad: number; max: number }>('/hod/reassign', { method: 'POST', body: JSON.stringify(data) }),
     autoAssign: (data: { semester: string; subjectId?: string; dryRun?: boolean }) =>
       request<AutoAssignResult>('/hod/auto-assign', { method: 'POST', body: JSON.stringify(data) }),
     unassignSections: (data: { subjectId: string; facultyId: string; sectionIds?: string[] }) =>

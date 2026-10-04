@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, FileSpreadsheet } from 'lucide-react'
+import ImportWizard from './ImportWizard'
 import { PillTabs } from './ui'
 import { api, type Faculty, type Lab, type Section, type SetupSubject, type SetupSubjectInput } from '../api'
 
@@ -16,7 +17,10 @@ const inputCls = 'w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-x
 const labelCls = 'block text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1'
 
 /** The syllabus for each running semester, plus the class sections that take it. */
-export default function SetupSyllabusTab({ say }: { say: (ok: boolean, text: string) => void }) {
+export default function SetupSyllabusTab({ say, mode = 'syllabus' }: { say: (ok: boolean, text: string) => void; mode?: 'sections' | 'syllabus' }) {
+  const [pairs, setPairs] = useState<Awaited<ReturnType<typeof api.setup.mergeCandidates>>>([])
+  const [importing, setImporting] = useState<'sections' | 'syllabus' | null>(null)
+  const [query, setQuery] = useState('')
   const [semesters, setSemesters] = useState<string[]>([])
   const [semester, setSemester] = useState('')
   const [subjects, setSubjects] = useState<SetupSubject[]>([])
@@ -35,12 +39,14 @@ export default function SetupSyllabusTab({ say }: { say: (ok: boolean, text: str
       setSemesters(sems)
       setSemester(cur => (cur && sems.includes(cur) ? cur : sems.find(s => ov.semesters.find(x => x.semester === s && x.sections > 0)) ?? sems.find(s => ov.semesters.find(x => x.semester === s && x.subjects > 0)) ?? sems[0] ?? ''))
       setSubjects(subs); setSections(secs); setLabs(lbs); setTeachers(fac)
+      api.setup.mergeCandidates().then(setPairs).catch(() => setPairs([]))
     } catch (e: any) { say(false, e?.message || 'Could not load the syllabus.') }
     finally { setLoading(false) }
   }, [say])
   useEffect(() => { load() }, [load])
 
   const semSections = useMemo(() => sections.filter(s => s.semester === semester).sort((a, b) => a.id.localeCompare(b.id)), [sections, semester])
+  const shownSubjects = (list: typeof subjects) => { const t = query.trim().toLowerCase(); return t ? list.filter(x => x.code.toLowerCase().includes(t) || x.name.toLowerCase().includes(t) || (x.shortName ?? '').toLowerCase().includes(t)) : list }
   const semSubjects = useMemo(() => subjects.filter(s => s.semester === semester).sort((a, b) => a.code.localeCompare(b.code)), [subjects, semester])
 
   async function act(fn: () => Promise<unknown>, ok: string) {
@@ -50,6 +56,12 @@ export default function SetupSyllabusTab({ say }: { say: (ok: boolean, text: str
     finally { setBusy(false) }
   }
 
+  const semPairs = pairs.filter(p => p.semester === semester)
+  const mergeOne = async (p: (typeof pairs)[number]) => { await api.setup.mergeLab(p.theoryId, p.labId) }
+  const mergeAll = (list: typeof pairs) => {
+    if (!window.confirm(`Combine ${list.length} theory + lab pair${list.length === 1 ? '' : 's'} into single subjects?\n\nEach becomes one subject with theory AND lab periods (xT + yL). The teacher of a class takes both. Generated timetables are cleared and must be generated again.`)) return
+    act(async () => { for (const p of list) await mergeOne(p) }, `Combined ${list.length} subject${list.length === 1 ? '' : 's'} into theory + lab.`)
+  }
   const addSections = () => act(() => api.setup.createSections(semester, addCount), `Added ${addCount} section${addCount === 1 ? '' : 's'}; every subject of Sem ${semester} is offered to them.`)
   const removeSection = (s: Section) => {
     if (window.confirm(`Delete section ${s.name}? Its subject offerings and the teachers assigned to them are removed too.`)) act(() => api.setup.deleteSection(s.id), 'Section deleted.')
@@ -98,7 +110,7 @@ export default function SetupSyllabusTab({ say }: { say: (ok: boolean, text: str
     <div className="space-y-4">
       <PillTabs value={semester} onChange={setSemester} tabs={semesters.map(sm => ({ id: sm, label: `Sem ${sm}` }))} />
 
-      {/* Sections */}
+      {mode === 'sections' && (
       <div className="bg-white border border-slate-200 rounded-xl p-4">
         <div className="flex items-center gap-3 flex-wrap">
           <div>
@@ -106,6 +118,7 @@ export default function SetupSyllabusTab({ say }: { say: (ok: boolean, text: str
             <p className="text-[11px] text-slate-500">New classes are added here each semester. Every subject below is offered to a new section automatically.</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => setImporting('sections')} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#0F4C81]/40 text-[#0F4C81] text-xs font-700 hover:bg-blue-50"><FileSpreadsheet className="w-3.5 h-3.5" /> Import from Excel</button>
             <input type="number" min={1} max={26} value={addCount} onChange={e => setAddCount(Math.max(1, Math.min(26, Number(e.target.value) || 1)))} className={`${inputCls} !w-16 text-center`} />
             <button disabled={busy} onClick={addSections} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0F4C81] text-white text-xs font-700 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> Add sections</button>
           </div>
@@ -137,29 +150,58 @@ export default function SetupSyllabusTab({ say }: { say: (ok: boolean, text: str
           ))}
         </div>
       </div>
+      )}
 
-      {/* Subjects */}
+      {mode === 'syllabus' && semPairs.length > 0 && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50/70 px-4 py-3">
+          <div className="flex items-start gap-3 flex-wrap">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-800 text-amber-900">{semPairs.length} course{semPairs.length === 1 ? ' is' : 's are'} listed twice: once for theory, once for the lab</p>
+              <p className="text-[11px] text-amber-900/80 mt-0.5">A course like AIES is one subject with theory and lab periods (xT + yL), and the teacher of a class handles both. Combine them so one teacher takes theory and lab of the same class.</p>
+            </div>
+            <button disabled={busy} onClick={() => mergeAll(semPairs)} className="px-4 py-1.5 rounded-full bg-[#0F4C81] text-white text-xs font-700 disabled:opacity-40">Combine all {semPairs.length}</button>
+          </div>
+          <ul className="mt-2 space-y-1">
+            {semPairs.map(p => (
+              <li key={p.theoryId} className="flex items-center gap-2 text-[11.5px] bg-white/70 border border-amber-200 rounded-lg px-3 py-1.5">
+                <span className="font-600 text-slate-800 truncate">{p.theoryName}</span>
+                <span className="text-slate-500 shrink-0">{p.theoryPeriods}T</span><span className="text-slate-400">+</span>
+                <span className="text-slate-500 truncate">{p.labName} · {p.labPeriods}L</span>
+                <span className="ml-auto shrink-0 text-slate-400">→ one subject <b className="text-slate-700">{p.theoryPeriods}T + {p.labPeriods}L</b></span>
+                <button disabled={busy} onClick={() => mergeAll([p])} className="shrink-0 px-2.5 py-1 rounded-md border border-amber-300 text-amber-900 font-700 hover:bg-amber-100 disabled:opacity-40">Combine</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {mode === 'syllabus' && (
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
           <div>
-            <h3 className="text-sm font-700 text-slate-800">Subjects · Sem {semester}</h3>
-            <p className="text-[11px] text-slate-500">Weekly periods are per section. Teachers choose from this list.</p>
+            <h3 className="text-sm font-700 text-slate-800">Syllabus · Sem {semester}</h3>
+            <p className="text-[11px] text-slate-500">{semSubjects.length} subject{semSubjects.length === 1 ? '' : 's'} · {semSubjects.reduce((n, x) => n + x.theoryPeriods + x.labPeriods, 0)} periods per section per week. Weekly periods are per section; teachers choose from this list.</p>
           </div>
-          <button disabled={busy || semSections.length === 0} title={semSections.length === 0 ? 'Add sections first' : ''} onClick={() => setDraft(blank(semester))} className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0F4C81] text-white text-xs font-700 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> Add subject</button>
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search code or name…" className="ml-auto border border-slate-200 rounded-full px-3 py-1.5 text-xs w-48 focus:outline-none focus:border-[#0F4C81]" />
+          <button onClick={() => setImporting('syllabus')} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#0F4C81]/40 text-[#0F4C81] text-xs font-700 hover:bg-blue-50"><FileSpreadsheet className="w-3.5 h-3.5" /> Import from Excel</button>
+          <button disabled={busy || semSections.length === 0} title={semSections.length === 0 ? 'Add sections first' : ''} onClick={() => setDraft(blank(semester))} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0F4C81] text-white text-xs font-700 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> Add subject</button>
         </div>
         {semSubjects.length === 0 ? (
           <p className="text-xs text-slate-400 text-center py-8">No subjects yet for Sem {semester}.</p>
         ) : (
           <table className="tbl text-xs">
-            <thead><tr><th>Code</th><th>Subject</th><th>Type</th><th className="!text-center">Theory</th><th className="!text-center">Lab</th><th>Sections</th><th className="!text-center">Staffed</th><th /></tr></thead>
+            <thead><tr><th>Code</th><th>Subject</th><th>Type</th><th className="!text-center">Theory</th><th className="!text-center">Lab</th><th className="!text-center">Credits</th><th>Category</th><th>Lab rooms</th><th>Sections</th><th className="!text-center">Staffed</th><th /></tr></thead>
             <tbody>
-              {semSubjects.map(s => (
+              {shownSubjects(semSubjects).map(s => (
                 <tr key={s.id} className="hover:bg-slate-50/70">
                   <td className="font-mono text-[11px] text-[#0F4C81] font-700">{s.code}</td>
-                  <td className="font-600 text-slate-800">{s.name}</td>
+                  <td className="font-600 text-slate-800">{s.name}{s.shortName && <span className="ml-1.5 text-[10px] font-700 text-slate-400">{s.shortName}</span>}</td>
                   <td className="text-slate-600">{TYPE_LABEL[s.deliveryType]}</td>
                   <td className="text-center">{s.theoryPeriods || '–'}</td>
                   <td className="text-center">{s.labPeriods || '–'}</td>
+                  <td className="text-center">{s.credits || '–'}</td>
+                  <td className="text-slate-500 text-[11px]">{(CATEGORIES.find(([v]) => v === s.category)?.[1]) ?? s.category}</td>
+                  <td className="text-slate-500 text-[11px]">{s.labPeriods > 0 ? (s.labIds.length ? s.labIds.map(id => labs.find(l => l.id === id)?.name ?? id).join(', ') : <span className="text-amber-700 font-600">none set</span>) : '–'}</td>
                   <td className="text-slate-500">{s.sectionIds.length === defaultSectionIds.length ? `All ${s.sectionIds.length}` : s.sectionIds.map(x => x.replace(/^Y\d(S\d)?-/, '')).join(', ') || 'None'}</td>
                   <td className="text-center"><span className={s.staffed >= s.sectionIds.length && s.sectionIds.length > 0 ? 'text-emerald-700 font-700' : 'text-amber-700 font-700'}>{s.staffed}/{s.sectionIds.length}</span></td>
                   <td className="text-right whitespace-nowrap">
@@ -172,6 +214,7 @@ export default function SetupSyllabusTab({ say }: { say: (ok: boolean, text: str
           </table>
         )}
       </div>
+      )}
 
       {/* Add / edit modal */}
       {draft && (
@@ -243,6 +286,7 @@ export default function SetupSyllabusTab({ say }: { say: (ok: boolean, text: str
           </div>
         </div>
       )}
+      {importing && <ImportWizard kind={importing} onClose={() => setImporting(null)} onDone={() => load()} />}
     </div>
   )
 }

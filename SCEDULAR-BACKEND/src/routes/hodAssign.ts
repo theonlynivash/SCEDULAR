@@ -116,15 +116,38 @@ hodAssignRouter.get('/hod/assign-board', requireAuth, requireRole('HOD'), async 
       }
     }).filter(r => r.sectionCount > 0)
 
+    // everything the HOD needs to pick a teacher: what they asked for, what they already carry, and how much room is left
+    const subById = new Map(subjects.map(s => [s.id, s]))
+    const ssIndex = new Map(sectionSubjects.map(o => [o.id, o]))
+    const carried = new Map<string, Map<string, { sections: Set<string>; periods: number }>>()
+    for (const ta of assignments) {
+      const o = ssIndex.get(ta.sectionSubjectId); if (!o) continue
+      const bySub = carried.get(ta.facultyId) ?? new Map(); carried.set(ta.facultyId, bySub)
+      const e = bySub.get(o.subjectId) ?? { sections: new Set<string>(), periods: 0 }
+      e.sections.add(o.sectionId); e.periods += ta.component === 'LAB' ? o.labPeriods : o.theoryPeriods
+      bySub.set(o.subjectId, e)
+    }
+    const everyPref = (await getFacultyPreferences()).filter(p => p.status === 'SUBMITTED' || p.status === 'APPROVED')
     const teachers = faculty
-      .filter(f => f.role !== 'HOD' || true)
-      .map(f => ({
-        facultyId: f.id,
-        name: f.name,
-        experience: f.allocationExperience ?? null,
-        load: load.get(f.id) ?? 0,
-        max: pol.maxWeeklyPeriods,
-      }))
+      .filter(f => f.role !== 'HOD')
+      .map(f => {
+        const mine = [...(carried.get(f.id) ?? new Map()).entries()].map(([subjectId, e]) => {
+          const sub = subById.get(subjectId)
+          return { subjectId, code: sub?.code ?? subjectId, name: sub?.name ?? subjectId, semester: sub?.semester ?? '', sections: e.sections.size, periods: e.periods }
+        }).sort((a, b) => a.semester.localeCompare(b.semester) || a.code.localeCompare(b.code))
+        const l = load.get(f.id) ?? 0
+        return {
+          facultyId: f.id,
+          name: f.name,
+          experience: f.allocationExperience ?? null,
+          load: l,
+          max: pol.maxWeeklyPeriods,
+          remaining: Math.max(0, pol.maxWeeklyPeriods - l),
+          free: mine.length === 0,
+          assigned: mine,
+          prefs: everyPref.filter(p => p.facultyId === f.id).map(p => ({ subjectId: p.subjectId, code: subById.get(p.subjectId)?.code ?? p.subjectId, semester: p.semester, status: p.status })),
+        }
+      })
 
     res.json({ semester, cycle, subjects: rows, teachers, avgSectionsPerTeacher: pol.avgSectionsPerTeacher, maxWeeklyPeriods: pol.maxWeeklyPeriods })
   } catch (err) { next(err) }
@@ -265,7 +288,7 @@ hodAssignRouter.post('/hod/auto-assign', requireAuth, requireRole('HOD'), async 
         const interested = prefs
           .filter(x => x.subjectId === sub.id)
           .sort((a, b) => (a.status === 'APPROVED' ? 0 : 1) - (b.status === 'APPROVED' ? 0 : 1) || a.preferenceRank - b.preferenceRank)
-        return { sub, open, interested }
+        return { sub, open, interested, offered: offered.length }
       })
       .filter(t => t.open.length > 0)
       .sort((a, b) => a.interested.length - b.interested.length)   // scarcest subjects first
@@ -312,7 +335,90 @@ hodAssignRouter.post('/hod/auto-assign', requireAuth, requireRole('HOD'), async 
         if (ss.labPeriods > 0) await addTeachingAssignment({ facultyId: job.facultyId, sectionSubjectId: ss.id, component: 'LAB', batch: null })
       }
     }
-    res.json({ dryRun: !!dryRun, plan, leftover, assignedSections: plan.reduce((n, x) => n + x.sectionIds.length, 0), staffing: await staffingReport() })
+    const avg = staffingPolicy(await getAllocationSettings()).avgSectionsPerTeacher
+    // one entry per subject that has open sections, so the HOD can edit each teacher's share and see what is left over
+    const subjectsOut = targets.map(t => ({
+      subjectId: t.sub.id, code: t.sub.code, name: t.sub.name, open: t.open.length, offered: t.offered,
+      periodsPerSection: t.open[0] ? t.open[0].theoryPeriods + t.open[0].labPeriods : 0, teachersWanted: subjectQuota(t.offered, avg),
+    }))
+    res.json({ dryRun: !!dryRun, plan, leftover, subjects: subjectsOut, cap, assignedSections: plan.reduce((n, x) => n + x.sectionIds.length, 0), staffing: await staffingReport() })
+  } catch (err) { next(err) }
+})
+
+// POST /api/hod/apply-plan { semester, subjectId, allocations:[{ facultyId, sectionCount }], override? }
+// The HOD's edited plan for ONE subject. It must cover exactly the open sections (nothing missing, nothing extra), so a subject
+// is only ever saved as fully staffed. Teacher caps are checked together and reported together.
+const planSchema = z.object({
+  semester: z.string().min(1), subjectId: z.string().min(1),
+  allocations: z.array(z.object({ facultyId: z.string().min(1), sectionCount: z.number().int().min(1) })).min(1),
+  override: z.boolean().optional(),
+})
+hodAssignRouter.post('/hod/apply-plan', requireAuth, requireRole('HOD'), async (req, res, next) => {
+  try {
+    const p = planSchema.safeParse(req.body)
+    if (!p.success) return res.status(400).json({ error: 'INVALID_INPUT', message: p.error.issues[0]?.message ?? 'Invalid plan.' })
+    const { semester, subjectId, allocations, override } = p.data
+    const { faculty, subjects, sections, sectionSubjects, assignments, load } = await loadState()
+    const sub = subjects.find(s => s.id === subjectId)
+    if (!sub || sub.semester !== semester) return res.status(400).json({ error: 'SUBJECT_NOT_FOUND', message: 'That subject is not part of this semester.' })
+    const activeSec = new Set(sections.filter(s => s.active !== false && s.semester === semester).map(s => s.id))
+    const open = sectionSubjects
+      .filter(ss => ss.subjectId === subjectId && activeSec.has(ss.sectionId) && !assignments.some(a => a.sectionSubjectId === ss.id))
+      .sort((a, b) => sectionOrder(a.sectionId, b.sectionId))
+    const ids = allocations.map(a => a.facultyId)
+    if (new Set(ids).size !== ids.length) return res.status(400).json({ error: 'DUPLICATE_TEACHER', message: 'A teacher appears twice in the plan.' })
+    for (const id of ids) if (!faculty.some(f => f.id === id)) return res.status(404).json({ error: 'FACULTY_NOT_FOUND', message: `Faculty ${id} not found.` })
+    const planned = allocations.reduce((n, a) => n + a.sectionCount, 0)
+    if (planned !== open.length) {
+      const diff = open.length - planned
+      return res.status(409).json({ error: 'PLAN_NOT_BALANCED', message: diff > 0 ? `${diff} section${diff === 1 ? '' : 's'} of ${sub.code} still have no teacher in this plan.` : `The plan gives out ${-diff} section${-diff === 1 ? '' : 's'} more than are open for ${sub.code}.`, open: open.length, planned })
+    }
+    const cap = staffingPolicy(await getAllocationSettings()).maxWeeklyPeriods
+    const per = open[0] ? open[0].theoryPeriods + open[0].labPeriods : 0
+    const over = allocations.map(a => ({ facultyId: a.facultyId, name: faculty.find(f => f.id === a.facultyId)!.name, after: (load.get(a.facultyId) ?? 0) + a.sectionCount * per })).filter(x => x.after > cap)
+    if (!override && over.length) {
+      return res.status(409).json({ error: 'FACULTY_CAPACITY_EXCEEDED', message: over.map(o => `${o.name} would reach ${o.after}/${cap} periods`).join('; ') + '.', over, cap })
+    }
+    let at = 0
+    for (const a of allocations) {
+      for (const ss of open.slice(at, at + a.sectionCount)) {
+        if (ss.theoryPeriods > 0) await addTeachingAssignment({ facultyId: a.facultyId, sectionSubjectId: ss.id, component: 'THEORY', batch: null })
+        if (ss.labPeriods > 0) await addTeachingAssignment({ facultyId: a.facultyId, sectionSubjectId: ss.id, component: 'LAB', batch: null })
+      }
+      at += a.sectionCount
+    }
+    res.status(201).json({ success: true, subjectId, assignedSections: planned, staffing: await staffingReport() })
+  } catch (err) { next(err) }
+})
+
+// POST /api/hod/reassign { subjectId, fromFacultyId, toFacultyId, sectionIds?, override? }
+// "Change teacher": moves a teacher's sections of one subject (all of them, or the listed ones) to another teacher in one step.
+const reassignSchema = z.object({
+  subjectId: z.string().min(1), fromFacultyId: z.string().min(1), toFacultyId: z.string().min(1),
+  sectionIds: z.array(z.string()).optional(), override: z.boolean().optional(),
+})
+hodAssignRouter.post('/hod/reassign', requireAuth, requireRole('HOD'), async (req, res, next) => {
+  try {
+    const p = reassignSchema.safeParse(req.body)
+    if (!p.success) return res.status(400).json({ error: 'INVALID_INPUT', message: p.error.issues[0]?.message ?? 'Invalid input' })
+    const { subjectId, fromFacultyId, toFacultyId, sectionIds, override } = p.data
+    if (fromFacultyId === toFacultyId) return res.status(400).json({ error: 'SAME_TEACHER', message: 'Choose a different teacher.' })
+    const { faculty, sectionSubjects, assignments, load } = await loadState()
+    const to = faculty.find(f => f.id === toFacultyId)
+    if (!to) return res.status(404).json({ error: 'FACULTY_NOT_FOUND', message: `Faculty ${toFacultyId} not found.` })
+    const ssIds = new Set(sectionSubjects.filter(ss => ss.subjectId === subjectId && (!sectionIds || sectionIds.includes(ss.sectionId))).map(ss => ss.id))
+    const moving = assignments.filter(a => a.facultyId === fromFacultyId && ssIds.has(a.sectionSubjectId))
+    if (moving.length === 0) return res.status(404).json({ error: 'NOTHING_TO_MOVE', message: 'That teacher has none of those sections.' })
+    const ssById = new Map(sectionSubjects.map(s => [s.id, s]))
+    const periods = moving.reduce((n, a) => { const o = ssById.get(a.sectionSubjectId)!; return n + (a.component === 'LAB' ? o.labPeriods : o.theoryPeriods) }, 0)
+    const cap = staffingPolicy(await getAllocationSettings()).maxWeeklyPeriods
+    const after = (load.get(toFacultyId) ?? 0) + periods
+    if (!override && after > cap) return res.status(409).json({ error: 'FACULTY_CAPACITY_EXCEEDED', message: `${to.name} would reach ${after}/${cap} periods per week (currently ${load.get(toFacultyId) ?? 0}, adding ${periods}).`, current: load.get(toFacultyId) ?? 0, added: periods, max: cap })
+    for (const a of moving) {
+      await removeTeachingAssignment(a.id)
+      await addTeachingAssignment({ facultyId: toFacultyId, sectionSubjectId: a.sectionSubjectId, component: a.component, batch: a.batch })
+    }
+    res.json({ success: true, movedPeriods: periods, newLoad: after, max: cap })
   } catch (err) { next(err) }
 })
 

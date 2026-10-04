@@ -15,6 +15,7 @@ import {
   listSectionSubjects, upsertSectionSubject, listTeachingAssignments,
   upsertCourse, deleteCourse, getCurrentAcademicCycle, getFacultyPreferences, listLabs,
   listLabSubjectMappings, setLabSubjectMapping, deleteLabSubjectMapping,
+  addTeachingAssignment, removeTeachingAssignment, hodChangePreferenceSubject, eraseGeneratedTimetables,
 } from '../db/repo.js'
 import { deriveInitialCourses, saveLocalDb } from '../db/localDb.js'
 import { requireAuth, requireRole } from '../auth/middleware.js'
@@ -25,9 +26,9 @@ import type { Subject } from '../types.js'
 export const setupRouter = Router()
 setupRouter.use('/setup', requireAuth, requireRole('HOD'))
 
-const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
-const SEM_NUM: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8 }
-const CATEGORIES = ['CORE', 'BASIC_SCIENCE', 'ENGINEERING_SCIENCE', 'HUMANITIES', 'PROFESSIONAL_ELECTIVE', 'OPEN_ELECTIVE', 'MANDATORY', 'ADDITIONAL', 'LAB_ONLY', 'PROJECT'] as const
+export const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
+export const SEM_NUM: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8 }
+export const CATEGORIES = ['CORE', 'BASIC_SCIENCE', 'ENGINEERING_SCIENCE', 'HUMANITIES', 'PROFESSIONAL_ELECTIVE', 'OPEN_ELECTIVE', 'MANDATORY', 'ADDITIONAL', 'LAB_ONLY', 'PROJECT'] as const
 
 const fail = (res: any, status: number, error: string, message: string) => res.status(status).json({ error, message })
 
@@ -69,7 +70,7 @@ const sectionsBody = z.object({
   count: z.number().int().min(1).max(26),
 })
 
-function sectionId(semester: string, letter: string): string {
+export function sectionId(semester: string, letter: string): string {
   const n = SEM_NUM[semester]
   const yearNo = Math.ceil(n / 2)
   return n % 2 === 1 ? `Y${yearNo}-${letter}` : `Y${yearNo}S${n}-${letter}`
@@ -148,7 +149,7 @@ const subjectBody = z.object({
   printAs: z.enum(['THEORY', 'PRACTICAL']).nullable().optional(),
 })
 
-function checkPeriods(b: z.infer<typeof subjectBody>): string | null {
+export function checkPeriods(b: { semester: string; deliveryType: string; theoryPeriods: number; labPeriods: number }): string | null {
   if (!isSpecificSemester(b.semester)) return 'Semester must be I–VIII.'
   if (b.deliveryType === 'THEORY' && (b.theoryPeriods < 1 || b.labPeriods !== 0)) return 'A theory subject needs theory periods and no lab periods.'
   if (b.deliveryType === 'LAB' && (b.labPeriods < 1 || b.theoryPeriods !== 0)) return 'A lab subject needs lab periods and no theory periods.'
@@ -156,13 +157,13 @@ function checkPeriods(b: z.infer<typeof subjectBody>): string | null {
   if (b.labPeriods > 4 && b.labPeriods % 3 !== 0) return 'Lab periods per week must be 1–4 or a multiple of 3 (labs run as continuous blocks).'
   return null
 }
-const blockLength = (lab: number) => (lab === 0 ? null : lab <= 4 ? lab : 3)
+export const blockLength = (lab: number) => (lab === 0 ? null : lab <= 4 ? lab : 3)
 
-async function writeSubjectCourses(sub: Subject) {
+export async function writeSubjectCourses(sub: Subject) {
   for (const c of deriveInitialCourses([sub])) await upsertCourse(c)
 }
 
-async function syncLabRooms(sub: Subject, labIds: string[] | undefined) {
+export async function syncLabRooms(sub: Subject, labIds: string[] | undefined) {
   if (labIds === undefined) return
   const wanted = (sub.labPeriods ?? 0) > 0 ? labIds : []
   const current = (await listLabSubjectMappings()).filter(m => m.subjectId === sub.id && !m.sectionId)
@@ -170,7 +171,7 @@ async function syncLabRooms(sub: Subject, labIds: string[] | undefined) {
   for (const m of current) if (!wanted.includes(m.labId)) await deleteLabSubjectMapping(m.labId, sub.id, null)
 }
 
-async function syncOfferings(sub: Subject, wanted: string[]) {
+export async function syncOfferings(sub: Subject, wanted: string[]) {
   const offerings = await listSectionSubjects()
   const have = new Set(offerings.filter(o => o.subjectId === sub.id).map(o => o.sectionId))
   for (const sid of wanted) {
@@ -254,6 +255,77 @@ setupRouter.put('/setup/subjects/:id', async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+// ── theory + lab pairs ──
+// A course such as "AIES" is ONE subject with theory AND lab periods (xT + yL) taught to a class by the same teacher.
+// Some syllabi list it twice: "AIES" (theory) and "AIES Laboratory" (lab). These routes find such pairs and merge them.
+const baseName = (n: string) => n.toLowerCase().replace(/\b(laboratory|lab|practical|practicals)\b/g, '').replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+
+async function mergeCandidates() {
+  const subjects = await listSubjects()
+  const out: { semester: string; theoryId: string; theoryCode: string; theoryName: string; theoryPeriods: number; labId: string; labCode: string; labName: string; labPeriods: number }[] = []
+  for (const l of subjects.filter(x => x.deliveryType === 'LAB' && x.semester)) {
+    const t = subjects.find(x => x.deliveryType === 'THEORY' && x.semester === l.semester && baseName(x.name) !== '' && baseName(x.name) === baseName(l.name))
+    if (t) out.push({ semester: l.semester!, theoryId: t.id, theoryCode: t.code, theoryName: t.name, theoryPeriods: t.theoryPeriods ?? 0, labId: l.id, labCode: l.code, labName: l.name, labPeriods: l.labPeriods ?? 0 })
+  }
+  return out.sort((a, b) => a.semester.localeCompare(b.semester) || a.theoryCode.localeCompare(b.theoryCode))
+}
+
+// GET /setup/subjects/merge-candidates -> theory subjects that have a separate lab subject of the same name
+setupRouter.get('/setup/subjects/merge-candidates', async (_req, res, next) => {
+  try { res.json(await mergeCandidates()) } catch (err) { next(err) }
+})
+
+// POST /setup/subjects/merge-lab { theoryId, labId } -> one integrated subject (xT + yL). The theory teacher of each section
+// takes the lab of the same section too (or, if only the lab had a teacher, that teacher takes both). Old timetables are cleared.
+setupRouter.post('/setup/subjects/merge-lab', async (req, res, next) => {
+  try {
+    const p = z.object({ theoryId: z.string().min(1), labId: z.string().min(1) }).safeParse(req.body)
+    if (!p.success) return fail(res, 400, 'INVALID_INPUT', 'Give the theory subject and its lab subject.')
+    const subjects = await listSubjects()
+    const t = subjects.find(x => x.id === p.data.theoryId), l = subjects.find(x => x.id === p.data.labId)
+    if (!t || !l) return fail(res, 404, 'NOT_FOUND', 'Subject not found.')
+    if (t.deliveryType !== 'THEORY' || l.deliveryType !== 'LAB' || t.semester !== l.semester) return fail(res, 400, 'NOT_A_PAIR', 'Pick a theory subject and a lab subject of the same semester.')
+
+    const labPeriods = l.labPeriods ?? 0
+    const sub: Subject = { ...t, deliveryType: 'INTEGRATED', labPeriods, credits: (t.credits ?? 0) + (l.credits ?? 0), ltp: [t.theoryPeriods ?? 0, 0, labPeriods], printAs: null }
+    const [offerings, assignments, prefs, labMaps] = await Promise.all([listSectionSubjects(), listTeachingAssignments(), getFacultyPreferences(), listLabSubjectMappings()])
+    const tOff = offerings.filter(o => o.subjectId === t.id), lOff = offerings.filter(o => o.subjectId === l.id)
+    const sectionIds = [...new Set([...tOff, ...lOff].map(o => o.sectionId))]
+
+    // who teaches each section's theory / lab today (taken before anything changes)
+    const teacherOf = new Map<string, string>()
+    for (const sid of sectionIds) {
+      const th = tOff.find(o => o.sectionId === sid), lb = lOff.find(o => o.sectionId === sid)
+      const theoryT = th && assignments.find(a => a.sectionSubjectId === th.id && a.component === 'THEORY')?.facultyId
+      const labT = lb && assignments.find(a => a.sectionSubjectId === lb.id)?.facultyId
+      const who = theoryT ?? labT
+      if (who) teacherOf.set(sid, who)
+    }
+
+    await upsertSubject(sub)
+    for (const c of deriveInitialCourses([t])) await deleteCourse(c.id)
+    await writeSubjectCourses(sub)
+    for (const o of tOff) for (const a of assignments.filter(x => x.sectionSubjectId === o.id)) await removeTeachingAssignment(a.id)
+    await syncOfferings(sub, sectionIds)
+    const fresh = (await listSectionSubjects()).filter(o => o.subjectId === t.id)
+    for (const o of fresh) {
+      const who = teacherOf.get(o.sectionId)
+      if (!who) continue
+      if (o.theoryPeriods > 0) await addTeachingAssignment({ facultyId: who, sectionSubjectId: o.id, component: 'THEORY', batch: null })
+      if (o.labPeriods > 0) await addTeachingAssignment({ facultyId: who, sectionSubjectId: o.id, component: 'LAB', batch: null })
+    }
+    await syncLabRooms(sub, [...new Set([...labMaps.filter(m => m.subjectId === t.id && !m.sectionId), ...labMaps.filter(m => m.subjectId === l.id && !m.sectionId)].map(m => m.labId))])
+
+    // a teacher who chose the lab subject keeps that choice as a choice of the combined subject
+    const holders = new Set(prefs.filter(x => x.subjectId === t.id).map(x => x.facultyId))
+    for (const pr of prefs.filter(x => x.subjectId === l.id)) if (!holders.has(pr.facultyId) && t.year && t.semester) { await hodChangePreferenceSubject(pr.id, t.id, t.year, t.semester); holders.add(pr.facultyId) }
+    await deleteSubjectCascade(l.id)
+    const cleared = await eraseGeneratedTimetables()
+    saveLocalDb()
+    res.json({ success: true, id: t.id, merged: l.code, theoryPeriods: t.theoryPeriods, labPeriods, clearedTimetableRuns: cleared })
+  } catch (err) { next(err) }
+})
+
 setupRouter.delete('/setup/subjects/:id', async (req, res, next) => {
   try {
     const sub = (await listSubjects()).find(s => s.id === req.params.id)
@@ -273,7 +345,7 @@ const facultyBody = z.object({
   maxDailyPeriods: z.number().int().min(1).max(10).optional(),
 })
 
-function nextFacultyId(ids: string[]): string {
+export function nextFacultyId(ids: string[]): string {
   const max = ids.map(i => /^FAC-(\d+)$/.exec(i)).filter(Boolean).reduce((m, r) => Math.max(m, Number(r![1])), 0)
   return `FAC-${String(max + 1).padStart(3, '0')}`
 }
