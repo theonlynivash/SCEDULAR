@@ -10,7 +10,6 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:solver": "tsx tests/stage6.test.ts",
-    "preflight": "node scripts/final_preflight.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
