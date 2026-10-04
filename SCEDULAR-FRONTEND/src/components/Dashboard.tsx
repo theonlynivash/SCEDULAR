@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import type { Page } from '../types'
-import { api, type MasterDatasetStatus } from '../api'
+import { api, type MasterDatasetStatus, type StaffingReport } from '../api'
+import type { SemesterReadiness } from '../types'
 import { fetchSessionQuote, getCachedQuote, type ScedularQuote } from '../quotes'
 import type { AcademicCycle } from '../academicCycle'
 import { Btn } from './ui'
@@ -51,9 +52,9 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
   const [cycle, setCycle] = useState<AcademicCycle | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const [aiSummary, setAiSummary] = useState<string | null>(null)
-  const [aiSummaryLoading, setAiSummaryLoading] = useState(true)
-  const [aiSummaryError, setAiSummaryError] = useState(false)
+  const [staffing, setStaffing] = useState<StaffingReport | null>(null)
+  const [readiness, setReadiness] = useState<SemesterReadiness[] | null>(null)
+  const [briefLoading, setBriefLoading] = useState(true)
   const [quote, setQuote] = useState<ScedularQuote | null>(null)
 
   const reloadData = () => {
@@ -88,22 +89,13 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
     else fetchSessionQuote().then(setQuote)
   }, [])
 
-  // AI-generated dashboard summary: asks the same live-grounded assistant
-  // that powers the chat widget for a short, current-state summary, rather
-  // than a static or hardcoded message.
+  // Briefing data (HOD only): live staffing and readiness, read straight from the department's records.
   useEffect(() => {
-    setAiSummaryLoading(true)
-    setAiSummaryError(false)
-    api.facultyAllocation
-      .aiChat(
-        role === 'HOD'
-          ? 'In 2-3 short sentences, summarize the single most important thing I should know about the current SCEDULAR status right now for my dashboard.'
-          : 'In 1-2 short sentences, summarize my current allocation/timetable status for my dashboard.',
-        role,
-      )
-      .then(res => setAiSummary(res.reply))
-      .catch(() => setAiSummaryError(true))
-      .finally(() => setAiSummaryLoading(false))
+    if (role !== 'HOD') { setBriefLoading(false); return }
+    Promise.all([
+      api.facultyAllocation.staffing().catch(() => null),
+      api.facultyAllocation.getReadiness().catch(() => null),
+    ]).then(([st, rd]) => { setStaffing(st); setReadiness(rd?.readiness ?? null) }).finally(() => setBriefLoading(false))
   }, [role])
 
   const counts = datasetStatus?.counts ?? {}
@@ -138,6 +130,35 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
     if (statuses.includes('CHANGES_REQUESTED')) return { label: 'Changes Requested', tone: 'text-amber-600' }
     if (statuses.includes('REJECTED')) return { label: 'Rejected', tone: 'text-rose-600' }
     return { label: 'Draft', tone: 'text-slate-500' }
+  })()
+
+  type Brief = { tone: 'ok' | 'warn' | 'todo'; title: string; text: string; go?: Page }
+  const briefing: Brief[] = (() => {
+    const out: Brief[] = []
+    if (role === 'FACULTY') {
+      out.push({ tone: preferences.length === 0 ? 'todo' : allocationStatus.label.startsWith('Approved') ? 'ok' : 'warn', title: 'Your subject choices', text: preferences.length === 0 ? 'You have not chosen subjects yet. Open Subject Preferences to start.' : `${preferences.length} subject${preferences.length === 1 ? '' : 's'} chosen. Status: ${allocationStatus.label}.` })
+      out.push({ tone: latestRun ? 'ok' : 'todo', title: 'Timetable', text: latestRun ? 'Your timetable is ready to view and download.' : 'The department timetable has not been generated yet.' })
+      return out
+    }
+    if (staffing) {
+      out.push(staffing.enough
+        ? { tone: 'ok', title: 'Staffing', text: `${staffing.teachers} teachers cover the department's ${staffing.totalDemandPeriods} weekly periods (${staffing.assignedPeriods} assigned, ${staffing.openPeriods} still open).`, go: 'hod-allocation-review' as Page }
+        : { tone: 'warn', title: 'Staffing', text: `${staffing.openPeriods} weekly periods are still unassigned and about ${staffing.moreTeachersNeeded} more teacher${staffing.moreTeachersNeeded === 1 ? ' is' : 's are'} needed at ${staffing.maxWeeklyPeriods} periods each.`, go: 'hod-allocation-review' as Page })
+    }
+    if (readiness && readiness.length) {
+      const ready = readiness.filter(r => r.canGenerate)
+      const blocked = readiness.filter(r => !r.canGenerate)
+      if (blocked.length === 0) out.push({ tone: 'ok', title: 'Readiness', text: `All ${ready.length} semesters in this cycle are ready for timetable generation.`, go: 'generate' as Page })
+      else {
+        const first = blocked[0]
+        const why = first.missingItems?.[0]
+        out.push({ tone: 'warn', title: 'Readiness', text: `${ready.length} of ${readiness.length} semesters ready. Semester ${first.semester}${why ? ` is waiting on: ${why}` : ' still has gaps'}${blocked.length > 1 ? ` (and ${blocked.length - 1} more)` : ''}.`, go: 'settings' as Page })
+      }
+    }
+    out.push(latestRun
+      ? { tone: 'ok', title: 'Timetable', text: `Generated ${new Date(latestRun.generatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} with ${latestRun.assignmentsCount} class periods placed.`, go: 'view-timetable' as Page }
+      : { tone: 'todo', title: 'Timetable', text: 'Not generated yet. Generate it once staffing and readiness are complete.', go: 'generate' as Page })
+    return out
   })()
 
   const quoteData = quote ?? getCachedQuote()
@@ -176,13 +197,13 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[color:var(--c-600)]/10 text-[color:var(--c-600)] text-xs font-700 mb-2">
               <Sparkles size={13} className="text-amber-500" />
-              Panimalar AI &amp; DS Department
+              Panimalar AI & DS Department
             </div>
             <h1 className="font-display font-700 text-2xl md:text-3xl text-slate-900 tracking-tight">
               {getTimeGreeting()}{userName ? `, ${userName}` : ''} 👋
             </h1>
             <p className="text-xs md:text-sm text-slate-500 mt-1">
-              {role === 'FACULTY' ? 'Faculty Portal' : 'SCEDULAR Configuration &amp; Readiness Hub'} &middot; {cycleLine}
+              {role === 'FACULTY' ? 'Faculty Portal' : 'SCEDULAR Configuration & Readiness Hub'} &middot; {cycleLine}
             </p>
           </div>
 
@@ -210,25 +231,31 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* ✨ SCEDULAR AI live status summary — real, grounded in current DB/readiness state */}
-        <div className="rounded-2xl border border-[color:var(--c-600)]/20 bg-gradient-to-br from-[var(--c-600)]/5 to-blue-400/5 p-5 flex items-start gap-3">
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[color:var(--c-600)] text-white flex-shrink-0">
-            <Bot size={18} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[11px] font-700 tracking-wide text-[color:var(--c-600)] uppercase">✨ SCEDULAR AI — Status Summary</p>
-            {aiSummaryLoading ? (
-              <div className="mt-2 space-y-1.5 animate-pulse">
-                <div className="h-3 bg-[color:var(--c-600)]/10 rounded w-11/12" />
-                <div className="h-3 bg-[color:var(--c-600)]/10 rounded w-2/3" />
-              </div>
-            ) : aiSummaryError ? (
-              <p className="text-xs text-slate-500 mt-1.5">AI summary unavailable right now — ask SCEDULAR AI directly using the chat button.</p>
-            ) : (
-              <p className="text-sm text-slate-700 mt-1.5 leading-relaxed">{(aiSummary ?? '').replace(/\*\*/g, '').replace(/\s*\|\s*/g, ' · ')}</p>
-            )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+        {/* Department briefing: built from live staffing, readiness and timetable records (no generated prose) */}
+        <div className="liquid-tint tone-teal rounded-2xl p-5">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-xl flex items-center justify-center bg-[color:var(--c-600)] text-white flex-shrink-0"><Bot size={16} /></span>
+            <p className="text-[11px] font-700 tracking-[0.12em] text-[color:var(--c-600)] uppercase">{role === 'HOD' ? 'Department briefing' : 'Your status'}</p>
           </div>
+          {briefLoading ? (
+            <div className="mt-3 space-y-2 animate-pulse">
+              {[0, 1, 2].map(i => <div key={i} className="h-4 bg-[color:var(--c-600)]/10 rounded w-11/12" />)}
+            </div>
+          ) : (
+            <ul className="mt-3 space-y-2.5">
+              {briefing.map(b => (
+                <li key={b.title} className="flex items-start gap-2.5">
+                  <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${b.tone === 'ok' ? 'bg-emerald-500' : b.tone === 'warn' ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] font-700 text-slate-800">{b.title}</p>
+                    <p className="text-[12.5px] text-slate-600 leading-snug">{b.text}</p>
+                  </div>
+                  {b.go && <button onClick={() => navigate(b.go!)} className="text-[11.5px] font-600 text-[color:var(--c-600)] hover:underline flex-shrink-0 mt-0.5">Open →</button>}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Motivational quote — decorative only, no allocation logic */}
@@ -253,7 +280,7 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
               <p className="text-xs font-600 text-slate-500">Current Academic Cycle</p>
               <p className="font-display font-800 text-2xl text-[color:var(--c-600)] mt-1">{cycle ?? '—'}</p>
-              <p className="text-xs text-slate-400 mt-0.5">Regulation 2024 · AI &amp; DS</p>
+              <p className="text-xs text-slate-400 mt-0.5">Regulation 2024 · AI & DS</p>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
               <p className="text-xs font-600 text-slate-500">My Allocation Status</p>
