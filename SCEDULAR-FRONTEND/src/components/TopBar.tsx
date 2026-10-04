@@ -17,8 +17,8 @@ function ThemeSwitcher() {
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 z-50 w-56 max-h-[70vh] overflow-auto rounded-xl p-1.5 bg-white shadow-xl border border-slate-200 animate-[pop-in_.18s_ease-out]">
+          <div className="fixed inset-0 z-[99]" onClick={() => setOpen(false)} />
+          <div className="fixed right-3 top-14 z-[100] w-56 max-h-[70vh] overflow-auto rounded-xl p-1.5 bg-white shadow-xl border border-slate-200 animate-[pop-in_.18s_ease-out]">
             {THEMES.map(t => (
               <button key={t.id} onClick={() => pick(t.id)}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-[13px] font-600 transition ${cur === t.id ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}>
