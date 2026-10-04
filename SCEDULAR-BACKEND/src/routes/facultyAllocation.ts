@@ -46,6 +46,7 @@ import {
 import { createSession, destroySession, extractBearerToken } from '../auth/session.js'
 import { requireAuth, requireRole } from '../auth/middleware.js'
 import { verifyFacultyPassword } from '../auth/passwords.js'
+import { staffingPolicy, subjectQuota } from '../utils/staffing.js'
 import { callLlm as callGrokLlm } from '../ai/llm.js'
 
 export const facultyAllocationRouter = Router()
@@ -155,6 +156,8 @@ async function validatePreferenceBatch(opts: {
   const subjects = await listSubjects()
   const byId = new Map(subjects.map(s => [s.id, s]))
   const byCode = new Map(subjects.map(s => [s.code, s]))
+  const [allSections, allOfferings, allPrefs] = await Promise.all([listSections(), listSectionSubjects(), getFacultyPreferences()])
+  const staffing = staffingPolicy(config)
 
   const yearCounts: Record<string, number> = {}
   const seenRanks = new Set<number>()
@@ -221,6 +224,16 @@ async function validatePreferenceBatch(opts: {
       return fail(400, 'INVALID_RANK', `Duplicate preference rank ${rank}.`)
     }
     seenRanks.add(rank)
+
+    // Weightage: a subject only accepts as many teachers as it needs (its sections / average sections per teacher).
+    const activeSecIds = new Set(allSections.filter(sec => sec.active !== false && sec.semester === semester).map(sec => sec.id))
+    const sectionsOffering = allOfferings.filter(o => o.subjectId === subject.id && activeSecIds.has(o.sectionId)).length
+    const quota = subjectQuota(sectionsOffering, staffing.avgSectionsPerTeacher)
+    const takenByOthers = new Set(allPrefs.filter(p => p.subjectId === subject.id && p.facultyId !== facultyId && (p.status === 'SUBMITTED' || p.status === 'APPROVED')).map(p => p.facultyId)).size
+    if (quota > 0 && takenByOthers >= quota) {
+      return fail(409, 'SUBJECT_QUOTA_FULL',
+        `${subject.code} ${subject.name} already has ${takenByOthers} of the ${quota} teachers it needs (${sectionsOffering} sections, about ${staffing.avgSectionsPerTeacher} per teacher). Please choose another subject.`)
+    }
 
     // Teachers only choose subjects. The HOD decides how many sections each
     // teacher gets, so requestedSections is optional (kept as 1 for storage).
@@ -555,10 +568,13 @@ facultyAllocationRouter.get('/faculty/subject-demand', requireAuth, async (req: 
   const semester = req.query.semester as string | undefined
   const academicYear = req.query.academicYear as string | undefined
   const demand = await getSubjectDemand(semester, academicYear)
-  const sanitized = demand.map(({ interestedFacultyList: _omit, ...rest }) => ({
-    ...rest,
-    interestCount: rest.facultyInterestedCount,
-  }))
+  const avg = staffingPolicy(await getAllocationSettings()).avgSectionsPerTeacher
+  const sanitized = demand.map(({ interestedFacultyList: _omit, ...rest }) => {
+    // slots are taken by SUBMITTED / APPROVED choices (drafts do not hold one)
+    const taken = rest.submittedCount + rest.approvedCount
+    const teachersWanted = subjectQuota(rest.requiredSections, avg)
+    return { ...rest, interestCount: rest.facultyInterestedCount, teachersWanted, slotsTaken: taken, slotsLeft: Math.max(0, teachersWanted - taken), avgSectionsPerTeacher: avg }
+  })
   return res.json({ demand: sanitized })
 })
 

@@ -68,7 +68,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
   const [meta, setMeta] = useState<Record<string, FacultySubjectDTO>>({})
   const [maxSections, setMaxSections] = useState<number>(DEFAULT_MAX_SECTIONS)
 
-  const [demandData, setDemandData] = useState<Record<string, { interestCount: number; requiredSections: number }>>({})
+  const [demandData, setDemandData] = useState<Record<string, { interestCount: number; requiredSections: number; wanted: number; left: number }>>({})
   const [interestUnavailable, setInterestUnavailable] = useState(false)
 
   const [selections, setSelections] = useState<Record<string, Selection>>({})
@@ -128,11 +128,13 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
   const loadInterest = useCallback(async (sem: string) => {
     try {
       const d = await api.facultyAllocation.getSubjectDemand(sem)
-      const map: Record<string, { interestCount: number; requiredSections: number }> = {}
+      const map: Record<string, { interestCount: number; requiredSections: number; wanted: number; left: number }> = {}
       for (const item of d.demand) {
         map[item.subjectId] = {
           interestCount: item.interestCount ?? item.facultyInterestedCount ?? 0,
           requiredSections: item.requiredSections ?? 4,
+          wanted: item.teachersWanted ?? 0,
+          left: item.slotsLeft ?? 0,
         }
       }
       setDemandData(map)
@@ -595,9 +597,11 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                     const dem = demandData[subject.id]
                     const interestCount = dem?.interestCount ?? 0
                     const reqSections = dem?.requiredSections ?? 4
+                    const wanted = dem?.wanted ?? 0
+                    const full = !selected && wanted > 0 && (dem?.left ?? 0) === 0   // every teacher this subject needs has already chosen it
                     const cannotAdd =
                       !selected &&
-                      (selectionArr.length >= maxTotal || countInSelectedYear >= maxPerYear)
+                      (full || selectionArr.length >= maxTotal || countInSelectedYear >= maxPerYear)
                     return (
                       <div
                         key={subject.id}
@@ -623,16 +627,18 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                         </dl>
 
                         <div className="mt-2.5 flex items-center justify-between gap-2">
-                          <span className={`text-[11px] font-600 px-2 py-0.5 rounded ${
+                          <span title={`${reqSections} sections, about ${Math.max(1, Math.round(reqSections / Math.max(1, wanted || 1)))} per teacher`} className={`text-[11px] font-600 px-2 py-0.5 rounded ${
                             interestUnavailable
                               ? 'bg-slate-100 text-slate-400'
+                              : full
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
                               : interestCount >= reqSections
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : interestCount > 0
                               ? 'bg-blue-50 text-blue-700 border border-blue-200'
                               : 'bg-slate-100 text-slate-500'
                           }`}>
-                            👥 {interestUnavailable ? '—' : `${interestCount}/${reqSections} Faculty Interested`}
+                            👥 {interestUnavailable ? '—' : wanted > 0 ? (full ? `Full · ${wanted} of ${wanted} teachers chosen` : `${wanted - (dem?.left ?? 0)} of ${wanted} teachers chosen · ${dem?.left ?? 0} slot${(dem?.left ?? 0) === 1 ? '' : 's'} left`) : `${interestCount} interested`}
                           </span>
                           {!isLocked && (
                             <button
@@ -645,7 +651,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                                   : 'bg-[#0F4C81] text-white hover:bg-[#0a3860]'
                               }`}
                             >
-                              {selected ? 'Remove' : cannotAdd ? 'Limit reached' : 'Select'}
+                              {selected ? 'Remove' : full ? 'Full' : cannotAdd ? 'Limit reached' : 'Select'}
                             </button>
                           )}
                         </div>

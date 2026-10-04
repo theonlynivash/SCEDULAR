@@ -503,6 +503,7 @@ each section. It saves at once and is printed on that section's timetable PDF.
   because it changes what every teacher sees.
 * **Experience bands** — the preference policy (see §16). Edit the minimum/maximum experience, which years the band may
   pick from, and how many preferences are allowed in total and per year. Add or remove bands. Press **Save** to store.
+* **Staffing weightage** — two numbers: *sections one teacher takes (average)*, default 3, which sets how many preferences each subject accepts (§16.4a); and *most periods per teacher per week*, default 28, which is the cap used by assigning, auto-fill and the "need more teachers" check (§17.3a).
 * **SCEDULAR AI for Faculty** switch — turn the assistant on or off for teachers. When off, the SCEDULAR AI button disappears for
   teachers and the server refuses their questions. The HOD is never affected. (A fixed bug: the switch used to save only in memory and the knob was drawn out of place.)
 * **Department snapshot** — counts of faculty, bands and the current cycle.
@@ -809,8 +810,7 @@ All of these must hold in a GREEN result:
 12. No partial or duplicate placement counts as complete.
 13. Malformed data is rejected before the search.
 
-**Weekly load above the nominal limit is *not* a rule violation.** A teacher at 28 periods against a limit of 24 is allowed
-in practice; the system shows the number but never reports it as a conflict. (Daily limits remain enforced.)
+**Weekly load and the solver.** The allocation cap is 28 periods per teacher per week (a department setting). The solver does not treat a weekly total as a violation, so a teacher whom the HOD deliberately assigned above the cap through an override still gets a valid timetable; only the **daily** limit is enforced during generation.
 
 ### 14.7 Floating subject: Library
 Library has no teacher conflict risk and exists only to use leftover free periods. It is **not** put through the main
@@ -861,6 +861,23 @@ Locked years are greyed out; counters show how many choices remain; submitting b
 ### 16.4 Subject-specific minimums
 The policy can also hold per-subject minimum experience rules (a map subject → years). They are enforced on submission.
 
+### 16.4a Subject quota (the weightage rule)
+Each subject accepts only as many teachers as it actually needs:
+
+```
+teachers wanted = ceil( sections that offer the subject  /  average sections one teacher takes )      (average = 3 by default)
+```
+
+Example: Mathematics is taught in 10 sections at 4 periods each, so the department needs 40 periods of it. At an average of 3 sections per
+teacher it wants ceil(10 / 3) = **4 teachers**; a fifth teacher cannot choose it. Twelve sections want 4 teachers, three sections want 1.
+
+* A choice takes a slot when it is **Submitted or Approved** (a draft does not hold a slot).
+* When all slots are taken the server refuses further choices with `SUBJECT_QUOTA_FULL` and the teacher's card shows **Full**; until then it shows
+  "2 of 4 teachers chosen · 2 slots left".
+* The HOD sees "chosen of wanted" per subject in Assign Teachers → Preferences (amber when more teachers chose it than it needs).
+* The HOD is not bound by the quota when assigning: any teacher may still be given sections of a subject nobody chose.
+* The average is a department setting: Settings → Policy & cycle → **Staffing weightage → Sections one teacher takes (average)**.
+
 ### 16.5 Statuses
 `DRAFT` → `SUBMITTED` → `APPROVED` (or `REJECTED` / `CHANGES_REQUESTED` by the HOD). Approved choices lock for the teacher.
 
@@ -876,6 +893,24 @@ covered. The HOD fills the remaining demand by choosing teachers and counts so t
 
 ### 17.3 Auto-fill
 Auto-fill walks through subjects and gives open sections to teachers who **chose** the subject (submitted or approved; approved first, then by the teacher's own ranking), always choosing the least-loaded eligible teacher and tracking a running "virtual load" against the weekly limit. Sections nobody can take are left open for manual assignment.
+
+### 17.3a Staffing check: "Need more teachers"
+At the top of Assign Teachers a **staffing card** compares the work with the people:
+
+```
+weekly demand  = sections x subjects x periods per section (theory + lab), for the current cycle
+a teacher      = at most 28 periods a week (department setting; Settings -> Policy & cycle -> Staffing weightage)
+teachers needed = ceil( demand / 28 )
+```
+
+Worked example: 12 teachers, 3 theory subjects, 12 sections, 4 periods each → demand = 12 × 3 × 4 = **144** periods. At 28 per teacher that needs
+ceil(144 / 28) = **6** teachers, so 12 teachers are enough (the card turns green and says so). With only 4 teachers the capacity is 112, the
+shortfall is 32 periods, and the card says **"Need 2 more teachers"** (amber).
+
+The card also takes **what is already assigned** into account: it adds up the free room left in each teacher's 28 periods and compares it with the
+periods still unassigned, so after assigning or auto-fill the message always reflects what is really missing. Auto-fill repeats the message when
+it had to leave sections open. A semester-by-semester and subject-by-subject breakdown is available from `GET /api/hod/staffing`.
+The weekly cap is also what the assign board's load bars use; assigning past it needs an explicit override, and auto-fill never goes past it.
 
 ### 17.4 Manual assignment preview
 Before assigning, each row shows *current load → after / limit*. Because exceeding the limit is permitted by the department,
@@ -1061,7 +1096,7 @@ Never commit `.env`; it is git-ignored.
 ## 23. Testing
 
 ### 23.1 What exists
-Seventeen test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts`). At the time of writing **156 tests pass**; two files
+Eighteen test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts`). At the time of writing **161 tests pass**; two files
 (`stage6.test.ts`, `facultyAllocationPolicy.test.mjs`) contain no runnable suites and are reported as "No test suite found" (this was
 already so before this build and does not indicate a failure of the product).
 
@@ -1077,6 +1112,7 @@ already so before this build and does not indicate a failure of the product).
 | `password_reset` | Forgot password flow, code checks, change notice never contains the password |
 | `messages` | Delivery both ways, unread counts, teacher→teacher refused, 30-day deletion |
 | `assistant` | Auth required, input checks, HOD switch disables teacher access |
+| `staffing` | Quota and "need more teachers" arithmetic (12 sections × 3 subjects × 4T example) and the server refusing a choice once a subject is full |
 | `data_erase` | The two erase actions are HOD + password only, keep what they must keep, and no bulk-erase routes exist |
 | `exports` | Teacher PDF only for self (HOD any), master PDF HOD only, valid PDF bytes |
 
@@ -1144,7 +1180,7 @@ Layout checks were done in a headless Chrome at desktop and phone sizes (About p
 
 **Library is missing in some section.** A section with no free period left cannot receive Library (every period is taken by real classes).
 
-**28 of 24 periods shown for a teacher.** That is allowed; it is not a conflict.
+**A teacher shows more than 28 periods.** That only happens through an explicit HOD override on the Assign screen. It is not a timetable conflict, but consider moving a section to a teacher with room (the staffing card shows how much room there is).
 
 ### PDFs
 **The PDF looks different from the printed sheet.** Names come from the database ("Mrs.MAHALAKSHMI" vs "MRS.S.MAHALAKSHMI"), and subject titles use the case stored in the syllabus. Edit the teacher/subject text to match. Fonts: if `assets/fonts` is missing the PDF falls back to Times.
@@ -1263,7 +1299,8 @@ All routes are under `/api`. "Auth" = needs `Authorization: Bearer <token>`; "HO
 | PATCH/DELETE | `/hod/preferences/:id` | HOD | Edit / remove |
 | GET | `/hod/assign-board` | HOD | Assign board data per semester |
 | POST | `/hod/assign` · `/hod/unassign` · `/hod/auto-assign` | HOD | Assign, remove, auto-fill |
-| GET/POST | `/hod/allocation-settings` | HOD | Experience bands, AI switch |
+| GET/POST | `/hod/allocation-settings` | HOD | Experience bands, AI switch, staffing weightage (`avgSectionsPerTeacher`, `maxWeeklyPeriods`) |
+| GET | `/hod/staffing` | HOD | Demand vs capacity, teachers needed, "need N more teachers", per-subject quota |
 | GET/POST | `/hod/academic-cycle` | HOD | Read / set the cycle (password) |
 | GET | `/hod/workload-summary`, `/hod/confirmed-allocation`, `/section-allocation` | HOD | Summaries |
 | POST | `/hod/allocate-workload`, `/hod/approve-workload-allocation`, `/commit-section-allocation` | HOD | Workload allocation steps |
@@ -1309,7 +1346,8 @@ All routes are under `/api`. "Auth" = needs `Authorization: Bearer <token>`; "HO
 
 | Setting | Value |
 |---|---|
-| Teacher weekly limit | 24 periods (nominal; exceeding it is allowed) |
+| Weekly periods per teacher (allocation cap) | 28 (Settings → Staffing weightage); the per-teacher field of 24 is only a nominal label |
+| Average sections one teacher takes | 3 → a subject accepts ceil(sections / 3) teachers |
 | Teacher daily limit | 6 periods |
 | Senior threshold | 13 years |
 | Band 1 | 0–9 yrs · Year 1–2 · 1 choice |
@@ -1376,6 +1414,7 @@ Lab blocks never cross the tea or lunch breaks.
 | MAIL_NOT_CONFIGURED | No SMTP credentials set |
 | DUPLICATE_EMAIL | Another teacher already uses that email |
 | WEAK_PASSWORD | Password shorter than allowed |
+| SUBJECT_QUOTA_FULL | The subject already has all the teachers it needs (sections ÷ average per teacher); choose another |
 | FORBIDDEN | You are not allowed (for example a teacher asking for another teacher's PDF) |
 | UNAUTHENTICATED | Session missing or expired — sign in again |
 

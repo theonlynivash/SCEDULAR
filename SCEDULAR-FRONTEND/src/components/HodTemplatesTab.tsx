@@ -37,7 +37,7 @@ export default function HodTemplatesTab({ semester, board, say, onChanged }: {
       if (dryRun) setPreview(r)
       else {
         setPreview(null)
-        say(true, `Auto-fill assigned ${r.assignedSections} section${r.assignedSections === 1 ? '' : 's'}.${r.leftover.length ? ` ${r.leftover.length} subject(s) still need a teacher.` : ''}`)
+        say(!(r.staffing && !r.staffing.enough), `Auto-fill assigned ${r.assignedSections} section${r.assignedSections === 1 ? '' : 's'}.${r.leftover.length ? ` ${r.leftover.length} subject(s) still need a teacher.` : ''}${r.staffing && !r.staffing.enough ? ` ${r.staffing.message}` : ''}`)
         onChanged()
       }
     } catch (e: any) { say(false, e?.message || 'Auto-fill failed.') }

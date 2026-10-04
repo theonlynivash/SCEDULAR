@@ -3,6 +3,7 @@ import { api, type AssignBoard } from '../api'
 import HodPreferencesTab from './HodPreferencesTab'
 import HodTemplatesTab from './HodTemplatesTab'
 import HodAssignWorkspace from './HodAssignWorkspace'
+import StaffingCard from './StaffingCard'
 import { PillTabs } from './ui'
 
 type Tab = 'preferences' | 'assign' | 'templates'
@@ -90,6 +91,8 @@ export default function HodAssignBoard() {
         )}
         <div className="mt-3"><PillTabs value={tab} onChange={setTab} tabs={TABS.map(t => ({ id: t.id, label: t.label, title: t.hint }))} /></div>
       </div>
+
+      <StaffingCard refreshKey={boards} />
 
       {notice && (
         <div className={`text-xs font-600 rounded-xl px-4 py-3 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>

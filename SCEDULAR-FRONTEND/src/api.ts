@@ -374,7 +374,19 @@ export interface FacultyHistoryItem {
   sectionsHandled: number
 }
 
+export interface StaffingReport {
+  cycle: string; maxWeeklyPeriods: number; avgSectionsPerTeacher: number; teachers: number
+  totalDemandPeriods: number; assignedPeriods: number; openPeriods: number
+  teachersNeeded: number; moreTeachersNeeded: number; enough: boolean; message: string
+  bySemester: { semester: string; sections: number; demandPeriods: number; assignedPeriods: number; openPeriods: number }[]
+  subjects: { subjectId: string; code: string; name: string; semester: string; sections: number; periodsPerSection: number; totalPeriods: number; teachersWanted: number; chosen: number; slotsLeft: number; openSections: number }[]
+}
+
 export interface SubjectDemandDTO {
+  teachersWanted?: number
+  slotsTaken?: number
+  slotsLeft?: number
+  avgSectionsPerTeacher?: number
   subjectId: string
   subjectCode: string
   subjectName: string
@@ -412,6 +424,7 @@ export interface AssignBoardSubject {
   year: string
   deliveryType: string
   perSection: { theory: number; lab: number }
+  teachersWanted?: number
   sectionCount: number
   assignedCount: number
   sections: { sectionId: string; sectionName: string; theoryPeriods: number; labPeriods: number; facultyId: string | null; facultyName: string | null; complete: boolean }[]
@@ -454,6 +467,7 @@ export interface AutoAssignResult {
   assignedSections: number
   plan: { subjectId: string; code: string; name: string; facultyId: string; facultyName: string; sectionIds: string[]; periods: number; loadAfter: number; max: number }[]
   leftover: { subjectId: string; code: string; name: string; remaining: number; reason: string }[]
+  staffing?: StaffingReport
 }
 export interface AssignBoard {
   semester: string
@@ -744,6 +758,7 @@ export const api = {
       request<{ success: boolean }>(`/hod/preferences/${id}/change`, { method: 'POST', body: JSON.stringify({ subjectId }) }),
     deletePreference: (id: number) =>
       request<{ success: boolean }>(`/hod/preferences/${id}`, { method: 'DELETE' }),
+    staffing: () => request<StaffingReport>('/hod/staffing'),
     autoAssign: (data: { semester: string; subjectId?: string; dryRun?: boolean }) =>
       request<AutoAssignResult>('/hod/auto-assign', { method: 'POST', body: JSON.stringify(data) }),
     unassignSections: (data: { subjectId: string; facultyId: string; sectionIds?: string[] }) =>

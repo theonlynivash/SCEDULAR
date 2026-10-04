@@ -93,12 +93,12 @@ describe('HOD subject -> teacher -> sections assignment', () => {
   })
 
   it('blocks assignment beyond the faculty weekly capacity unless overridden', async () => {
-    const f = db().faculty.find((x: any) => x.id === T1)!
-    const saved = f.maxWeeklyPeriods
-    f.maxWeeklyPeriods = 1
+    // the weekly cap is now a department policy (Settings -> Policy & cycle -> staffing weightage), 28 by default
+    const saved = db().allocationSettings
+    db().allocationSettings = { ...(saved ?? {}), maxWeeklyPeriods: 1 } as any
     saveLocalDbSync()
     const r = await post('/api/hod/assign', { semester: 'VII', subjectId, facultyId: T1, sectionCount: 1 })
-    f.maxWeeklyPeriods = saved
+    db().allocationSettings = saved
     saveLocalDbSync()
     expect(r.status).toBe(409)
     expect(r.body.error).toBe('FACULTY_CAPACITY_EXCEEDED')

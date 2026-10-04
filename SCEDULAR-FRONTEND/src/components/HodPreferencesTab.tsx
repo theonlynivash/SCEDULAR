@@ -179,7 +179,7 @@ export default function HodPreferencesTab({ semester, board, say, onChanged }: {
                   <span className="text-sm font-600 text-slate-800">{list[0].subjectName}</span>
                   <span className="ml-auto flex gap-1.5 text-[10px] font-600 text-slate-600">
                     {info && <span className="px-2 py-0.5 rounded-full bg-white border border-slate-200">{tl(info.perSection.theory, info.perSection.lab)} / section</span>}
-                    <span className="px-2 py-0.5 rounded-full bg-white border border-slate-200">{list.length} teacher{list.length === 1 ? '' : 's'}</span>
+                    <span title="Teachers who chose it / teachers this subject needs (about one per few sections)" className={`px-2 py-0.5 rounded-full border ${info?.teachersWanted && list.length > info.teachersWanted ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-white border-slate-200'}`}>{list.length}{info?.teachersWanted ? ` of ${info.teachersWanted}` : ''} teacher{(info?.teachersWanted ?? list.length) === 1 ? '' : 's'}</span>
                     {info && <span className={`px-2 py-0.5 rounded-full border ${info.assignedCount === info.sectionCount ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>{info.assignedCount}/{info.sectionCount} sections staffed</span>}
                   </span>
                 </div>

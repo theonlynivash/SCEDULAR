@@ -21,7 +21,9 @@ import {
   getCurrentAcademicCycle,
   hodChangePreferenceSubject,
   hodDeletePreference,
+  getAllocationSettings,
 } from '../db/repo.js'
+import { computeStaffing, staffingPolicy, subjectQuota } from '../utils/staffing.js'
 import { requireAuth, requireRole } from '../auth/middleware.js'
 import { semestersForCycle } from '../utils/academicCycle.js'
 
@@ -57,6 +59,7 @@ hodAssignRouter.get('/hod/assign-board', requireAuth, requireRole('HOD'), async 
     }
 
     const { faculty, subjects, sections, sectionSubjects, assignments, load } = await loadState()
+    const pol = staffingPolicy(await getAllocationSettings())
     const facName = new Map(faculty.map(f => [f.id, f.name]))
     const secName = new Map(sections.map(s => [s.id, s.name]))
     const activeSec = new Set(sections.filter(s => s.active !== false && s.semester === semester).map(s => s.id))
@@ -98,6 +101,7 @@ hodAssignRouter.get('/hod/assign-board', requireAuth, requireRole('HOD'), async 
         year: sub.year,
         deliveryType: sub.deliveryType,
         perSection,
+        teachersWanted: subjectQuota(secs.length, pol.avgSectionsPerTeacher),
         sectionCount: secs.length,
         assignedCount: secs.filter(s => s.complete).length,
         sections: secs,
@@ -119,10 +123,10 @@ hodAssignRouter.get('/hod/assign-board', requireAuth, requireRole('HOD'), async 
         name: f.name,
         experience: f.allocationExperience ?? null,
         load: load.get(f.id) ?? 0,
-        max: f.maxWeeklyPeriods || 18,
+        max: pol.maxWeeklyPeriods,
       }))
 
-    res.json({ semester, cycle, subjects: rows, teachers })
+    res.json({ semester, cycle, subjects: rows, teachers, avgSectionsPerTeacher: pol.avgSectionsPerTeacher, maxWeeklyPeriods: pol.maxWeeklyPeriods })
   } catch (err) { next(err) }
 })
 
@@ -174,7 +178,7 @@ hodAssignRouter.post('/hod/assign', requireAuth, requireRole('HOD'), async (req,
 
     const added = chosen.reduce((n, ss) => n + ss.theoryPeriods + ss.labPeriods, 0)
     const current = load.get(facultyId) ?? 0
-    const max = fac.maxWeeklyPeriods || 18
+    const max = staffingPolicy(await getAllocationSettings()).maxWeeklyPeriods
     if (!override && current + added > max) {
       return res.status(409).json({
         error: 'FACULTY_CAPACITY_EXCEEDED',
@@ -216,6 +220,20 @@ hodAssignRouter.post('/hod/unassign', requireAuth, requireRole('HOD'), async (re
   } catch (err) { next(err) }
 })
 
+/** Live staffing picture for the current cycle: demand vs what the teachers can still carry. */
+async function staffingReport() {
+  const cycle = await getCurrentAcademicCycle()
+  const [faculty, subjects, sections, sectionSubjects, teachingAssignments, prefs, cfg] = await Promise.all([
+    listFaculty(), listSubjects(), listSections(), listSectionSubjects(), listTeachingAssignments(), getFacultyPreferences(), getAllocationSettings(),
+  ])
+  return { cycle, ...computeStaffing({ semesters: semestersForCycle(cycle) as string[], faculty, sections, subjects, sectionSubjects, teachingAssignments, preferences: prefs, policy: staffingPolicy(cfg) }) }
+}
+
+// GET /api/hod/staffing - total demand (sections x subjects x periods), the weekly cap, and "need N more teachers"
+hodAssignRouter.get('/hod/staffing', requireAuth, requireRole('HOD'), async (_req, res, next) => {
+  try { res.json(await staffingReport()) } catch (err) { next(err) }
+})
+
 // POST /api/hod/auto-assign { semester, subjectId?, dryRun? }
 // "Apply template": for every subject with open sections, hand sections one at a time to the
 // teachers who chose it (approved first, then by rank), always to the least-loaded one that still
@@ -230,6 +248,7 @@ hodAssignRouter.post('/hod/auto-assign', requireAuth, requireRole('HOD'), async 
 
     const { faculty, subjects, sections, sectionSubjects, assignments, load } = await loadState()
     const facById = new Map(faculty.map(f => [f.id, f]))
+    const cap = staffingPolicy(await getAllocationSettings()).maxWeeklyPeriods
     const activeSec = new Set(sections.filter(s => s.active !== false && s.semester === semester).map(s => s.id))
     const prefs = (await getFacultyPreferences()).filter(
       x => x.semester === semester && (x.status === 'SUBMITTED' || x.status === 'APPROVED')
@@ -263,7 +282,7 @@ hodAssignRouter.post('/hod/auto-assign', requireAuth, requireRole('HOD'), async 
         const candidates = t.interested
           .map(i => i.facultyId)
           .filter((f, i, a) => a.indexOf(f) === i && facById.has(f))
-          .filter(f => (virtualLoad.get(f) ?? 0) + queue[0].theoryPeriods + queue[0].labPeriods <= (facById.get(f)!.maxWeeklyPeriods || 18))
+          .filter(f => (virtualLoad.get(f) ?? 0) + queue[0].theoryPeriods + queue[0].labPeriods <= cap)
           .sort((a, b) => (virtualLoad.get(a) ?? 0) - (virtualLoad.get(b) ?? 0))
         if (!candidates.length) { blocked = true; break }
         const pick = candidates[0]
@@ -275,7 +294,7 @@ hodAssignRouter.post('/hod/auto-assign', requireAuth, requireRole('HOD'), async 
         plan.push({
           subjectId: t.sub.id, code: t.sub.code, name: t.sub.name, facultyId: fid, facultyName: facById.get(fid)!.name,
           sectionIds: list.map(x => x.sectionId), periods: list.reduce((n, x) => n + x.theoryPeriods + x.labPeriods, 0),
-          loadAfter: virtualLoad.get(fid) ?? 0, max: facById.get(fid)!.maxWeeklyPeriods || 18,
+          loadAfter: virtualLoad.get(fid) ?? 0, max: cap,
         })
         todo.push({ facultyId: fid, ssList: list })
       }
@@ -293,7 +312,7 @@ hodAssignRouter.post('/hod/auto-assign', requireAuth, requireRole('HOD'), async 
         if (ss.labPeriods > 0) await addTeachingAssignment({ facultyId: job.facultyId, sectionSubjectId: ss.id, component: 'LAB', batch: null })
       }
     }
-    res.json({ dryRun: !!dryRun, plan, leftover, assignedSections: plan.reduce((n, x) => n + x.sectionIds.length, 0) })
+    res.json({ dryRun: !!dryRun, plan, leftover, assignedSections: plan.reduce((n, x) => n + x.sectionIds.length, 0), staffing: await staffingReport() })
   } catch (err) { next(err) }
 })
 

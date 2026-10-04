@@ -24,6 +24,8 @@ interface AllocationConfig {
   bands: AllocationBand[]
   subjectMinExperienceRules?: Record<string, number>
   facultyAiEnabled?: boolean
+  avgSectionsPerTeacher?: number
+  maxWeeklyPeriods?: number
 }
 
 const ALL_YEARS = ['Year 1', 'Year 2', 'Year 3', 'Year 4']
@@ -209,6 +211,31 @@ function PolicyAndCycle() {
             {cycle} SEMESTER LOCKED
           </span>
         </div>
+      </div>
+
+      {/* Staffing weightage */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3">
+        <div>
+          <h2 className="text-sm font-700 text-slate-800">Staffing weightage</h2>
+          <p className="text-[11px] text-slate-500 mt-0.5">Decides how many preferences a subject accepts and when the app says "need more teachers".</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-[11px] font-700 text-slate-500 uppercase tracking-wider">Sections one teacher takes (average)</span>
+            <input type="number" min={1} max={12} value={config.avgSectionsPerTeacher ?? 3}
+              onChange={e => setConfig({ ...config, avgSectionsPerTeacher: Math.max(1, Math.min(12, Number(e.target.value) || 1)) })}
+              className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+            <span className="block text-[11px] text-slate-400 mt-1">A subject in 10 sections then accepts {Math.ceil(10 / (config.avgSectionsPerTeacher ?? 3))} teachers.</span>
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-700 text-slate-500 uppercase tracking-wider">Most periods per teacher per week</span>
+            <input type="number" min={1} max={40} value={config.maxWeeklyPeriods ?? 28}
+              onChange={e => setConfig({ ...config, maxWeeklyPeriods: Math.max(1, Math.min(40, Number(e.target.value) || 1)) })}
+              className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+            <span className="block text-[11px] text-slate-400 mt-1">Assigning past this needs an explicit override; auto-fill never goes past it.</span>
+          </label>
+        </div>
+        <button onClick={() => saveConfig(config)} disabled={saving} className="px-4 py-1.5 rounded-full bg-[#0F4C81] text-white text-xs font-700 disabled:opacity-40">Save weightage</button>
       </div>
 
       {/* 4. AI toggle */}

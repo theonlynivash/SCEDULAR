@@ -15,6 +15,10 @@ export interface AllocationConfig {
   // HOD-controlled toggle: whether SCEDULAR AI is available to FACULTY users.
   // The motivational quote card is unaffected by this -- it always shows.
   facultyAiEnabled?: boolean // default true when unset
+  /** Planning figure: a teacher takes about this many sections of one subject (decides how many preferences a subject accepts). Default 3. */
+  avgSectionsPerTeacher?: number
+  /** Most periods a teacher is allocated per week (also the basis of "need more teachers"). Default 28. */
+  maxWeeklyPeriods?: number
 }
 
 export const DEFAULT_ALLOCATION_CONFIG: AllocationConfig = {
@@ -49,6 +53,8 @@ export const DEFAULT_ALLOCATION_CONFIG: AllocationConfig = {
     },
   ],
   subjectMinExperienceRules: {},
+  avgSectionsPerTeacher: 3,
+  maxWeeklyPeriods: 28,
 }
 
 export interface PolicyEvaluation {
