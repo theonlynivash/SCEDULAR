@@ -12,6 +12,7 @@ import {
   listPhotoTimes,
 } from '../db/repo.js'
 import { requireAuth } from '../auth/middleware.js'
+import { forRole } from '../auth/guard.js'
 
 export const facultyRouter = Router()
 
@@ -39,7 +40,7 @@ facultyRouter.get('/', async (_req, res, next) => {
     const faculty = await listFaculty()
     const photos = await listPhotoTimes()
     const withUnavailability = await Promise.all(
-      faculty.map(async f => ({ ...f, photoAt: photos[f.id] ?? null, unavailability: await listFacultyUnavailability(f.id) }))
+      faculty.map(async f => ({ ...forRole(f, _req.auth?.role), photoAt: photos[f.id] ?? null, unavailability: await listFacultyUnavailability(f.id) }))
     )
     res.json(withUnavailability)
   } catch (err) {
@@ -51,7 +52,7 @@ facultyRouter.get('/:id', async (req, res, next) => {
   try {
     const f = await getFaculty(req.params.id)
     if (!f) return res.status(404).json({ error: 'Faculty not found' })
-    res.json({ ...f, unavailability: await listFacultyUnavailability(f.id) })
+    res.json({ ...forRole(f, req.auth?.role), unavailability: await listFacultyUnavailability(f.id) })
   } catch (err) {
     next(err)
   }

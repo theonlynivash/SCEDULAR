@@ -45,7 +45,7 @@ describe('Phase 5 — HOD Workload Templates & Faculty Allocation System', () =>
   })
 
   it('1. Fetches default workload templates and allows custom template creation', async () => {
-    const resGet = await fetch(`${baseUrl}/api/workload-templates`)
+    const resGet = await fetch(`${baseUrl}/api/workload-templates`, { headers: { Authorization: `Bearer ${hodToken}` } })
     expect(resGet.status).toBe(200)
     const templates: any = await resGet.json()
     expect(Array.isArray(templates)).toBe(true)

@@ -23,6 +23,7 @@ import { messagesRouter } from './routes/messages.js'
 import { dataEraseRouter } from './routes/dataErase.js'
 import { photosRouter } from './routes/photos.js'
 import { bulkImportRouter } from './routes/bulkImport.js'
+import { apiGuard, hodWrites, securityHeaders } from './auth/guard.js'
 import { workloadTemplatesRouter } from './routes/workloadTemplates.js'
 
 function buildCorsOriginList(): (string | RegExp)[] {
@@ -63,9 +64,10 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   maxAge: 86400,
 }))
-app.use(express.json({ limit: '25mb' }))
-app.use(express.urlencoded({ extended: true, limit: '25mb' }))
+app.use(express.json({ limit: '3mb' }))
+app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 
+app.use('/api', securityHeaders)
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'scedular-backend' }))
 
 // Postgres schema init (idempotent) runs lazily on first request requiring DB access.
@@ -81,6 +83,9 @@ app.use(async (req, res, next) => {
   }
 })
 
+// nothing below this line is reachable without signing in (login / forgot / reset / health excepted)
+app.use('/api', apiGuard)
+
 app.use('/api', facultyAllocationRouter)
 app.use('/api', passwordResetRouter)
 app.use('/api', assistantRouter)
@@ -92,19 +97,21 @@ app.use('/api', hodAssignRouter)
 app.use('/api', setupRouter)
 app.use('/api', teacherExtrasRouter)
 app.use('/api', workloadTemplatesRouter)
-app.use('/api/faculty', facultyRouter)
-app.use('/api/sections', sectionsRouter)
-app.use('/api/courses', coursesRouter)
-app.use('/api/subjects', subjectsRouter)
-app.use('/api/section-subjects', sectionSubjectsRouter)
-app.use('/api/teaching-assignments', teachingAssignmentsRouter)
-app.use('/api/labs', labsRouter)
-app.use('/api/config', configRouter)
-app.use('/api/workload', workloadRouter)
-app.use('/api/import', importRouter)
-app.use('/api/timetable', timetableRouter)
+app.use('/api/faculty', hodWrites([/^PATCH \/[^/]+\/experience$/]), facultyRouter)
+app.use('/api/sections', hodWrites(), sectionsRouter)
+app.use('/api/courses', hodWrites(), coursesRouter)
+app.use('/api/subjects', hodWrites(), subjectsRouter)
+app.use('/api/section-subjects', hodWrites(), sectionSubjectsRouter)
+app.use('/api/teaching-assignments', hodWrites(), teachingAssignmentsRouter)
+app.use('/api/labs', hodWrites(), labsRouter)
+app.use('/api/config', hodWrites(), configRouter)
+app.use('/api/workload', hodWrites(), workloadRouter)
+app.use('/api/import', hodWrites(), importRouter)
+app.use('/api/timetable', hodWrites(), timetableRouter)
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err)
-  res.status(500).json({ error: err?.message ?? 'Internal server error' })
+  // internal details stay in the server log in production
+  const message = process.env.NODE_ENV === 'production' ? 'Something went wrong on the server.' : (err?.message ?? 'Internal server error')
+  res.status(500).json({ error: 'SERVER_ERROR', message })
 })

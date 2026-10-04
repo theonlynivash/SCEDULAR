@@ -166,7 +166,7 @@ describe('Phase 1 Reconciliation Tests', () => {
     // Execute the reset directly: it is no longer exposed over HTTP (no bulk erase endpoints exist)
     const { resetWorkflowStateRepo } = await import('../src/db/repo.js')
     const body: any = await resetWorkflowStateRepo()
-    expect((await fetch(`${baseUrl}/api/reset-workflow`, { method: 'POST' })).status).toBe(404)
+    expect((await fetch(`${baseUrl}/api/reset-workflow`, { method: 'POST' })).status).toBe(401)   // not reachable without signing in (and the route no longer exists)
 
     // Check after counts
     expect(body.after.faculty).toBe(SNAP.faculty)
@@ -254,9 +254,10 @@ describe('Phase 1 Reconciliation Tests', () => {
   })
 
   it('14. Verifies AI failure explanation has no invented hardcoded facts when LLM is offline', async () => {
+    const hodLogin: any = await (await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ facultyId: 'FAC-001', password: 'SCEDULAR_AIDS' }) })).json()
     const res = await fetch(`${baseUrl}/api/ai/explain-generation-failure`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${hodLogin.token}` },
       body: JSON.stringify({ report: { summary: 'Custom solver report' } }),
     })
     expect(res.status).toBe(200)

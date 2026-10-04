@@ -156,7 +156,7 @@ describe('Phase 2 — Authentication, Session, Role Authorization, Faculty Profi
   })
 
   it('profile retrieval returns database values', async () => {
-    const res = await authed('/api/faculty/FAC-002', null)
+    const res = await authed('/api/faculty/FAC-002', (await login('FAC-001')).body.token)
     expect(res.status).toBe(200)
     expect(res.body.id).toBe('FAC-002')
     expect(res.body.name).toBe('Dr.A.JOSHI')
@@ -177,7 +177,7 @@ describe('Phase 2 — Authentication, Session, Role Authorization, Faculty Profi
     expect(update.body.allocationExperience).toBe(7)
 
     // Re-read through the API: database → API reflects persisted values.
-    const reread = await authed('/api/faculty/FAC-002', null)
+    const reread = await authed('/api/faculty/FAC-002', (await login('FAC-001')).body.token)
     expect(reread.body.previousExperience).toBe(5)
     expect(reread.body.currentExperience).toBe(3)
     expect(reread.body.allocationExperience).toBe(7)

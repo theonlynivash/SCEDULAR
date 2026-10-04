@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Download, ChevronDown } from 'lucide-react'
-import { API_BASE, api, downloadFile } from '../api'
+import { api, downloadFile } from '../api'
 import { getSession } from '../session'
 
 const ORDER = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
@@ -31,7 +31,8 @@ export default function DownloadTimetables({ compact = false }: { compact?: bool
   }, [])
 
   if (!sems || sems.length === 0) return null
-  const href = (s: string) => `${API_BASE}/timetable/export?semester=${s}`
+  // the class PDFs need the session token, so they are fetched (not plain links)
+  const getClass = (s: string) => { setOpen(false); downloadFile(`/timetable/export?semester=${s}`, 'Class-Timetables.pdf').catch(e => window.alert(e.message)) }
   const isHod = getSession()?.user.role === 'HOD'
   const getMaster = (s: string) => { setOpen(false); downloadFile(`/timetable/export/master?semester=${s}`, 'Master-Timetable.pdf').catch(e => window.alert(e.message)) }
 
@@ -45,14 +46,14 @@ export default function DownloadTimetables({ compact = false }: { compact?: bool
         <div className="absolute right-0 mt-1.5 w-60 z-30 rounded-2xl bg-white/95 backdrop-blur-xl ring-1 ring-[#0e254f]/10 shadow-[0_12px_32px_rgba(14,37,79,0.18)] overflow-hidden">
           <p className="px-4 pt-3 pb-1 text-[10.5px] uppercase tracking-[0.12em] text-slate-400">Class timetables</p>
           {sems.map(x => (
-            <a key={x.sem} href={href(x.sem)} download onClick={() => setOpen(false)} className="flex items-center justify-between px-4 py-2 text-[13px] text-slate-700 hover:bg-[#2f6fc4]/8">
+            <button key={x.sem} onClick={() => getClass(x.sem)} className="flex items-center justify-between px-4 py-2 text-[13px] text-slate-700 hover:bg-[#2f6fc4]/8 w-full text-left">
               <span>Semester {x.sem}</span><span className="text-[11px] text-slate-400">{x.sections} sections</span>
-            </a>
+            </button>
           ))}
           {sems.length > 1 && (
-            <a href={href('all')} download onClick={() => setOpen(false)} className="flex items-center justify-between px-4 py-2 text-[13px] font-500 text-[#16367a] border-t border-[#0e254f]/8 hover:bg-[#2f6fc4]/8">
+            <button onClick={() => getClass('all')} className="flex items-center justify-between px-4 py-2 text-[13px] font-500 text-[#16367a] border-t border-[#0e254f]/8 hover:bg-[#2f6fc4]/8 w-full text-left">
               <span>All semesters</span><span className="text-[11px] text-slate-400">one file</span>
-            </a>
+            </button>
           )}
           {isHod && (
             <>

@@ -129,14 +129,14 @@ describe('blank dataset, everything built inside the app', () => {
     const board = (await api('/hod/assign-board?semester=III', hod)).body
     expect(board.subjects.every((s: any) => s.assignedCount === s.sectionCount)).toBe(true)
 
-    const readiness = (await api('/readiness', '')).body
+    const readiness = (await api('/readiness', hod)).body
     const sem = (readiness.semesters ?? readiness.readiness).find((r: any) => r.semester === 'III')
     expect(sem.missingItems).toEqual([])
     expect(sem.canGenerate).toBe(true)
   })
 
   it('generates a conflict-free timetable from that data', async () => {
-    const r = await post('/timetable/generate', '', { year: 'Year 2', semester: 'III' })
+    const r = await post('/timetable/generate', hod, { year: 'Year 2', semester: 'III' })
     expect(r.status).toBe(200)
     expect(r.body.status).toBe('GREEN')
     expect(r.body.conflicts).toHaveLength(0)
@@ -150,10 +150,10 @@ describe('blank dataset, everything built inside the app', () => {
     // printing details are set in-app: a class in-charge for a section and a short name for a subject
     expect((await api('/setup/sections/Y2-A', hod, { method: 'PATCH', body: JSON.stringify({ classIncharge: created.teachers[0].facultyId }) })).status).toBe(200)
     expect((await api('/setup/sections/Y2-A', hod, { method: 'PATCH', body: JSON.stringify({ classIncharge: 'FAC-999' }) })).status).toBe(400)
-    const gen = await post('/timetable/generate', '', {})
+    const gen = await post('/timetable/generate', hod, {})
     expect(gen.body.status).toBe('GREEN')
 
-    const res = await fetch(`${base}/api/timetable/export?semester=III`)
+    const res = await fetch(`${base}/api/timetable/export?semester=III`, { headers: { Authorization: `Bearer ${hod}` } })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('application/pdf')
     expect(res.headers.get('content-disposition')).toContain('Sem-III')
@@ -162,9 +162,9 @@ describe('blank dataset, everything built inside the app', () => {
     const pages = (buf.toString('latin1').match(/\/Type \/Page(?!s)/g) ?? []).length
     expect(pages).toBe(2) // Y2-A and Y2-B
 
-    expect((await fetch(`${base}/api/timetable/export?semester=XX`)).status).toBe(400)
-    expect((await fetch(`${base}/api/timetable/export?semester=VII`)).status).toBe(404) // not part of this timetable
-    expect((await fetch(`${base}/api/timetable/export?semester=all`)).status).toBe(200)
+    expect((await fetch(`${base}/api/timetable/export?semester=XX`, { headers: { Authorization: `Bearer ${hod}` } })).status).toBe(400)
+    expect((await fetch(`${base}/api/timetable/export?semester=VII`, { headers: { Authorization: `Bearer ${hod}` } })).status).toBe(404) // not part of this timetable
+    expect((await fetch(`${base}/api/timetable/export?semester=all`, { headers: { Authorization: `Bearer ${hod}` } })).status).toBe(200)
   })
 
   it('two semesters sharing a teacher are generated together without double-booking that teacher', async () => {
@@ -175,7 +175,7 @@ describe('blank dataset, everything built inside the app', () => {
     const shared = created.teachers[2] // already teaches a Semester III subject
     expect((await post('/hod/assign', hod, { semester: 'V', subjectId: sub.body.id, facultyId: shared.facultyId, sectionCount: 1 })).status).toBe(201)
 
-    const r = await post('/timetable/generate', '', {})
+    const r = await post('/timetable/generate', hod, {})
     expect(r.status).toBe(200)
     expect(r.body.status).toBe('GREEN')
     const sections = new Set(r.body.assignments.map((a: any) => a.sectionId))

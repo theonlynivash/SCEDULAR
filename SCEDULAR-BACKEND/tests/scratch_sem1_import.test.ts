@@ -115,14 +115,14 @@ describe('Semester I from scratch, by Excel import', () => {
     expect(board.subjects.every((s: any) => s.assignedCount === s.sectionCount)).toBe(true)
 
     expect((await call('/setup/import/data-check', hod)).body.ready.timetable).toBe(true)
-    const g = await post('/timetable/generate', '', {})
+    const g = await post('/timetable/generate', hod, {})
     expect(g.status).toBe(200)
     expect(g.body.status).toBe('GREEN')
     expect(g.body.conflicts).toHaveLength(0)
     const periods = g.body.assignments.reduce((n: number, a: any) => n + (a.endPeriod - a.startPeriod + 1), 0)
     expect(periods).toBe((5 + 4 + 3 + 5) * 3)          // every section gets exactly its weekly periods
 
-    const pdf = await fetch(`${base}/api/timetable/export?semester=I`)
+    const pdf = await fetch(`${base}/api/timetable/export?semester=I`, { headers: { Authorization: `Bearer ${hod}` } })
     expect(pdf.status).toBe(200)
     expect(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString()).toBe('%PDF-')
   })
