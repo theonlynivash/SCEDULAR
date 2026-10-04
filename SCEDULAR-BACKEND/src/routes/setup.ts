@@ -194,6 +194,8 @@ setupRouter.get('/setup/subjects', async (_req, res, next) => {
         sectionNames: offs.map(o => secById.get(o.sectionId)?.name ?? o.sectionId),
         shortName: s.shortName ?? null, ltp: s.ltp ?? null, printAs: s.printAs ?? null,
         labIds: labMaps.filter(m => m.subjectId === s.id && !m.sectionId).map(m => m.labId),
+        // every room the subject can use, including rooms fixed for single sections (labIds above is only the 'any section' ones)
+        labRooms: labMaps.filter(m => m.subjectId === s.id).map(m => ({ labId: m.labId, sectionId: m.sectionId })),
         staffed: offs.filter(o => assignments.some(a => a.sectionSubjectId === o.id)).length,
       }
     }))

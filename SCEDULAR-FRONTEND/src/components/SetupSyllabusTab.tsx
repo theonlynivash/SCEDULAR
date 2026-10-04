@@ -201,7 +201,7 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus' }: { say: (ok:
                   <td className="text-center">{s.labPeriods || '–'}</td>
                   <td className="text-center">{s.credits || '–'}</td>
                   <td className="text-slate-500 text-[11px]">{(CATEGORIES.find(([v]) => v === s.category)?.[1]) ?? s.category}</td>
-                  <td className="text-slate-500 text-[11px]">{s.labPeriods > 0 ? (s.labIds.length ? s.labIds.map(id => labs.find(l => l.id === id)?.name ?? id).join(', ') : <span className="text-amber-700 font-600">none set</span>) : '–'}</td>
+                  <td className="text-slate-500 text-[11px]">{s.labPeriods > 0 ? ((s.labRooms ?? []).length ? <span title={(s.labRooms ?? []).map(r => `${labs.find(l => l.id === r.labId)?.name ?? r.labId}${r.sectionId ? ` · ${r.sectionId}` : ' · any section'}`).join('\n')}>{[...new Set((s.labRooms ?? []).map(r => labs.find(l => l.id === r.labId)?.name ?? r.labId))].join(', ')}{(s.labRooms ?? []).some(r => r.sectionId) && <span className="text-slate-400"> · per section</span>}</span> : <span className="text-amber-700 font-600">none set</span>) : '–'}</td>
                   <td className="text-slate-500">{s.sectionIds.length === defaultSectionIds.length ? `All ${s.sectionIds.length}` : s.sectionIds.map(x => x.replace(/^Y\d(S\d)?-/, '')).join(', ') || 'None'}</td>
                   <td className="text-center"><span className={s.staffed >= s.sectionIds.length && s.sectionIds.length > 0 ? 'text-emerald-700 font-700' : 'text-amber-700 font-700'}>{s.staffed}/{s.sectionIds.length}</span></td>
                   <td className="text-right whitespace-nowrap">
@@ -275,7 +275,8 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus' }: { say: (ok:
                       return <button type="button" key={l.id} onClick={() => toggle('labIds', l.id, [])} className={`px-2.5 py-1 rounded-md text-xs font-600 border ${on ? 'bg-[#0F4C81] text-white border-[#0F4C81]' : 'bg-white text-slate-500 border-slate-200'}`}>{l.id}</button>
                     })}
                   </div>
-                  {(draft.labIds ?? []).length === 0 && <p className="text-[11px] text-amber-700 mt-1">Pick at least one room, or the timetable cannot place the lab.</p>}
+                  {(draft.labIds ?? []).length === 0 && !subjects.find(x => x.id === draft.id)?.labRooms?.length && <p className="text-[11px] text-amber-700 mt-1">Pick at least one room, or the timetable cannot place the lab.</p>}
+                  {!!subjects.find(x => x.id === draft.id)?.labRooms?.some(r => r.sectionId) && <p className="text-[11px] text-slate-500 mt-1">Rooms fixed for single sections are kept as they are; the rooms picked above apply to the other sections.</p>}
                 </div>
               )}
             </div>

@@ -405,7 +405,7 @@ export async function validateSections(staged: StagedRow[]): Promise<CheckedRow[
 let labRoomsOf = new Map<string, number>()
 async function refreshLabRoomCounts() {
   labRoomsOf = new Map()
-  for (const m of await listLabSubjectMappings()) if (!m.sectionId) labRoomsOf.set(m.subjectId, (labRoomsOf.get(m.subjectId) ?? 0) + 1)
+  for (const m of await listLabSubjectMappings()) labRoomsOf.set(m.subjectId, (labRoomsOf.get(m.subjectId) ?? 0) + 1)
 }
 
 export async function validateRows(kind: ImportKind, rows: StagedRow[], opts: ImportOptions = {}): Promise<CheckedRow[]> {

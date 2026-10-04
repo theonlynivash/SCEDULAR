@@ -435,7 +435,7 @@ export interface SetupSubject {
   id: string; code: string; name: string; year: string | null; semester: string | null
   deliveryType: 'THEORY' | 'INTEGRATED' | 'LAB' | 'PROJECT'; category: string; credits: number
   theoryPeriods: number; labPeriods: number
-  sectionIds: string[]; sectionNames: string[]; labIds: string[]; staffed: number
+  sectionIds: string[]; sectionNames: string[]; labIds: string[]; labRooms?: { labId: string; sectionId: string | null }[]; staffed: number
   shortName: string | null; ltp: [number, number, number] | null; printAs: 'THEORY' | 'PRACTICAL' | null
 }
 export interface SetupSubjectInput {
