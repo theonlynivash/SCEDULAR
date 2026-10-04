@@ -3,6 +3,7 @@ import type { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { listFaculty } from '../db/repo.js'
+import { getLocalDb, saveLocalDb } from '../db/localDb.js'
 import { setFacultyPassword } from '../auth/passwords.js'
 import { sendMail } from '../mail/mailer.js'
 import { notifyPasswordChanged } from '../mail/notify.js'
@@ -13,8 +14,12 @@ const TTL_MS = 15 * 60_000
 const MAX_ATTEMPTS = 5
 const MIN_GAP_MS = 60_000
 
-interface Pending { codeHash: string; expires: number; attempts: number; sentAt: number }
-const pending = new Map<string, Pending>()
+// pending codes live in the stored data (so a restart or another server instance does not lose them)
+const pending = {
+  get: (id: string) => getLocalDb().passwordResets?.[id],
+  set: (id: string, v: { codeHash: string; expires: number; attempts: number; sentAt: number }) => { const db = getLocalDb(); db.passwordResets = { ...(db.passwordResets ?? {}), [id]: v }; saveLocalDb() },
+  delete: (id: string) => { const db = getLocalDb(); if (db.passwordResets) { delete db.passwordResets[id]; saveLocalDb() } },
+}
 
 const maskEmail = (e: string) => e.replace(/^(.).*(@.*)$/, (_m, a, b) => `${a}***${b}`)
 
@@ -57,6 +62,7 @@ passwordResetRouter.post('/auth/reset', async (req: Request, res: Response) => {
   const p = f && pending.get(f.id)
   if (!f || !p || p.expires < Date.now() || p.attempts >= MAX_ATTEMPTS) { if (f) pending.delete(f.id); return bad() }
   p.attempts++
+  saveLocalDb()
   if (!(await bcrypt.compare(code, p.codeHash))) return bad()
   pending.delete(f.id)
   await setFacultyPassword(f.id, pw)

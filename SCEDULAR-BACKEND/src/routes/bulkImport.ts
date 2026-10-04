@@ -3,6 +3,7 @@ import multer from 'multer'
 import { z } from 'zod'
 import { requireAuth, requireRole } from '../auth/middleware.js'
 import { verifyFacultyPassword } from '../auth/passwords.js'
+import { runAtomic } from '../db/localDb.js'
 import { hasPersonalPassword } from '../auth/passwords.js'
 import { buildTemplate, columnsOf, commitRows, parseSheet, summarize, validateRows, type ImportKind } from '../import/bulkImport.js'
 import { listFaculty, listLabs, listLabSubjectMappings, listSectionSubjects, listSections, listSubjects, listTeachingAssignments } from '../db/repo.js'
@@ -78,7 +79,7 @@ bulkImportRouter.post('/setup/import/:kind/commit', async (req, res, next) => {
       if (p.data.confirm !== 'REPLACE') return res.status(400).json({ error: 'CONFIRMATION_REQUIRED', message: 'Type REPLACE to confirm replacing every teacher.' })
       if (!(await verifyFacultyPassword(req.auth!.facultyId, p.data.password ?? ''))) return res.status(403).json({ error: 'WRONG_PASSWORD', message: 'Your password is incorrect. Nothing was changed.' })
     }
-    const out = await commitRows(kind, p.data.rows, Boolean(p.data.skipInvalid), { replaceAll })
+    const out = await runAtomic(() => commitRows(kind, p.data.rows, Boolean(p.data.skipInvalid), { replaceAll }))
     if (!out.ok) return res.status(422).json({ error: 'ROWS_HAVE_ERRORS', message: 'Some rows still have errors. Fix them or choose to skip those rows.', rows: out.checked, summary: summarize(out.checked) })
     res.json({ success: true, ...out.result })
   } catch (err) { next(err) }

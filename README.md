@@ -1,232 +1,132 @@
-<div align="center">
-
 # SCEDULAR
 
-### Deterministic, constraint-based timetable scheduler
+**Timetable and workload management for the Department of Artificial Intelligence & Data Science, Panimalar Engineering College, Chennai.**
 
-Generates a complete, hard-constraint-free weekly timetable from real faculty, section, course, and lab data — or reports exactly why one isn't possible.
+The HOD sets up sections, syllabus and teachers; teachers choose subjects; the HOD approves and assigns them; SCEDULAR then
+builds one clash-free weekly timetable for every semester, checks it independently, and prints it in the department's own
+format. Reports, email, chat and an AI assistant are built in. It works on a phone too.
 
-<br/>
-
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Express](https://img.shields.io/badge/Express-black?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
-[![SQLite](https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](#license)
-![Status](https://img.shields.io/badge/status-active--development-brightgreen?style=flat-square)
-
-</div>
-
-<br/>
-
-## Core Principle
-
-> A timetable is accepted only after an independent validator confirms every hard constraint holds. If no valid arrangement exists, SCEDULAR reports structured conflicts instead of faking success.
-
-The solver is a deterministic CSP (constraint satisfaction problem) engine using dynamic most-constrained-variable (MRV) backtracking, followed by an independent post-validator that replays every rule from scratch against whatever the solver produced.
+> New here? Read **[SCEDULAR_REPORT.md](SCEDULAR_REPORT.md)**: the complete guide (how it works, a click-by-click manual for
+> the HOD and for teachers, and troubleshooting). This README is the short version.
 
 ---
 
-## Table of Contents
+## What it does
 
-- [Architecture](#architecture)
-- [Solver Pipeline](#solver-pipeline)
-- [Constraints](#constraints)
-- [Data Model](#data-model)
-- [Getting Started](#getting-started)
-- [API Reference](#api-reference)
-- [Known Scope](#known-scope--not-yet-implemented)
-- [Tech Stack](#tech-stack)
-- [Author](#author)
-- [License](#license)
+| For the HOD | For teachers |
+|---|---|
+| Set up sections, syllabus, lab rooms, teachers (by hand or **Excel import**) | Sign in, change or reset the password (emailed code) |
+| Approve teachers' subject choices; assign sections (plan editor, auto-fill, change teacher) | Choose preferred subjects (limits by experience and by how many teachers each subject needs) |
+| See "need more teachers" when the work does not fit | See the personal timetable and **download it as PDF** |
+| Generate the timetable for all ready semesters in one run | Record past pass percentages, add a profile photo |
+| Download class timetables, teacher timetables and the **master timetable** (PDF) | Chat with the HOD |
+| Reports: staffing, subject needs, **each teacher's full workload**, results, timetable analysis | Ask the AI assistant about their own data |
+| Email teachers (AI-drafted), reset or issue logins, chat with anyone | |
+
+**Rules the timetable never breaks:** no teacher, lab or section is ever in two places at once; labs run as whole blocks and
+never across tea or lunch; a subject is capped per day; a teacher takes theory and lab of a class together. Every result is
+re-checked by a separate validator, and if no valid timetable exists SCEDULAR says exactly why instead of faking one.
 
 ---
 
-## Architecture
+## Quick start (one computer)
+
+You need **Node.js 18 or newer** and a modern browser.
+
+```bash
+# 1. backend  (http://localhost:8090)
+cd SCEDULAR-BACKEND
+npm install
+cp .env.example .env        # then edit .env, see "Settings" below
+npm run dev
+
+# 2. frontend  (http://localhost:8443)   - in a second terminal
+cd SCEDULAR-FRONTEND
+npm install
+npm run dev
+```
+
+Open <http://localhost:8443> and sign in as **`FAC-001`** (the HOD). On the very first start the app creates a sample
+department; set `SCEDULAR_START_BLANK=true` in `.env` before the first start for an empty one.
+
+Teachers get their login from the HOD (Teachers page → create logins, or Settings → Import → Teachers).
+
+### Settings (`SCEDULAR-BACKEND/.env`)
+
+| Setting | Needed for |
+|---|---|
+| `SMTP_USER`, `SMTP_PASS` | Email (a Gmail address and its 16-letter **App Password**). Without them mail is switched off. |
+| `GROQ_API_KEY` | The AI assistant and AI-written email drafts. Without it they are switched off. |
+| `SCEDULAR_MASTER_PASSWORD` | The first-login password for accounts that have no personal password yet (default `SCEDULAR_AIDS`; **change it in production**). |
+| `DATABASE_URL` | Cloud mode (PostgreSQL). Leave empty to store everything in one local file. |
+
+All settings are listed in `SCEDULAR-BACKEND/.env.example` and in the report (section 22). Never commit `.env`.
+
+---
+
+## How the data is stored
+
+* **Local mode (default):** one JSON file, `SCEDULAR-BACKEND/data/scedular_local_db.json`. Back it up by copying it.
+* **Cloud mode (`DATABASE_URL` set):** the same data as one **versioned JSON document** in PostgreSQL (table `app_state`),
+  profile pictures in `faculty_photos`. Each change is saved before the response is sent. If two people save at the same
+  moment the second save is refused with a clear message and never overwrites the first.
+* The data file holds real names, emails and password hashes. It is **git-ignored**. Never share or upload it.
+
+---
+
+## Project layout
 
 ```
 SCEDULAR/
-├── SCEDULAR-BACKEND/     Node.js + Express + TypeScript + SQLite
-│   ├── src/solver/       CSP engine, pre-validation, post-validation
-│   ├── src/routes/       REST API (faculty, sections, courses, labs, timetable, import)
-│   ├── src/db/           SQLite schema + repository layer
-│   └── src/seed/         Seed scripts (demo + real department data)
-│
-└── SCEDULAR-FRONTEND/    React 19 + Vite + Tailwind v4
-    └── src/components/   Dashboard, Faculty/Subject Management, Data & Import Hub,
-                           Generate/View/Edit Timetable, Reports, About
+├── README.md · SCEDULAR_REPORT.md · VERCEL_DEPLOY.md · vercel.json · docker-compose.yml
+├── api/index.ts                 Vercel entry (the API as one serverless function)
+├── SCEDULAR-BACKEND/            Node + Express + TypeScript
+│   ├── src/solver/              the timetable engine and its independent validator
+│   ├── src/routes/              the API (all of it needs sign-in)
+│   ├── src/db/                  storage (file / PostgreSQL) and data access
+│   ├── src/export/              PDF timetables (class, teacher, master)
+│   ├── src/import/              Excel import (sections, syllabus, teachers)
+│   ├── src/mail/ · src/ai/      email and the AI assistant
+│   ├── assets/fonts/            URW Bookman, used by the PDFs
+│   └── tests/                   automated tests (+ tests/fixtures: a scrubbed sample department)
+└── SCEDULAR-FRONTEND/           React + Vite + Tailwind (works on phones)
 ```
-
-The frontend is a thin client — all scheduling logic lives server-side. The API base defaults to `http://localhost:8090/api` (override with `VITE_API_URL`).
 
 ---
 
-## Solver Pipeline
-
-```
-Structured input (workload spreadsheet)
-        │
-        ▼
-Pre-validation ─────────► reject malformed/unknown rows before generation
-        │
-        ▼
-Requirement expansion ──► weekly demand → individual schedulable units
-        │
-        ▼
-CSP solver ──────────────► dynamic MRV backtracking search
-        │
-        ▼
-Independent post-validator ► replays every hard constraint against the result
-        │
-        ▼
-Master timetable (valid) or structured conflict map (invalid)
-        │
-        ▼
-Class / Faculty / Lab / Conflict views
-```
-
-## Constraints
-
-<details>
-<summary><strong>Hard constraints (never violated)</strong></summary>
-
-1. A section cannot have two courses in the same period
-2. A teacher cannot teach two sections at the same time
-3. A physical lab cannot host two sections at the same time
-4. Exact weekly theory/lab period counts must be satisfied for every course and section
-5. A teacher must be eligible for the subject/component assigned
-6. Explicit teacher constraints (unavailable periods, max daily/weekly load) are respected
-7. BREAK and LUNCH never contain a teaching assignment
-8. A normal lab occupies 3 contiguous periods as one block
-9. A lab block cannot cross BREAK or LUNCH
-10. The lab teacher is occupied for the entire lab block
-11. No duplicate or partial assignment is accepted as complete
-12. Malformed or unknown input is rejected before generation
-13. An infeasible instance is reported explicitly, never silently violated
-
-</details>
-
-<details>
-<summary><strong>Soft constraints (optimized, never at the cost of a hard one)</strong></summary>
-
-- Balance faculty workload
-- Avoid gaps in a teacher's day
-- Avoid excessive consecutive periods
-- Spread each subject across the week
-- Balance a section's daily load
-- Prefer compact lab placement
-- Respect configured teacher preferences
-
-</details>
-
----
-
-## Data Model
-
-One workload spreadsheet (or the equivalent API calls) provides everything the generator needs:
-
-| # | Data | Fields |
-|---|------|--------|
-| 1 | Sections | Year, Semester, Section ID (e.g. `II-K`) |
-| 2 | Courses / Syllabus | Code, name, component type (`INTEGRATED` / `NON_INTEGRATED` / `MANDATORY` / `LAB_ONLY`), weekly theory & lab periods, lab block length |
-| 3 | Faculty | ID, name, designation, true max periods/day and /week (across every year they teach) |
-| 4 | Assignments | Faculty × Course × Section rows — a teacher spanning two years is two rows with the same Faculty ID |
-| 5 | Labs & rooms | Physical rooms and which courses each can host |
-
-A teacher assignment row can include `Year`, `Semester`, `CourseName`, `ComponentType` the first time a section/course appears — it's created automatically. Full column reference and a downloadable template live in the app's Data & Import Hub.
-
----
-
-## Getting Started
-
-**Prerequisites:** Node.js 18+
-
-### Backend
+## Tests
 
 ```bash
 cd SCEDULAR-BACKEND
-npm install
-
-# seed a small demo dataset, or a full real department dataset
-npm run seed                        # small demo (4 sections)
-npx tsx src/seed/seed_full.ts       # full real dataset (12 sections, real staffing)
-
-npm run dev                         # http://localhost:8090
+npx vitest run          # 190+ tests, about a minute; they never touch your real data or send real mail
+npx tsc --noEmit        # type-check (also in SCEDULAR-FRONTEND)
 ```
 
-Other backend scripts:
-
-```bash
-npm run build     # compile TypeScript to dist/
-npm start         # run the compiled build
-```
-
-### Frontend
-
-```bash
-cd SCEDULAR-FRONTEND
-npm install
-npm run dev        # http://localhost:5173
-```
-
-Sign in with:
-
-```
-Username: Malathi.S
-Password: SCEDULAR_AIDS
-```
+The tests run on a frozen, scrubbed sample database and on an in-memory PostgreSQL (`pg-mem`), so cloud mode is tested too.
 
 ---
 
-## API Reference
+## Putting it online (Vercel + a free PostgreSQL such as Neon)
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET/POST/DELETE | `/api/faculty` | Faculty CRUD |
-| GET/POST/DELETE | `/api/sections` | Section CRUD |
-| GET/POST/DELETE | `/api/courses` | Course/syllabus CRUD |
-| GET/POST/DELETE | `/api/labs` | Lab room CRUD + course mapping |
-| GET/PUT | `/api/config` | Working days & period grid |
-| GET/POST | `/api/workload/requirements` | Weekly theory/lab demand per course + section |
-| GET/POST | `/api/workload/teacher-assignments` | Faculty ↔ course ↔ section links |
-| POST | `/api/import/faculty-workload` | Bulk spreadsheet import (creates faculty/sections/courses as needed) |
-| POST | `/api/timetable/generate` | Run the solver pipeline |
-| GET | `/api/timetable/master` | Latest validated timetable |
-| GET | `/api/timetable/section/:id`, `/faculty/:id`, `/lab/:id` | Filtered views of the master timetable |
-| GET | `/api/timetable/runs/:id`, `/conflicts/:id` | A specific run's assignments/conflicts |
+Step by step in **[VERCEL_DEPLOY.md](VERCEL_DEPLOY.md)**. In short: create the database, import the repository in Vercel,
+add the environment variables (`DATABASE_URL` is the one that matters), deploy, open `/api/health`.
 
 ---
 
-## Known Scope / Not Yet Implemented
+## Security in one paragraph
 
-- Faculty subject-preference submission (teachers opting into subjects) is not implemented — there is no backend workflow for it, and no UI pretends otherwise.
-- Curriculum/PDF parsing uses the same structured spreadsheet importer as workload data; free-form PDF text extraction is not supported.
-
----
-
-## Tech Stack
-
-| Layer | Technologies |
-|---|---|
-| Backend | Express · better-sqlite3 · Zod (validation) · xlsx (spreadsheet import) · TypeScript |
-| Frontend | React 19 · Vite · Tailwind CSS v4 · TypeScript |
+Every API call except sign-in, "forgot password" and the health check needs a valid session; changing department data is
+HOD-only; teachers cannot see each other's email or phone; passwords are stored as bcrypt hashes; sign-in attempts are
+rate-limited; the AI assistant never sends email by itself (the HOD presses Send). Chat messages are plain text and are
+deleted after 30 days. Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0` anywhere.
 
 ---
 
-## Author
+## Credits
 
-Independent personal project — not an official Panimalar Engineering College production — built by a student for real use in the AI & Data Science department.
+Developed by **KERNUL TECH** for the Department of AI & DS, Panimalar Engineering College.
 
-**Srinivash Karthikeyan**
-B.Tech AI & Data Science, Panimalar Engineering College
-[theonlynivash@gmail.com](mailto:theonlynivash@gmail.com) · GitHub: [@theonlynivash](https://github.com/theonlynivash)
+* **Srinivash Karthikeyan**: lead system architect and developer, B.Tech AI & DS
+* **Prof. Suganya Devi J**: faculty advisor and academic domain expert
 
-With input from Suganya Devi J (M.Tech, Faculty, PEC) on department requirements.
-
----
-
-## License
-
-Distributed under the MIT License. See `LICENSE` for details.
+© Panimalar Engineering College. All rights reserved.

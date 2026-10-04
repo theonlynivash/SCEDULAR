@@ -2262,9 +2262,18 @@ export async function getSessionFacultyId(token?: string | null): Promise<string
     const { rows } = await pool.query('SELECT faculty_id FROM sessions WHERE token = $1', [token])
     return rows.length ? (rows[0].faculty_id as string) : null
   } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
-    return mem.sessions.find(s => s.token === token)?.facultyId ?? null
+    const s = mem.sessions.find(x => x.token === token)
+    if (!s) return null
+    // a sign-in lasts 30 days
+    if (Date.now() - new Date(s.createdAt).getTime() > SESSION_DAYS * 86_400_000) {
+      mem.sessions = mem.sessions.filter(x => x.token !== token)
+      saveLocalDb()
+      return null
+    }
+    return s.facultyId
   }
 }
+export const SESSION_DAYS = 30
 
 export async function destroySessionRecord(token?: string | null): Promise<void> {
   if (!token) return

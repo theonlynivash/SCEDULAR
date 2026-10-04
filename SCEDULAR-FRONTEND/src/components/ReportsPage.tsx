@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Download } from 'lucide-react'
+import { ChevronRight, Download } from 'lucide-react'
 import type { Page } from '../types'
-import { api, type AssignBoard, type Assignment, type Faculty, type Lab, type ScheduleConfig, type SetupOverview, type FacultyResultRow, type ResultSummary } from '../api'
+import { api, type TeacherWorkload, type AssignBoard, type Assignment, type Faculty, type Lab, type ScheduleConfig, type SetupOverview, type FacultyResultRow, type ResultSummary } from '../api'
 import { PillTabs } from './ui'
 
 type Tab = 'overview' | 'needs' | 'workload' | 'results' | 'timetable'
@@ -112,6 +112,9 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
   const [rt, setRt] = useState<{ teachers: { facultyId: string; name: string; designation: string | null; results: FacultyResultRow[]; summary: ResultSummary }[]; totalTeachers: number } | null>(null)
   const [rview, setRview] = useState<'teacher' | 'subject'>('teacher')
   const [openT, setOpenT] = useState<string | null>(null)
+  const [tw, setTw] = useState<Map<string, TeacherWorkload>>(new Map())
+  const [openW, setOpenW] = useState<string | null>(null)
+  const [showIdle, setShowIdle] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -127,6 +130,9 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
       finally { setLoading(false) }
     })()
   }, [])
+
+  // the full workload of every teacher (subjects, sections, periods, class in-charge, preferences, results, timetable load)
+  useEffect(() => { api.facultyAllocation.teacherWorkload().then(r => setTw(new Map(r.teachers.map(x => [x.facultyId, x])))).catch(() => {}) }, [])
 
   // ── derived ──
   const rows = useMemo(() => boards.flatMap(b => b.subjects.map(s => ({
@@ -284,16 +290,14 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
           <Card className="xl:col-span-8" title="Weekly teaching load" sub="periods per week">
             <div className="space-y-2.5">
               {[...teachers].sort((a, b) => b.load / b.max - a.load / a.max).filter(t => t.load > 0).map(t => (
-                <div key={t.facultyId} className="text-[12px]">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-600 text-slate-800 truncate">{t.name}</span>
-                    <span className="text-[10.5px] text-slate-400 truncate">{t.designation}</span>
-                    <span className="ml-auto font-600 text-slate-700 whitespace-nowrap">{t.load}<span className="font-400 text-slate-400"> / {t.max}</span></span>
-                  </div>
-                  <Bar pct={(100 * t.load) / Math.max(t.max, t.load)} color={BLUE} h={7} />
-                  <p className="text-[10.5px] text-slate-400 mt-0.5 truncate">{t.subjects.map(s => `${s.code} ×${s.n} (${tl(s.t, s.l)})`).join('  ·  ')}</p>
-                </div>
+                <WorkloadRow key={t.facultyId} t={t} d={tw.get(t.facultyId)} open={openW === t.facultyId} onToggle={() => setOpenW(openW === t.facultyId ? null : t.facultyId)} />
               ))}
+              {teachers.some(t => t.load === 0) && (
+                <div className="pt-2 border-t border-slate-200/60">
+                  <button onClick={() => setShowIdle(v => !v)} className="text-[11.5px] font-700 text-[#16367a] hover:underline">{showIdle ? 'Hide' : 'Show'} {teachers.filter(t => t.load === 0).length} teachers who are not teaching yet</button>
+                  {showIdle && <div className="mt-2 space-y-2.5">{teachers.filter(t => t.load === 0).map(t => <WorkloadRow key={t.facultyId} t={t} d={tw.get(t.facultyId)} open={openW === t.facultyId} onToggle={() => setOpenW(openW === t.facultyId ? null : t.facultyId)} />)}</div>}
+                </div>
+              )}
             </div>
           </Card>
           <div className="xl:col-span-4 space-y-2">
@@ -446,6 +450,101 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
             </div>
           </div>
         )
+      )}
+    </div>
+  )
+}
+
+
+const DAY_LABEL: Record<string, string> = { MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat' }
+const STATUS_TONE: Record<string, string> = { APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200', SUBMITTED: 'bg-blue-50 text-blue-700 border-blue-200', REJECTED: 'bg-rose-50 text-rose-700 border-rose-200', CHANGES_REQUESTED: 'bg-amber-50 text-amber-800 border-amber-200' }
+
+/** One teacher in the workload list. Click to open everything about their work: subjects, sections, periods, timetable, choices, results. */
+function WorkloadRow({ t, d, open, onToggle }: {
+  t: { facultyId: string; name: string; designation: string; load: number; max: number; subjects: { code: string; n: number; t: number; l: number }[] }
+  d?: TeacherWorkload; open: boolean; onToggle: () => void
+}) {
+  const days = d?.timetable ? Object.entries(d.timetable.byDay) : []
+  const maxDay = Math.max(1, ...days.map(([, n]) => n))
+  const alerts: string[] = []
+  if (d) {
+    if (d.overBy > 0) alerts.push(`${d.overBy} period${d.overBy === 1 ? '' : 's'} above the ${d.max}-period limit`)
+    if (d.load === 0) alerts.push('Not teaching any section yet')
+    if (d.experience === null) alerts.push('Experience is not set (cannot submit preferences)')
+    if (d.timetable && d.timetable.placedPeriods !== d.load) alerts.push(`The generated timetable has ${d.timetable.placedPeriods} of ${d.load} periods: generate again`)
+  }
+  return (
+    <div className="text-[12px]">
+      <button onClick={onToggle} className="w-full text-left" aria-expanded={open}>
+        <div className="flex items-baseline gap-2">
+          <ChevronRight className={`w-3.5 h-3.5 self-center text-slate-400 transition-transform ${open ? 'rotate-90' : ''}`} />
+          <span className="font-600 text-slate-800 truncate">{t.name}</span>
+          <span className="text-[10.5px] text-slate-400 truncate">{t.designation}</span>
+          <span className="ml-auto font-600 text-slate-700 whitespace-nowrap">{t.load}<span className="font-400 text-slate-400"> / {t.max}</span></span>
+        </div>
+        <div className="pl-5"><Bar pct={(100 * t.load) / Math.max(t.max, t.load, 1)} color={BLUE} h={7} /></div>
+        <p className="pl-5 text-[10.5px] text-slate-400 mt-0.5 truncate">{t.subjects.length ? t.subjects.map(s => `${s.code} ×${s.n} (${s.l > 0 ? `${s.t}T+${s.l}L` : `${s.t}T`})`).join('  ·  ') : 'Nothing assigned yet'}</p>
+      </button>
+
+      {open && (
+        <div className="ml-5 mt-2 mb-1 rounded-xl border border-slate-200/70 bg-white/60 p-3 space-y-3">
+          {!d ? <p className="text-slate-400">Loading details…</p> : (
+            <>
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[11.5px]">
+                <span><b className="text-slate-800">{d.load}</b> <span className="text-slate-500">of {d.max} periods a week</span> · <b className={d.remaining === 0 ? 'text-amber-700' : 'text-emerald-700'}>{d.remaining} free</b></span>
+                <span><b className="text-slate-800">{d.theoryPeriods}</b> <span className="text-slate-500">theory</span> + <b className="text-slate-800">{d.labPeriods}</b> <span className="text-slate-500">lab periods</span></span>
+                <span><b className="text-slate-800">{d.subjects.length}</b> <span className="text-slate-500">subjects</span> in <b className="text-slate-800">{d.sectionCount}</b> <span className="text-slate-500">sections</span></span>
+                {d.experience !== null && <span className="text-slate-500">Experience <b className="text-slate-800">{d.experience} yrs</b></span>}
+                {d.results?.average != null && <span className="text-slate-500">Past pass average <b className="text-slate-800">{d.results.average}%</b> <span className="text-slate-400">({d.results.count} entr{d.results.count === 1 ? 'y' : 'ies'})</span></span>}
+                {d.classIncharge.length > 0 && <span className="text-slate-500">Class in-charge of <b className="text-slate-800">{d.classIncharge.join(', ')}</b></span>}
+              </div>
+
+              {alerts.length > 0 && <ul className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 space-y-0.5">{alerts.map(a => <li key={a}>⚠ {a}</li>)}</ul>}
+
+              {d.subjects.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11.5px]">
+                    <thead><tr className="text-left text-[10px] uppercase tracking-wider text-slate-400"><th className="py-1 pr-3">Subject</th><th className="pr-3">Sem</th><th className="pr-3">Sections</th><th className="pr-3 whitespace-nowrap">Per section</th><th className="text-right">Periods</th></tr></thead>
+                    <tbody>
+                      {d.subjects.map(s => (
+                        <tr key={s.subjectId} className="border-t border-slate-100 align-top">
+                          <td className="py-1.5 pr-3"><span className="font-mono text-[10.5px] text-[#16367a] font-700">{s.code}</span> <span className="text-slate-700">{s.name}</span></td>
+                          <td className="pr-3 text-slate-500">{s.semester}</td>
+                          <td className="pr-3"><span className="inline-flex flex-wrap gap-1">{s.sections.map(x => <span key={x} className="px-1.5 py-0.5 rounded bg-[#2f6fc4]/10 text-[#16367a] font-600 text-[10.5px]">{x.replace(/^Y\d(S\d)?-/, '')}</span>)}</span> <span className="text-slate-400">· {s.sections.length}</span></td>
+                          <td className="pr-3 text-slate-600 whitespace-nowrap">{s.perSection.l > 0 ? (s.perSection.t > 0 ? `${s.perSection.t}T + ${s.perSection.l}L` : `${s.perSection.l}L`) : `${s.perSection.t}T`}</td>
+                          <td className="text-right font-700 text-slate-700">{s.periods}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {d.timetable && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-700 mb-1">In the generated timetable · run #{d.timetable.runId} · busiest day {d.timetable.busiestDay ? (DAY_LABEL[d.timetable.busiestDay] ?? d.timetable.busiestDay) : '–'} · {d.timetable.labPeriods} lab period{d.timetable.labPeriods === 1 ? '' : 's'}</p>
+                  <div className="flex items-end gap-2 h-14">
+                    {days.map(([day, n]) => (
+                      <div key={day} className="flex-1 flex flex-col items-center justify-end gap-0.5">
+                        <span className="text-[10px] font-700 text-slate-600">{n}</span>
+                        <div className="w-full rounded-t bg-[#2f6fc4]/70" style={{ height: `${(100 * n) / maxDay * 0.32}px`, minHeight: n ? 3 : 1 }} />
+                        <span className="text-[9.5px] text-slate-400">{DAY_LABEL[day] ?? day}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {d.preferences.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-700 mb-1">Subject choices</p>
+                  <div className="flex flex-wrap gap-1.5">{d.preferences.map((p, i) => <span key={i} className={`px-2 py-0.5 rounded-full border text-[10.5px] font-600 ${STATUS_TONE[p.status] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`} title={p.name}>{p.code} · Sem {p.semester} · {p.status.toLowerCase().replace('_', ' ')}</span>)}</div>
+                </div>
+              )}
+              {(d.email || d.phone) && <p className="text-[11px] text-slate-500">{[d.email, d.phone].filter(Boolean).join(' · ')}</p>}
+            </>
+          )}
+        </div>
       )}
     </div>
   )

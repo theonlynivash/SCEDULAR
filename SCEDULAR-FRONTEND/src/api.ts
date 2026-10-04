@@ -382,6 +382,16 @@ export interface FacultyHistoryItem {
   sectionsHandled: number
 }
 
+export interface TeacherWorkload {
+  facultyId: string; name: string; designation: string | null; experience: number | null; email: string | null; phone: string | null
+  load: number; max: number; remaining: number; overBy: number; theoryPeriods: number; labPeriods: number; sectionCount: number
+  subjects: { subjectId: string; code: string; name: string; semester: string; year: string; type: string; sections: string[]; theoryPeriods: number; labPeriods: number; periods: number; perSection: { t: number; l: number } }[]
+  classIncharge: string[]
+  preferences: { code: string; name: string; semester: string; status: string }[]
+  results: { count: number; average: number | null; weightedAverage: number | null; best: number | null; lowest: number | null } | null
+  timetable: { runId: number; placedPeriods: number; labPeriods: number; byDay: Record<string, number>; busiestDay: string | null } | null
+}
+
 export interface StaffingReport {
   cycle: string; maxWeeklyPeriods: number; avgSectionsPerTeacher: number; teachers: number
   totalDemandPeriods: number; assignedPeriods: number; openPeriods: number
@@ -804,6 +814,7 @@ export const api = {
     deletePreference: (id: number) =>
       request<{ success: boolean }>(`/hod/preferences/${id}`, { method: 'DELETE' }),
     staffing: () => request<StaffingReport>('/hod/staffing'),
+    teacherWorkload: () => request<{ cap: number; timetableRun: number | null; days: string[]; teachers: TeacherWorkload[] }>('/hod/teacher-workload'),
     applyPlan: (data: { semester: string; subjectId: string; allocations: { facultyId: string; sectionCount: number }[]; override?: boolean }) =>
       request<{ success: boolean; assignedSections: number; staffing: StaffingReport }>('/hod/apply-plan', { method: 'POST', body: JSON.stringify(data) }),
     reassign: (data: { subjectId: string; fromFacultyId: string; toFacultyId: string; sectionIds?: string[]; override?: boolean }) =>

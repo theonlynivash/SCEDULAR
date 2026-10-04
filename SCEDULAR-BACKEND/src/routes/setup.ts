@@ -17,7 +17,7 @@ import {
   listLabSubjectMappings, setLabSubjectMapping, deleteLabSubjectMapping,
   addTeachingAssignment, removeTeachingAssignment, hodChangePreferenceSubject, eraseGeneratedTimetables,
 } from '../db/repo.js'
-import { deriveInitialCourses, saveLocalDb } from '../db/localDb.js'
+import { deriveInitialCourses, saveLocalDb, runAtomic } from '../db/localDb.js'
 import { requireAuth, requireRole } from '../auth/middleware.js'
 import { generatePassword, hasPersonalPassword, setFacultyPassword, verifyFacultyPassword } from '../auth/passwords.js'
 import { SEMESTER_TO_YEAR, isSpecificSemester, semesterInCycle } from '../utils/academicCycle.js'
@@ -301,6 +301,7 @@ setupRouter.get('/setup/subjects/merge-candidates', async (_req, res, next) => {
 // takes the lab of the same section too (or, if only the lab had a teacher, that teacher takes both). Old timetables are cleared.
 setupRouter.post('/setup/subjects/merge-lab', async (req, res, next) => {
   try {
+    await runAtomic(async () => {
     const p = z.object({ theoryId: z.string().min(1), labId: z.string().min(1) }).safeParse(req.body)
     if (!p.success) return fail(res, 400, 'INVALID_INPUT', 'Give the theory subject and its lab subject.')
     const subjects = await listSubjects()
@@ -351,6 +352,7 @@ setupRouter.post('/setup/subjects/merge-lab', async (req, res, next) => {
     const cleared = await eraseGeneratedTimetables()
     saveLocalDb()
     res.json({ success: true, id: t.id, merged: l.code, theoryPeriods: t.theoryPeriods, labPeriods, clearedTimetableRuns: cleared })
+    })
   } catch (err) { next(err) }
 })
 

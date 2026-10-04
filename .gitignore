@@ -1,17 +1,45 @@
+# ── dependencies and build output ──
 node_modules/
 dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# ── secrets: never commit these ──
 .env
 .env.*
 !.env.example
-# local data & personal files — never commit (real teacher emails, password hashes, messages, source PDFs)
+
+# ── local data: real teacher emails, password hashes, messages, photos ──
 SCEDULAR-BACKEND/data/scedular_local_db.json
-SCEDULAR-BACKEND/data/scedular_local_db.json.backup-*
+SCEDULAR-BACKEND/data/scedular_local_db.json.*
+SCEDULAR-BACKEND/data/*.backup-*
+SCEDULAR-BACKEND/data/*.unreadable-*
 SCEDULAR-BACKEND/data/pdf_source/
-.claude/settings.local.json
-.trae/
+SCEDULAR-BACKEND/data/*.tmp
+# (tests use the scrubbed sample in SCEDULAR-BACKEND/tests/fixtures/ - that one IS committed)
+
+# ── source documents and extracted text ──
 pdf24_converted/
 pdf24_converted.zip
 pdf_text/
-SCEDULAR/
+*.xlsx.bak
+
+# ── editor / assistant / OS files ──
+.claude/settings.local.json
+.trae/
+.kombai/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# ── python helper scripts ──
 __pycache__/
 *.pyc
+
+# ── Vercel ──
+.vercel/

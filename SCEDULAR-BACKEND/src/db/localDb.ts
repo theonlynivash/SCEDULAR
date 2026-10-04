@@ -64,6 +64,8 @@ export interface LocalDbState {
   facultyPasswords?: Record<string, string>
   /** small profile pictures (JPEG/PNG/WebP data URLs), by faculty id */
   facultyPhotos?: Record<string, { data: string; at: string }>
+  /** pending "forgot password" codes (hashed), by faculty id: they survive restarts and other server instances */
+  passwordResets?: Record<string, { codeHash: string; expires: number; attempts: number; sentAt: number }>
   faculty: Faculty[]
   sections: Section[]
   subjects: Subject[]
@@ -265,6 +267,17 @@ export function installState(next: LocalDbState): LocalDbState {
   Object.assign(dbState, next)
   return dbState
 }
+/**
+ * Run a multi-step change as ONE unit: if anything fails half-way, every change made so far is undone, so the data is never
+ * left half imported / half merged. (Single-threaded, so nothing else changes the data while `fn` runs between awaits only
+ * if it awaits; the data layer's own calls are in-memory, so in practice no other request interleaves.)
+ */
+export async function runAtomic<T>(fn: () => Promise<T>): Promise<T> {
+  const before = structuredClone(getLocalDb())
+  try { return await fn() }
+  catch (err) { installState(before); saveLocalDb(); throw err }
+}
+
 export const newDefaultState = (): LocalDbState => (process.env.SCEDULAR_START_BLANK === 'true' ? createBlankDbState() : createDefaultDbState())
 
 /** Replace the whole dataset with an empty one (keeps the HOD login, labs and period grid). */

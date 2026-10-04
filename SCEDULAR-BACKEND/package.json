@@ -30,7 +30,7 @@
     "nodemailer": "^10.0.13",
     "pdfkit": "^0.20.2",
     "pg": "^8.23.0",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.23.8"
   },
   "devDependencies": {

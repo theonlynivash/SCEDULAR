@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { generateTimetable } from '../solver/pipeline.js'
+import { generateInBackground as generateTimetable, GenerationBusyError } from '../solver/runner.js'
 import {
   getAssignmentsForRun,
   getConflictsForRun,
@@ -67,6 +67,7 @@ timetableRouter.post('/generate', async (req, res, next) => {
     // Every ready semester in ONE run: teachers are shared across years, so they must be solved together.
     res.json(await generateTimetable(eligible.map(r => ({ year: r.year, semester: r.semester }))))
   } catch (err) {
+    if (err instanceof GenerationBusyError) return res.status(409).json({ error: 'BUSY', message: err.message })
     next(err)
   }
 })

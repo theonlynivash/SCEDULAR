@@ -6,7 +6,7 @@ Because the API is on the same domain, no CORS or `VITE_API_URL` setting is need
 
 ## 1. Create the database
 Vercel's file system is read-only, so the local JSON database cannot be used. Create a free Postgres database
-(e.g. Neon) and copy its connection string. Tables are created automatically on the first request.
+(e.g. Neon) and copy its connection string. Two small tables (`app_state`, `faculty_photos`) are created automatically on the first request; the department's data is stored as one versioned JSON document, saved before each response.
 
 ## 2. Import the repository
 Vercel -> Add New Project -> import the GitHub repo. Leave **Root Directory** empty (repo root) and **Framework
@@ -39,6 +39,6 @@ Preset** as "Other"; `vercel.json` supplies the install/build commands and outpu
 ## Notes
 - Timetable generation runs inside one request (about 30 s for 28 sections on a laptop). `maxDuration` is 60 s; if
   your plan is slower, generate semester by semester or run the solver locally against the same database.
-- Chat messages are deleted after 30 days; forgot-password codes live in server memory (15 min), so a request that
-  lands on a different serverless instance may not find the code - ask for a new one.
+- Chat messages are deleted after 30 days. Forgot-password codes are stored with the data, so any instance can verify them. If two people save at the same instant the second gets a 409 "someone else saved, please try again" and nothing is overwritten.
+- The timetable search runs in a worker thread; on the free plan the 60-second function limit applies to a generation.
 - PDF fonts (URW Bookman) are bundled from `SCEDULAR-BACKEND/assets/fonts`; without them the PDFs fall back to Times.

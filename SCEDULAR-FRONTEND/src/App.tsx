@@ -27,10 +27,14 @@ import HodAssignBoard from './components/HodAssignBoard'
 import HodFacultyManagement from './components/HodFacultyManagement'
 import ScedularAiAssistant from './components/ScedularAiAssistant'
 
+const PAGES: Page[] = ['dashboard', 'profile', 'faculty-allocation', 'hod-allocation-review', 'hod-faculty-management', 'faculty', 'subjects', 'data-hub', 'lab-management', 'upload-curriculum', 'upload-workload', 'constraints', 'generate', 'timetable-result', 'view-timetable', 'edit-timetable', 'reports', 'settings', 'mail', 'about']
+/** The page named in the address bar (#/reports), so links, reload and the browser's Back button work. */
+const pageFromHash = (): Page | null => { const p = window.location.hash.replace(/^#\/?/, '') as Page; return PAGES.includes(p) ? p : null }
+
 export default function App() {
   // Identity comes only from the authenticated session — no hardcoded defaults.
   const existing = getSession()
-  const [page, setPage] = useState<Page>(existing ? 'dashboard' : 'login')
+  const [page, setPage] = useState<Page>(existing ? (pageFromHash() ?? 'dashboard') : 'login')
   const [user, setUser] = useState<SessionUser | null>(existing?.user ?? null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [lastRunId, setLastRunId] = useState<number | null>(null)
@@ -53,6 +57,16 @@ export default function App() {
 
   const navigate = (p: Page) => setPage(p)
 
+  // keep the address bar and the page in step (deep links, reload, Back / Forward)
+  useEffect(() => {
+    if (user && page !== 'login' && window.location.hash !== `#/${page}`) window.history.pushState(null, '', `#/${page}`)
+  }, [page, user])
+  useEffect(() => {
+    const onHash = () => { const p = pageFromHash(); if (p && getSession()) setPage(p) }
+    window.addEventListener('hashchange', onHash); window.addEventListener('popstate', onHash)
+    return () => { window.removeEventListener('hashchange', onHash); window.removeEventListener('popstate', onHash) }
+  }, [])
+
   const handleLogin = (userCtx: { role: UserRole; facultyId: string; name: string; designation: string }) => {
     // Session already persisted by LoginPage from the backend response.
     fetchSessionQuote() // async — caches in sessionStorage for the session
@@ -72,6 +86,7 @@ export default function App() {
     clearSession()
     setUser(null)
     setPage('login')
+    window.history.replaceState(null, '', window.location.pathname)
   }
 
   if (!user) {

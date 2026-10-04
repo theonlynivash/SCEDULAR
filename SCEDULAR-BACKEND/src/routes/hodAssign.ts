@@ -22,7 +22,12 @@ import {
   hodChangePreferenceSubject,
   hodDeletePreference,
   getAllocationSettings,
+  getLatestValidRun,
+  getAssignmentsForRun,
+  getScheduleConfig,
+  listFacultyResults,
 } from '../db/repo.js'
+import { summarize as summarizeResults } from './teacherExtras.js'
 import { computeStaffing, staffingPolicy, subjectQuota } from '../utils/staffing.js'
 import { requireAuth, requireRole } from '../auth/middleware.js'
 import { semestersForCycle } from '../utils/academicCycle.js'
@@ -251,6 +256,61 @@ async function staffingReport() {
   ])
   return { cycle, ...computeStaffing({ semesters: semestersForCycle(cycle) as string[], faculty, sections, subjects, sectionSubjects, teachingAssignments, preferences: prefs, policy: staffingPolicy(cfg) }) }
 }
+
+// GET /api/hod/teacher-workload - everything about each teacher's work in one place (Reports -> Teacher workload).
+hodAssignRouter.get('/hod/teacher-workload', requireAuth, requireRole('HOD'), async (_req, res, next) => {
+  try {
+    const { faculty, subjects, sections, sectionSubjects, assignments, load } = await loadState()
+    const cap = staffingPolicy(await getAllocationSettings()).maxWeeklyPeriods
+    const subById = new Map(subjects.map(x => [x.id, x]))
+    const ssById = new Map(sectionSubjects.map(o => [o.id, o]))
+    const prefs = (await getFacultyPreferences()).filter(p => p.status !== 'DRAFT')
+    const results = await listFacultyResults()
+    const run = await getLatestValidRun()
+    const placed = run ? await getAssignmentsForRun(run.id) : []
+    const cfg = await getScheduleConfig()
+    const days = cfg.workingDays
+
+    const out = faculty.filter(f => f.role !== 'HOD').map(f => {
+      // what they teach: per subject, which sections, and how many periods that is
+      const bySub = new Map<string, { sections: Set<string>; theory: number; lab: number }>()
+      for (const ta of assignments.filter(a => a.facultyId === f.id)) {
+        const o = ssById.get(ta.sectionSubjectId); if (!o) continue
+        const e = bySub.get(o.subjectId) ?? { sections: new Set<string>(), theory: 0, lab: 0 }
+        e.sections.add(o.sectionId)
+        if (ta.component === 'LAB') e.lab += o.labPeriods; else e.theory += o.theoryPeriods
+        bySub.set(o.subjectId, e)
+      }
+      const taught = [...bySub.entries()].map(([subjectId, e]) => {
+        const sub = subById.get(subjectId)
+        const per = sub ? { t: sub.theoryPeriods ?? 0, l: sub.labPeriods ?? 0 } : { t: 0, l: 0 }
+        return {
+          subjectId, code: sub?.code ?? subjectId, name: sub?.name ?? subjectId, semester: sub?.semester ?? '', year: sub?.year ?? '', type: sub?.deliveryType ?? '',
+          sections: [...e.sections].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), theoryPeriods: e.theory, labPeriods: e.lab, periods: e.theory + e.lab, perSection: per,
+        }
+      }).sort((a, b) => a.semester.localeCompare(b.semester) || a.code.localeCompare(b.code))
+
+      const mine = placed.filter(a => a.facultyId === f.id)
+      const byDay: Record<string, number> = Object.fromEntries(days.map(d => [d, 0]))
+      let labPeriods = 0
+      for (const a of mine) { const n = a.endPeriod - a.startPeriod + 1; byDay[a.day] = (byDay[a.day] ?? 0) + n; if (a.blockType === 'LAB') labPeriods += n }
+      const l = load.get(f.id) ?? 0
+      const rs = results.filter(r => r.facultyId === f.id)
+      return {
+        facultyId: f.id, name: f.name, designation: f.designation, experience: f.allocationExperience ?? null, email: f.email ?? null, phone: f.phone ?? null,
+        load: l, max: cap, remaining: Math.max(0, cap - l), overBy: Math.max(0, l - cap),
+        theoryPeriods: taught.reduce((n, x) => n + x.theoryPeriods, 0), labPeriods: taught.reduce((n, x) => n + x.labPeriods, 0),
+        sectionCount: new Set(taught.flatMap(x => x.sections)).size,
+        subjects: taught,
+        classIncharge: sections.filter(s => s.classIncharge === f.id).map(s => s.id),
+        preferences: prefs.filter(p => p.facultyId === f.id).map(p => ({ code: subById.get(p.subjectId)?.code ?? p.subjectId, name: subById.get(p.subjectId)?.name ?? '', semester: p.semester, status: p.status })),
+        results: rs.length ? summarizeResults(rs) : null,
+        timetable: run ? { runId: run.id, placedPeriods: mine.reduce((n, a) => n + (a.endPeriod - a.startPeriod + 1), 0), labPeriods, byDay, busiestDay: Object.entries(byDay).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null } : null,
+      }
+    })
+    res.json({ cap, timetableRun: run?.id ?? null, days, teachers: out })
+  } catch (err) { next(err) }
+})
 
 // GET /api/hod/staffing - total demand (sections x subjects x periods), the weekly cap, and "need N more teachers"
 hodAssignRouter.get('/hod/staffing', requireAuth, requireRole('HOD'), async (_req, res, next) => {

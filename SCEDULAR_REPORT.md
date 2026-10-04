@@ -7,8 +7,8 @@
 | Document | Full report: purpose, design, internal working, and step-by-step usage |
 | Written for | The HOD and department staff who run SCEDULAR, and the developers who maintain it |
 | Covers | Semesters II – VIII (Year 1 / Semester I is outside the scope of this build) |
-| Status of the build described | Local deployment verified end to end; cloud (Vercel + Postgres) prepared but not yet exercised (see §21) |
-| Last updated | October 2026 |
+| Status of the build described | Local deployment verified end to end; cloud mode (Vercel + PostgreSQL) verified against an in-memory PostgreSQL in the automated tests, not yet on a real hosted database (see §21, §26) |
+| Last updated | October 2026 (after the hardening pass: sign-in required everywhere, versioned cloud storage, background timetable generation) |
 
 > **How to read this report.** Part A (sections 1–5) explains what the system is. Part B (6–9) explains how it is built.
 > Part C (10–13) is the **user manual**: one chapter for the HOD and one for teachers, written as click-by-click steps.
@@ -172,6 +172,7 @@ already visible to all (for example class timetables).
 | Edit own contact email / phone | ✔ | ✔ |
 | Send email to teachers (with or without login details) | ✔ | — |
 | Chat via the bell | ✔ (any teacher) | ✔ (HOD only) |
+| See other teachers' email and phone | ✔ | — (names and designations only) |
 | AI assistant | ✔ always | ✔ unless the HOD turns it off |
 | Erase submitted preferences / erase allocation (password-gated) | ✔ | — |
 | Erase teachers, sections or the syllabus in bulk | not possible for anyone | not possible |
@@ -271,9 +272,9 @@ is: confirm the cycle → add new sections → approve preferences → assign �
                                ▼               ▼           ▼
                    ┌──────────────────┐  ┌───────────┐  ┌───────────────┐
                    │  Data layer      │  │   SMTP    │  │  Groq LLM API │
-                   │  (db/repo.ts)    │  │ (Gmail)   │  │ (assistant,   │
-                   │  local JSON file │  │ via       │  │  mail drafts) │
-                   │  OR Postgres     │  │ nodemailer│  │               │
+                   │  one document:   │  │ (Gmail)   │  │ (assistant,   │
+                   │  JSON file  OR   │  │ via       │  │  mail drafts) │
+                   │  1 row in Postgres│ │ nodemailer│  │               │
                    └──────────────────┘  └───────────┘  └───────────────┘
 ```
 
@@ -295,11 +296,11 @@ is: confirm the cycle → add new sections → approve preferences → assign �
 ### 6.3 How a request flows
 
 1. The browser calls `API_BASE/<path>` with `Authorization: Bearer <token>`.
-2. `requireAuth` looks the token up in the stored sessions, loads that teacher from the database and attaches
+2. The server first makes sure its copy of the data is current (in cloud mode it reloads the stored document if another instance saved a newer version). Sign-in attempts are rate-limited here.
+3. Every route except sign-in, "forgot password" and the health check goes through the sign-in check: `requireAuth` looks the token up in the stored sessions, loads that teacher from the database and attaches
    `{ facultyId, role }` to the request. `requireRole('HOD')` additionally refuses non-HODs with HTTP 403.
-3. The route validates its input (zod), calls repository functions, and returns JSON (or a PDF stream).
-4. The repository function talks to Postgres if configured; otherwise it works on the in-memory copy of the local JSON
-   file and writes the file back (`saveLocalDb`). The same code path serves both modes.
+4. The route validates its input (zod), calls repository functions, and returns JSON (or a PDF stream).
+5. The repository functions work on the in-memory copy of the department's data. In file mode the file is written back after the change; in cloud mode the document is saved to PostgreSQL **before the response is sent** (compare-and-swap on a version number). The same code serves both modes.
 
 ### 6.4 Frontend structure
 
@@ -416,28 +417,42 @@ GenerationRun 1───* Assignment (day, periods, section, subject, faculty, l
 
 ## 9. Where data lives
 
-### 9.1 Local mode (default for development and single-machine use)
+The department's data (teachers, sections, subjects, assignments, preferences, generated timetables, sessions, messages ...) is
+**one document**. The program works on an in-memory copy of it, which is why everything that is tested locally behaves the
+same in the cloud. Only *where the document is stored* differs.
 
-* The whole database is one JSON file: `SCEDULAR-BACKEND/data/scedular_local_db.json`.
-* It is loaded into memory on start and written back after every change.
-* It is **app-owned**: once `appOwned: true` is stored, the start-up routine never re-imports seed data over your edits.
-* If the file does not exist, the app creates a sample department from the built-in seed (or an empty one when
-  `SCEDULAR_START_BLANK=true`).
-* `SCEDULAR_DB_FILE` can point to a different file (used by the tests so they never touch the real data).
-* Local mode is used whenever `DATABASE_URL` is empty or `USE_LOCAL_DB=true`.
+### 9.1 File mode (default for one computer)
 
-### 9.2 Postgres mode (cloud)
+* The document is the file `SCEDULAR-BACKEND/data/scedular_local_db.json`, written after every change (via a temporary file
+  and a rename, so a crash cannot leave half a file).
+* It is **app-owned**: the start-up routine never re-imports seed data over your edits.
+* If the file does not exist, a sample department is created (an empty one when `SCEDULAR_START_BLANK=true`).
+* If the file exists but cannot be read, the program **refuses to start**, keeps a copy named `...unreadable-<time>` next to it
+  and tells you so. It never silently starts from the sample data (which would later overwrite your real file).
+* `SCEDULAR_DB_FILE` points to a different file (the tests use their own copy).
+* File mode is used whenever `DATABASE_URL` is empty or `USE_LOCAL_DB=true`.
 
-* Set `DATABASE_URL`. Tables are created automatically on first use from `schema.sql`.
-* The built-in seed (faculty roster, regulation-2024 curriculum, sections, labs) is inserted when the tables are empty.
-* The repository layer tries Postgres first and falls back to memory only when Postgres is not configured, so the same
-  functions serve both modes.
+### 9.2 PostgreSQL mode (cloud)
+
+* Set `DATABASE_URL`. The program creates two tables on the first request: `app_state` (the document, with a version
+  number) and `faculty_photos` (profile pictures, kept out of the document because they are large).
+* **Saved before answering.** A request that changes anything writes the document to PostgreSQL before its response is sent. If
+  the save fails the user gets an error, never a false "done".
+* **Several server instances.** Cloud hosts may run several copies of the server. Before each request an instance checks the
+  version and reloads if another instance saved newer data. A save only succeeds if nobody saved in between; if two people
+  save at the same moment the second gets a **409 "Someone else saved changes at the same moment, please try again"** and the
+  first person's data is never overwritten.
+* Database errors are reported (HTTP 500, "Your change could not be saved"), never hidden.
+* The older per-table SQL code in `repo.ts` is switched off (`db/client.ts`); it was only partly used and could not even
+  install on an empty database. The versioned-document design replaces it.
 
 ### 9.3 Practical consequences
 
-* Do not run two backends against the same JSON file; each keeps its own in-memory copy and the last writer wins.
-* The JSON file contains personal data (emails, phone numbers, password hashes, messages). It is git-ignored; do not share it.
-* On Vercel the file system is read-only, so Postgres is mandatory there.
+* In file mode, do not run two backends against the same file (each keeps its own copy and the last writer wins).
+* The data contains personal information (emails, phone numbers, password hashes, messages). It is git-ignored; do not share it.
+* On Vercel the file system is read-only, so PostgreSQL mode is mandatory there.
+* Multi-step changes (an Excel import, "Combine theory + lab", replace-all teachers) are all-or-nothing: if a step fails, every
+  change made so far is undone.
 
 ---
 
@@ -633,7 +648,7 @@ What each PDF contains is described in §13.
 
 1. **Overview** — key figures (staffing, teachers teaching, average load, timetable status with number of placements, lab rooms in use), staffing by semester, how loaded teachers are, the experience mix, teachers' choices per semester and the busiest teachers.
 2. **Subject needs** — for each subject how many sections need a teacher, how many are covered, and how many teachers chose it. Notes such as "Nobody chose it" or "Assigned directly".
-3. **Teacher workload** — weekly teaching load per teacher as bars (with the subjects behind each number) and a distribution of teachers by weekly periods.
+3. **Teacher workload** — weekly teaching load per teacher as bars. **Click a teacher to open everything about their work:** periods used and free (of the 28-period limit), theory and lab periods, number of subjects and sections, experience, past pass average, the sections they are class in-charge of, a table of every subject they teach (semester, the section letters, periods per section, total periods), their load per day in the generated timetable (busiest day, lab periods), their subject choices with status, and warnings (above the limit, experience not set, timetable out of date). Teachers who are not teaching yet are in a collapsible list with the same details. A distribution of teachers by weekly periods and the capacity summary sit beside it.
 4. **Teacher results** — department average pass percentage, number of teachers with results, highest and lowest averages, and per-teacher detail by semester.
 5. **Timetable analysis** — *When the department teaches* (a period-by-day heat grid), *Classes per day* and *Lab room use*.
 
@@ -850,6 +865,7 @@ block type, lab). Views and PDFs always read the latest valid run (GREEN or YELL
 ### 14.9 Performance and limits
 * Sample dataset: 28 sections, 984 placed periods, about 30–35 seconds on a laptop.
 * A step budget (up to 2,000,000 backtracking steps per attempt, smaller budgets for the first sequential passes) prevents endless runs; exceeding it triggers the repair stages.
+* **The search runs in a background worker thread** on a copy of the data, so the server keeps answering everyone else during the half minute it takes (this is tested: requests during a run were answered in well under 1.5 s). Only one generation runs at a time (a second request gets 409 "already being generated"). If a worker cannot be started the search runs in the main thread instead.
 * On Vercel, the function limit is 60 seconds; generation is the one heavy request.
 
 ## 15. How a timetable is verified
@@ -1095,7 +1111,7 @@ What `vercel.json` does:
 * bundles the backend source, the font files and the pdfkit data files into the function;
 * adds security headers (no sniffing, no framing, strict transport security, referrer policy), long caching for hashed assets and `no-store` for API responses.
 
-**Status:** the Vercel/Postgres path is prepared and reviewed but has **not** been run end to end. Expect to fix small things on the first deploy and test the full flow once (§26).
+**Status:** cloud mode is covered by automated tests that run the whole application against an in-memory PostgreSQL (first start, saving, a second server instance, conflicts, restart, errors). It has not yet run against a real hosted database such as Neon, so do one rehearsal deploy before real use (§26).
 
 ## 22. Environment variables
 
@@ -1113,6 +1129,8 @@ What `vercel.json` does:
 | `MAIL_TRANSPORT` | `json` capture / `fail` (tests, demos only) | unset |
 | `GROQ_API_KEY` (or `GROK_API_KEY`, `XAI_API_KEY`, `LLM_API_KEY`) | Language-model access | assistant unavailable if empty |
 | `LLM_PROVIDER`, `GROQ_MODEL`, `GROQ_API_BASE` | Model selection | groq, `qwen/qwen3.8-27b`, Groq URL |
+| `SOLVER_INLINE` | `true` runs the timetable search in the main thread instead of a worker (debugging only) | off |
+| `TRUST_PROXY` | `true` when the server sits behind a proxy, so sign-in limits use the real client address (set automatically on Vercel) | off |
 | `CORS_ORIGINS` | Extra allowed browser origins (comma separated; `/regex/` allowed) | localhost and `*.vercel.app` always allowed |
 | `VITE_API_URL` | Frontend: explicit API address | local dev uses `http://localhost:8090/api`; Vercel uses `/api` |
 
@@ -1122,9 +1140,7 @@ Never commit `.env`; it is git-ignored.
 ## 23. Testing
 
 ### 23.1 What exists
-Twenty-two test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts`). At the time of writing **175 tests pass**; two files
-(`stage6.test.ts`, `facultyAllocationPolicy.test.mjs`) contain no runnable suites and are reported as "No test suite found" (this was
-already so before this build and does not indicate a failure of the product).
+Twenty-seven test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts` and a scrubbed sample database in `tests/fixtures/`). At the time of writing **194 tests pass**, with none skipped or failing. The two script-style files (`stage6.test.ts`, `facultyAllocationPolicy.test.mjs`) are run by `npm test` directly and are excluded from vitest.
 
 | File | What it protects |
 |---|---|
@@ -1142,6 +1158,12 @@ already so before this build and does not indicate a failure of the product).
 | `scratch_sem1_import` | From an empty dataset, Semester I only through Excel imports → preferences → approval → assignment → GREEN timetable → PDF |
 | `plan_assign` | The editable plan must cover the open sections exactly; change teacher; picker data |
 | `merge_lab` | Theory + lab pairs become one subject, one teacher per class, timetable regenerates |
+| `api_security` | Every data route answers 401 without sign-in; teachers can read but not write; teachers cannot see each other's email or phone |
+| `postgres_mode` | Cloud mode on an in-memory PostgreSQL: first start, saved-before-answer versions, a second instance, conflict refusal, restart, database errors |
+| `solver_worker` | Starts the real server and proves it keeps answering while a timetable is generated off the main thread |
+| `rate_limit` | 8 failed sign-ins lock an account for 15 min; forgot-password mail limit; reset codes stored with the data; sessions expire after 30 days |
+| `atomic` | A multi-step change that fails half-way leaves no trace |
+| `teacher_workload` | The per-teacher workload report adds up (subjects, sections, periods, timetable load) and is HOD only |
 | `staffing` | Quota and "need more teachers" arithmetic (12 sections × 3 subjects × 4T example) and the server refusing a choice once a subject is full |
 | `data_erase` | The two erase actions are HOD + password only, keep what they must keep, and no bulk-erase routes exist |
 | `photos` | Set own picture, others can see it, only HOD changes someone else's, size and type limits, lists never carry image data |
@@ -1231,6 +1253,17 @@ Layout checks were done in a headless Chrome at desktop and phone sizes (About p
 **The bottom bar hides content.** Pages leave room for it; if a custom page does not, add bottom padding.
 **Timetable looks empty on a phone.** Choose the teacher/section/lab at the top; the day cards appear after selection (teachers' own name is pre-selected).
 
+### Saving, limits and busy messages
+**"Someone else saved changes at the same moment" (409).** Cloud mode only. Two people changed data at the same instant; the first save won and yours was refused so nothing was overwritten. Reload the page and repeat your change.
+
+**"Too many failed sign-in attempts" (429).** 8 wrong passwords for one account lock sign-in from that address for 15 minutes. Wait, or ask the HOD to reissue the login. "Forgot password" is limited to 5 mails per 15 minutes per account.
+
+**"A timetable is already being generated" (409).** Only one generation runs at a time. Wait for it to finish (about half a minute).
+
+**"Your change could not be saved" (500).** The database could not be written. Nothing was changed. Try again; if it repeats, check the database service.
+
+**"The database file ... could not be read".** The data file is damaged. The program refused to start and kept a copy named `...unreadable-<time>`. Restore a backup of the data file.
+
 ### Servers
 **Port already in use.** Another copy is running. Stop it (find the process listening on 8090 / 8443) before starting a new one; two backends on one data file overwrite each other.
 **`npm run dev` restarts constantly.** `tsx watch` restarts when files change, including the data file if it lives inside a watched folder.
@@ -1239,19 +1272,19 @@ Layout checks were done in a headless Chrome at desktop and phone sizes (About p
 
 Honest list of what to keep in mind before relying on the system in the wild:
 
-1. **Cloud path unproven.** Postgres/Vercel mode has not been exercised end to end (including the newer tables for messages and results). Run one full rehearsal before the first real term on it.
-2. **Generation inside a web request.** On a slow host a large run may exceed the function time limit (60 s). Mitigation: generate locally against the same database, or by semester groups.
-3. **Rate limiting.** There is no limit on repeated sign-in attempts. Reset-code requests are throttled, but the login endpoint is not. Add a limiter before exposing the site publicly.
-4. **Default secret.** `SCEDULAR_AIDS` (bootstrap password) is a default in the code. Set `SCEDULAR_MASTER_PASSWORD` in production.
-5. **Reset codes in memory.** A restart or a different serverless instance forgets pending codes.
+1. **Real hosted database not yet tried.** Cloud mode passes its tests on an in-memory PostgreSQL, but a rehearsal deploy (Vercel + Neon) is still the first thing to do before real use.
+2. **Whole-document storage.** In cloud mode every change saves the whole department document (about 0.5 MB). That is fine for one department, but it is not meant for hundreds of simultaneous editors; simultaneous saves are protected (409) but the second person has to repeat their change.
+3. **Generation on a slow host.** The search runs off the main thread, but on a small cloud function it may exceed the host's time limit (60 s on Vercel). Mitigation: generate locally, or by semester groups.
+4. **Sign-in limits are per server instance.** The lock after 8 failed attempts is kept in each server's memory, so with several cloud instances an attacker gets a few more tries; it stops casual guessing, not a determined attack.
+5. **Default secret.** `SCEDULAR_AIDS` (bootstrap password) is a default in the code. Set `SCEDULAR_MASTER_PASSWORD` in production.
 6. **Messages are not encrypted** and are visible to administrators with database access.
-7. **AI service dependence.** The assistant needs an external API key and internet; the free tier is rate-limited. The core scheduling features do not depend on it.
-8. **Year 1 / Semester I** is out of scope in this build.
-9. **Sample data.** The built-in roster/curriculum is for one specific department and year. A different institution should start from a blank install (`SCEDULAR_START_BLANK=true`) and build everything in the app.
+7. **AI service dependence.** The assistant needs an external API key and internet; the free tier is rate-limited, and what you ask it is sent to that service. The core scheduling features do not depend on it.
+8. **Not modelled:** elective baskets, lab batches that split a class, classrooms for theory, combined classes, and teachers shared with other departments. There is also no hand-editing of a generated timetable yet (the Edit Timetable page is a placeholder): to change it, change the assignment and generate again.
+9. **Sample data.** The built-in roster/curriculum is for one specific department. A different institution should start from a blank install (`SCEDULAR_START_BLANK=true`) and build everything in the app.
 10. **Printed layout is approximate to the pixel.** It follows the department's three printed documents very closely but is not a byte-for-byte copy; staff names and title case come from the database.
-11. **Two empty test files** exist in the repository (see §23).
-12. **Personal data in the repository history.** Earlier commits on the public GitHub repository contain earlier copies of the data file. If that is a concern, make the repository private or rewrite its history.
-13. **Single-machine local mode** supports one backend process only.
+11. **Personal data in the repository history.** Earlier commits on the public GitHub repository contain earlier copies of the data file. If that is a concern, make the repository private or rewrite its history.
+12. **Workload templates** (the older template pages) are stored in the document like everything else; they are not separate database tables.
+13. **File mode** supports one backend process only.
 
 ## 27. Maintenance checklist and roadmap
 
@@ -1337,6 +1370,7 @@ All routes are under `/api`. "Auth" = needs `Authorization: Bearer <token>`; "HO
 | GET | `/setup/import/data-check` | HOD | What is still missing for preferences and timetable generation |
 | PUT | `/setup/subjects/:id/lab-rooms` | HOD | Replace all lab rooms of a subject (`{ rooms: [{ labId, sectionId? }] }`) |
 | GET · POST | `/setup/subjects/merge-candidates` · `/setup/subjects/merge-lab` | HOD | Find / combine theory + lab pairs |
+| GET | `/hod/teacher-workload` | HOD | Everything about each teacher's work (subjects, sections, periods, class in-charge, choices, results, timetable load) |
 | GET | `/hod/staffing` | HOD | Demand vs capacity, teachers needed, "need N more teachers", per-subject quota |
 | GET/POST | `/hod/academic-cycle` | HOD | Read / set the cycle (password) |
 | GET | `/hod/workload-summary`, `/hod/confirmed-allocation`, `/section-allocation` | HOD | Summaries |

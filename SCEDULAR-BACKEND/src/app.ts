@@ -25,6 +25,7 @@ import { dataEraseRouter } from './routes/dataErase.js'
 import { photosRouter } from './routes/photos.js'
 import { bulkImportRouter } from './routes/bulkImport.js'
 import { apiGuard, hodWrites, securityHeaders } from './auth/guard.js'
+import { loginLimiter, resetLimiter } from './auth/rateLimit.js'
 import { workloadTemplatesRouter } from './routes/workloadTemplates.js'
 
 function buildCorsOriginList(): (string | RegExp)[] {
@@ -52,6 +53,10 @@ function buildCorsOriginList(): (string | RegExp)[] {
 const corsOrigins = buildCorsOriginList()
 
 export const app = express()
+// behind Vercel (or any proxy) the real client address is in X-Forwarded-For
+if (process.env.VERCEL || process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1)
+// behind Vercel (or any proxy) the real client address is in X-Forwarded-For
+if (process.env.VERCEL || process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1)
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true)
@@ -73,6 +78,11 @@ app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'scedular-ba
 
 // loads the data (and, in PostgreSQL mode, syncs it with other instances and saves before the response is sent)
 app.use(storeMiddleware)
+
+// slow down password guessing and reset-mail spam (before anything else on these paths)
+app.post('/api/auth/login', loginLimiter)
+app.post('/api/auth/reset', loginLimiter)
+app.post('/api/auth/forgot', resetLimiter)
 
 // nothing below this line is reachable without signing in (login / forgot / reset / health excepted)
 app.use('/api', apiGuard)
