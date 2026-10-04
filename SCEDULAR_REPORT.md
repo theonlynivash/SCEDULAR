@@ -1141,11 +1141,11 @@ already so before this build and does not indicate a failure of the product).
 | `exports` | Teacher PDF only for self (HOD any), master PDF HOD only, valid PDF bytes |
 
 ### 23.2 Isolation (important)
-`vitest.config.ts` runs `tests/setup/isolate-db.ts` first. It copies the real data file to a private temporary file, points
+`vitest.config.ts` runs `tests/setup/isolate-db.ts` first. It copies a **frozen sample database** (`tests/fixtures/sample_db.json`, with emails, phones, passwords and messages removed) to a private temporary file, points
 `SCEDULAR_DB_FILE` at it, resets passwords to the defaults, and forces `MAIL_TRANSPORT=json`. Therefore:
 * tests never change your real data;
 * tests never send real email;
-* tests may read real data (they use counts as a snapshot), so they are sensitive to large manual data changes.
+* tests do not depend on the real data, so editing, merging or erasing real data never changes their results.
 
 ### 23.3 Running
 ```bash

@@ -1,5 +1,5 @@
 /**
- * Runs before every test file. Gives the suite a PRIVATE copy of the live database so that:
+ * Runs before every test file. Gives the suite a PRIVATE copy of a frozen sample database so that:
  *  - tests can reset / wipe workflow data without touching the real one, and
  *  - every account logs in with the default password, whatever personal passwords the HOD has issued since.
  * Tests that need their own file (blank dataset, teacher extras) set SCEDULAR_DB_FILE themselves afterwards.
@@ -9,7 +9,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const live = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../data/scedular_local_db.json')
+// A frozen copy of the sample department (no personal data), NOT the live database: results must not change when the HOD edits real data.
+const live = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures/sample_db.json')
 const copy = path.join(os.tmpdir(), `scedular-test-${process.pid}-${Math.random().toString(36).slice(2)}.json`)
 const db = JSON.parse(fs.readFileSync(live, 'utf-8'))
 db.facultyPasswords = {}
