@@ -548,7 +548,7 @@ export const api = {
     mapSubject: (labId: string, subjectId: string, sectionId?: string | null) =>
       request('/labs/subject-mapping', { method: 'POST', body: JSON.stringify({ labId, subjectId, sectionId: sectionId ?? null }) }),
     unmapSubject: (labId: string, subjectId: string, sectionId?: string | null) =>
-      request<void>(`/labs/subject-mapping?labId=${encodeURIComponent(labId)}&subjectId=${encodeURIComponent(subjectId)}&sectionId=${encodeURIComponent(sectionId ?? '')}`, { method: 'DELETE' }),
+      request<void>(`/labs/subject-mapping?labId=${encodeURIComponent(labId)}&subjectId=${encodeURIComponent(subjectId)}${sectionId ? `&sectionId=${encodeURIComponent(sectionId)}` : ''}`, { method: 'DELETE' }),
   },
   config: {
     get: () => request<ScheduleConfig>('/config'),

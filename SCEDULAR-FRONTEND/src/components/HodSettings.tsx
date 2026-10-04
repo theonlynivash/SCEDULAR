@@ -8,6 +8,7 @@ import SetupSyllabusTab from './SetupSyllabusTab'
 import SetupDatasetTab from './SetupDatasetTab'
 import SetupInchargeTab from './SetupInchargeTab'
 import SetupImportTab from './SetupImportTab'
+import SetupLabsTab from './SetupLabsTab'
 import { PillTabs } from './ui'
 
 interface AllocationBand {
@@ -312,11 +313,12 @@ function PolicyAndCycle() {
   )
 }
 
-type Tab = 'setup' | 'sections' | 'syllabus' | 'incharge' | 'import' | 'policy' | 'dataset'
+type Tab = 'setup' | 'sections' | 'syllabus' | 'labs' | 'incharge' | 'import' | 'policy' | 'dataset'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'setup', label: 'Semester setup' },
   { id: 'sections', label: 'Sections' },
   { id: 'syllabus', label: 'Syllabus' },
+  { id: 'labs', label: 'Lab rooms' },
   { id: 'import', label: 'Import' },
   { id: 'incharge', label: 'Class in-charge' },
   { id: 'policy', label: 'Policy & cycle' },
@@ -337,7 +339,8 @@ export default function HodSettings({ navigate }: { navigate: (p: Page) => void 
       {notice && <div className={`text-xs font-600 rounded-lg px-4 py-2.5 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>{notice.ok ? '✓' : '⚠'} {notice.text}</div>}
       {tab === 'setup' && <SetupOverviewTab navigate={navigate} goTo={setTab} />}
       {tab === 'sections' && <SetupSyllabusTab say={say} mode="sections" />}
-      {tab === 'syllabus' && <SetupSyllabusTab say={say} mode="syllabus" />}
+      {tab === 'syllabus' && <SetupSyllabusTab say={say} mode="syllabus" onOpenLabs={() => setTab('labs')} />}
+      {tab === 'labs' && <SetupLabsTab say={say} />}
       {tab === 'import' && <SetupImportTab say={say} />}
       {tab === 'incharge' && <SetupInchargeTab say={say} />}
       {tab === 'policy' && <PolicyAndCycle />}

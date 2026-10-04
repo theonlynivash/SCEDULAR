@@ -17,7 +17,7 @@ const inputCls = 'w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-x
 const labelCls = 'block text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1'
 
 /** The syllabus for each running semester, plus the class sections that take it. */
-export default function SetupSyllabusTab({ say, mode = 'syllabus' }: { say: (ok: boolean, text: string) => void; mode?: 'sections' | 'syllabus' }) {
+export default function SetupSyllabusTab({ say, mode = 'syllabus', onOpenLabs }: { say: (ok: boolean, text: string) => void; mode?: 'sections' | 'syllabus'; onOpenLabs?: () => void }) {
   const [pairs, setPairs] = useState<Awaited<ReturnType<typeof api.setup.mergeCandidates>>>([])
   const [importing, setImporting] = useState<'sections' | 'syllabus' | null>(null)
   const [query, setQuery] = useState('')
@@ -201,7 +201,7 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus' }: { say: (ok:
                   <td className="text-center">{s.labPeriods || '–'}</td>
                   <td className="text-center">{s.credits || '–'}</td>
                   <td className="text-slate-500 text-[11px]">{(CATEGORIES.find(([v]) => v === s.category)?.[1]) ?? s.category}</td>
-                  <td className="text-slate-500 text-[11px]">{s.labPeriods > 0 ? ((s.labRooms ?? []).length ? <span title={(s.labRooms ?? []).map(r => `${labs.find(l => l.id === r.labId)?.name ?? r.labId}${r.sectionId ? ` · ${r.sectionId}` : ' · any section'}`).join('\n')}>{[...new Set((s.labRooms ?? []).map(r => labs.find(l => l.id === r.labId)?.name ?? r.labId))].join(', ')}{(s.labRooms ?? []).some(r => r.sectionId) && <span className="text-slate-400"> · per section</span>}</span> : <span className="text-amber-700 font-600">none set</span>) : '–'}</td>
+                  <td className="text-slate-500 text-[11px]">{s.labPeriods > 0 ? ((s.labRooms ?? []).length ? <span title={(s.labRooms ?? []).map(r => `${labs.find(l => l.id === r.labId)?.name ?? r.labId}${r.sectionId ? ` · ${r.sectionId}` : ' · any section'}`).join('\n')}>{[...new Set((s.labRooms ?? []).map(r => labs.find(l => l.id === r.labId)?.name ?? r.labId))].join(', ')}{(s.labRooms ?? []).some(r => r.sectionId) && <span className="text-slate-400"> · per section</span>}</span> : <button onClick={onOpenLabs} className="text-amber-700 font-700 underline decoration-dotted">set rooms →</button>) : '–'}</td>
                   <td className="text-slate-500">{s.sectionIds.length === defaultSectionIds.length ? `All ${s.sectionIds.length}` : s.sectionIds.map(x => x.replace(/^Y\d(S\d)?-/, '')).join(', ') || 'None'}</td>
                   <td className="text-center"><span className={s.staffed >= s.sectionIds.length && s.sectionIds.length > 0 ? 'text-emerald-700 font-700' : 'text-amber-700 font-700'}>{s.staffed}/{s.sectionIds.length}</span></td>
                   <td className="text-right whitespace-nowrap">

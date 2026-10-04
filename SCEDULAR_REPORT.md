@@ -471,7 +471,7 @@ a readiness summary. Counts come from the real data.
 
 ### 10.3 Settings (gear icon)
 
-Settings has seven tabs: Semester setup, Sections, Syllabus, Import, Class in-charge, Policy & cycle and Dataset. All changes are saved immediately and a green or red banner confirms the result.
+Settings has eight tabs: Semester setup, Sections, Syllabus, Lab rooms, Import, Class in-charge, Policy & cycle and Dataset. All changes are saved immediately and a green or red banner confirms the result.
 
 #### Tab 1 — Semester setup
 A read-out of each semester that has data: how many sections, subjects, offerings, how many offerings already have a
@@ -493,6 +493,9 @@ These were one tab and are now two: **Sections** (add / delete sections, class i
 * **Edit subject** — change any field; offerings update to match.
 * **Delete subject** — removes it from all sections, the teacher assignments for it, and any preferences for it (the dialog tells you how many).
 * The **short name** is what appears in the timetable grid (for example ARVR). If empty, the initials of the main words are used.
+
+#### Tab — Lab rooms
+The rooms themselves (add with an optional capacity, remove) and, for every subject that has lab periods, which room(s) can host it: click a room to switch it on or off for **all sections** of that subject. "A different room for a section" fixes another room for one section. A subject with lab periods and no room is marked "No room set" (and its semester ⚠); the timetable cannot be generated until each has one. In the Syllabus tab a subject without a room shows a **set rooms →** link that opens this tab.
 
 #### Tab 4 — Import (set a department up from Excel)
 Three steps, in order: **1 Sections → 2 Syllabus → 3 Teachers.** One **all-in-one workbook** (sheets *Sections*, *Syllabus*, *Teachers*, plus README and a Lists sheet of allowed values and your lab rooms) can be downloaded, filled, and uploaded once per step; each step also has its own template.
