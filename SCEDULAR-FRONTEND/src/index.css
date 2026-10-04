@@ -126,80 +126,6 @@
   --x-50: #f3f2f8; --x-100: #e4e2ef; --x-500: #6b5fa8; --x-800: #463e6d;
   --p-50: #f8f1f3; --p-100: #efe1e5; --p-700: #a8566f; --p-800: #763c4e;
 }
-:root[data-theme='burgundy'] {
-  --ink-950: #2c0f18;
-  --ink-900: #3a1420;
-  --ink-850: #46222d;
-  --ink-800: #571c2b;
-  --ink-750: #4d1927;
-  --c-700: #621e2d;
-  --c-650: #6e2232;
-  --c-600: #7a2638;
-  --c-550: #8a4050;
-  --c-500: #a26774;
-  --c-450: #955160;
-  --accent: #d9c39a;
-  --accent-dark: #8a6a2f;
-  --accent-light: #f7f2e9;
-  --accent-mid: #b99f6f;
-  --amber: #d9b26a;
-  --text: #34121d;
-  --muted: #827072;
-  --surface: #f6f0e6;
-  --surface-2: #efe9df;
-  --surface-3: #faf8f2;
-  --border: #d8d3ca;
-  --ink-rgb: 87, 28, 43; --chrome-a-rgb: 70, 34, 45; --chrome-b-rgb: 44, 15, 24; --shadow-rgb: 58, 20, 32; --shadow-dark-rgb: 32, 11, 18;
-  --paper-rgb: 251, 249, 245; --accent-rgb: 217, 195, 154; --glass-a-rgb: 253, 251, 249; --glass-b-rgb: 239, 229, 231; --surface-2-rgb: 239, 233, 223;
-  --wall-1: #8a4050; --wall-2: #d9c39a; --wall-3: #d1694f; --wall-4: #571c2b;
-  --t1: #8a2f45; --t1d: #5a1f2d; --t1-rgb: 138, 47, 69;
-  --t2: #c9a45e; --t2d: #836b3d; --t2-rgb: 201, 164, 94;
-  --t3: #d1694f; --t3d: #884433; --t3-rgb: 209, 105, 79;
-  --t4: #4f8a76; --t4d: #335a4d; --t4-rgb: 79, 138, 118;
-  --t5: #4a5a9c; --t5d: #303a65; --t5-rgb: 74, 90, 156;
-  --t6: #a8567a; --t6d: #6d384f; --t6-rgb: 168, 86, 122;
-  --s-50: #faf6f0; --s-100: #efe9df; --s-200: #e0dad1; --s-300: #ccc7bf; --s-400: #a19496; --s-500: #6e5a5e; --s-600: #5a4a4d; --s-700: #4b3d40; --s-800: #3b3133; --s-900: #2e2627;
-  --b-50: #f6f0f1; --b-100: #ebdee1; --b-200: #d7bec3; --b-300: #bf979f; --b-400: #a26774; --b-500: #873c4c; --b-600: #7a2638; --b-700: #621e2d; --b-800: #4f1924; --b-900: #3d131c;
-  --x-50: #f1f2f7; --x-100: #dee1ed; --x-500: #4a5a9c; --x-800: #303a65;
-  --p-50: #f8f1f4; --p-100: #efe1e7; --p-700: #a8567a; --p-800: #763c55;
-}
-:root[data-theme='ocean'] {
-  --ink-950: #0b1d30;
-  --ink-900: #0f2740;
-  --ink-850: #1d344b;
-  --ink-800: #163e64;
-  --ink-750: #143658;
-  --c-700: #194872;
-  --c-650: #1c5181;
-  --c-600: #1f5a8f;
-  --c-550: #3a6e9c;
-  --c-500: #628cb1;
-  --c-450: #4c7ba5;
-  --accent: #e0c9a0;
-  --accent-dark: #94773f;
-  --accent-light: #f8f3ea;
-  --accent-mid: #c2a879;
-  --amber: #dcb46d;
-  --text: #0e233a;
-  --muted: #6e7d89;
-  --surface: #f4f1ea;
-  --surface-2: #edeae3;
-  --surface-3: #faf8f4;
-  --border: #d7d4ce;
-  --ink-rgb: 22, 62, 100; --chrome-a-rgb: 29, 52, 75; --chrome-b-rgb: 11, 29, 48; --shadow-rgb: 15, 39, 64; --shadow-dark-rgb: 8, 21, 35;
-  --paper-rgb: 251, 249, 247; --accent-rgb: 224, 201, 160; --glass-a-rgb: 252, 252, 250; --glass-b-rgb: 228, 235, 242; --surface-2-rgb: 237, 234, 227;
-  --wall-1: #3a6e9c; --wall-2: #e0c9a0; --wall-3: #d9694f; --wall-4: #163e64;
-  --t1: #2a6aa3; --t1d: #1b456a; --t1-rgb: 42, 106, 163;
-  --t2: #d4b27a; --t2d: #8a744f; --t2-rgb: 212, 178, 122;
-  --t3: #d9694f; --t3d: #8d4433; --t3-rgb: 217, 105, 79;
-  --t4: #2f9a8f; --t4d: #1f645d; --t4-rgb: 47, 154, 143;
-  --t5: #5a5fb0; --t5d: #3a3e72; --t5-rgb: 90, 95, 176;
-  --t6: #b0587a; --t6d: #72394f; --t6-rgb: 176, 88, 122;
-  --s-50: #f8f7f2; --s-100: #edeae3; --s-200: #dedbd5; --s-300: #cbc8c2; --s-400: #919da7; --s-500: #566878; --s-600: #475562; --s-700: #3a4752; --s-800: #2e3841; --s-900: #242c32;
-  --b-50: #eff3f7; --b-100: #dde6ee; --b-200: #bccedd; --b-300: #93b0c9; --b-400: #628cb1; --b-500: #356a9a; --b-600: #1f5a8f; --b-700: #194872; --b-800: #143a5d; --b-900: #102d48;
-  --x-50: #f2f2f9; --x-100: #e1e2f1; --x-500: #5a5fb0; --x-800: #3a3e72;
-  --p-50: #f9f2f4; --p-100: #f1e1e7; --p-700: #b0587a; --p-800: #7b3e55;
-}
 :root[data-theme='rose'] {
   --ink-950: #171a24;
   --ink-900: #1f2230;
@@ -349,6 +275,81 @@
   --b-50: #f9f0f5; --b-100: #f1dee9; --b-200: #e3bed4; --b-300: #d396ba; --b-400: #bf669a; --b-500: #ac3b7d; --b-600: #a3256f; --b-700: #821e59; --b-800: #6a1848; --b-900: #521238;
   --x-50: #f3f2f9; --x-100: #e4e1f2; --x-500: #6a58b8; --x-800: #453978;
   --p-50: #faf1f4; --p-100: #f4e0e7; --p-700: #c2527a; --p-800: #883955;
+}
+
+:root[data-theme='maroon'] {
+  --ink-950: #2c0b0e;
+  --ink-900: #3a0f12;
+  --ink-850: #461d20;
+  --ink-800: #57161a;
+  --ink-750: #4e1417;
+  --c-700: #62181d;
+  --c-650: #6f1b20;
+  --c-600: #7b1e24;
+  --c-550: #8b393e;
+  --c-500: #a36266;
+  --c-450: #954b50;
+  --accent: #dcb64a;
+  --accent-dark: #8a6a14;
+  --accent-light: #f7efd7;
+  --accent-mid: #bb9834;
+  --amber: #daab42;
+  --text: #340e10;
+  --muted: #83716f;
+  --surface: #f7f1e6;
+  --surface-2: #f0eadf;
+  --surface-3: #fbf8f2;
+  --border: #d9d4ca;
+  --ink-rgb: 87, 22, 26; --chrome-a-rgb: 70, 29, 32; --chrome-b-rgb: 44, 11, 14; --shadow-rgb: 58, 15, 18; --shadow-dark-rgb: 32, 8, 10;
+  --paper-rgb: 252, 249, 245; --accent-rgb: 220, 182, 74; --glass-a-rgb: 253, 252, 249; --glass-b-rgb: 239, 228, 229; --surface-2-rgb: 240, 234, 223;
+  --wall-1: #8b393e; --wall-2: #dcb64a; --wall-3: #d1694f; --wall-4: #57161a;
+  --t1: #8a2a30; --t1d: #5a1b1f; --t1-rgb: 138, 42, 48;
+  --t2: #c9a22e; --t2d: #83691e; --t2-rgb: 201, 162, 46;
+  --t3: #d1694f; --t3d: #884433; --t3-rgb: 209, 105, 79;
+  --t4: #4f8a76; --t4d: #335a4d; --t4-rgb: 79, 138, 118;
+  --t5: #4a5a9c; --t5d: #303a65; --t5-rgb: 74, 90, 156;
+  --t6: #a8567a; --t6d: #6d384f; --t6-rgb: 168, 86, 122;
+  --s-50: #faf7f0; --s-100: #f0eadf; --s-200: #e1dbd1; --s-300: #cdc8bf; --s-400: #a19494; --s-500: #6e5a5a; --s-600: #5a4a4a; --s-700: #4b3d3d; --s-800: #3b3131; --s-900: #2e2626;
+  --b-50: #f6eff0; --b-100: #ebddde; --b-200: #d7bcbd; --b-300: #c09396; --b-400: #a36266; --b-500: #88343a; --b-600: #7b1e24; --b-700: #62181d; --b-800: #501417; --b-900: #3e0f12;
+  --x-50: #f1f2f7; --x-100: #dee1ed; --x-500: #4a5a9c; --x-800: #303a65;
+  --p-50: #f8f1f4; --p-100: #efe1e7; --p-700: #a8567a; --p-800: #763c55;
+}
+:root[data-theme='ocean'] {
+  --ink-950: #0b1d30;
+  --ink-900: #0f2740;
+  --ink-850: #1d344b;
+  --ink-800: #163e64;
+  --ink-750: #143658;
+  --c-700: #194872;
+  --c-650: #1c5181;
+  --c-600: #1f5a8f;
+  --c-550: #3a6e9c;
+  --c-500: #628cb1;
+  --c-450: #4c7ba5;
+  --accent: #dcb64a;
+  --accent-dark: #8a6a14;
+  --accent-light: #f7efd7;
+  --accent-mid: #bb9834;
+  --amber: #daab42;
+  --text: #0e233a;
+  --muted: #6e7d89;
+  --surface: #f4f1ea;
+  --surface-2: #edeae3;
+  --surface-3: #faf8f4;
+  --border: #d7d4ce;
+  --ink-rgb: 22, 62, 100; --chrome-a-rgb: 29, 52, 75; --chrome-b-rgb: 11, 29, 48; --shadow-rgb: 15, 39, 64; --shadow-dark-rgb: 8, 21, 35;
+  --paper-rgb: 251, 249, 247; --accent-rgb: 220, 182, 74; --glass-a-rgb: 252, 252, 250; --glass-b-rgb: 228, 235, 242; --surface-2-rgb: 237, 234, 227;
+  --wall-1: #3a6e9c; --wall-2: #dcb64a; --wall-3: #d9694f; --wall-4: #163e64;
+  --t1: #2a6aa3; --t1d: #1b456a; --t1-rgb: 42, 106, 163;
+  --t2: #c9a22e; --t2d: #83691e; --t2-rgb: 201, 162, 46;
+  --t3: #d9694f; --t3d: #8d4433; --t3-rgb: 217, 105, 79;
+  --t4: #2f9a8f; --t4d: #1f645d; --t4-rgb: 47, 154, 143;
+  --t5: #5a5fb0; --t5d: #3a3e72; --t5-rgb: 90, 95, 176;
+  --t6: #b0587a; --t6d: #72394f; --t6-rgb: 176, 88, 122;
+  --s-50: #f8f7f2; --s-100: #edeae3; --s-200: #dedbd5; --s-300: #cbc8c2; --s-400: #919da7; --s-500: #566878; --s-600: #475562; --s-700: #3a4752; --s-800: #2e3841; --s-900: #242c32;
+  --b-50: #eff3f7; --b-100: #dde6ee; --b-200: #bccedd; --b-300: #93b0c9; --b-400: #628cb1; --b-500: #356a9a; --b-600: #1f5a8f; --b-700: #194872; --b-800: #143a5d; --b-900: #102d48;
+  --x-50: #f2f2f9; --x-100: #e1e2f1; --x-500: #5a5fb0; --x-800: #3a3e72;
+  --p-50: #f9f2f4; --p-100: #f1e1e7; --p-700: #b0587a; --p-800: #7b3e55;
 }
 
 /* The app's markup uses font-500 … font-800, which Tailwind does not generate: without these every heading
