@@ -9,6 +9,7 @@ import {
   listFacultyUnavailability,
   upsertFaculty,
   updateFacultyExperienceFields,
+  listPhotoTimes,
 } from '../db/repo.js'
 import { requireAuth } from '../auth/middleware.js'
 
@@ -36,8 +37,9 @@ const unavailabilitySchema = z.object({
 facultyRouter.get('/', async (_req, res, next) => {
   try {
     const faculty = await listFaculty()
+    const photos = await listPhotoTimes()
     const withUnavailability = await Promise.all(
-      faculty.map(async f => ({ ...f, unavailability: await listFacultyUnavailability(f.id) }))
+      faculty.map(async f => ({ ...f, photoAt: photos[f.id] ?? null, unavailability: await listFacultyUnavailability(f.id) }))
     )
     res.json(withUnavailability)
   } catch (err) {

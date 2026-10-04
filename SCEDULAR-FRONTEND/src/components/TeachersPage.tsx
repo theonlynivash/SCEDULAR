@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, KeyRound, Trash2, Search, Download, X, Copy, Mail, FileSpreadsheet } from 'lucide-react'
 import ImportWizard from './ImportWizard'
+import Avatar from './Avatar'
+import { resizeToDataUrl } from './PhotoUploader'
+import { photoChanged } from './Avatar'
 import { api, type Faculty, type IssuedLogin } from '../api'
 
 const inputCls = 'w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#0F4C81] bg-white'
@@ -47,6 +50,7 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
     finally { setLoading(false) }
   }, [say])
   useEffect(() => { load() }, [load])
+  const reloadAll = load   // `load` is shadowed inside the table rows (a teacher's load number)
 
   const rows = useMemo(() => {
     const t = q.trim().toLowerCase()
@@ -132,7 +136,7 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
                 return (
                   <tr key={f.id} className="hover:bg-slate-50/70">
                     <td className="font-mono text-[11px] text-slate-500">{f.id}</td>
-                    <td className="font-600 text-slate-800">{f.name}{hod && <span className="ml-1.5 text-[9px] font-800 px-1.5 py-0.5 rounded bg-[#0F4C81] text-white">HOD</span>}</td>
+                    <td className="font-600 text-slate-800"><span className="inline-flex items-center gap-2"><PhotoPick f={f} onSaved={reloadAll} />{f.name}</span>{hod && <span className="ml-1.5 text-[9px] font-800 px-1.5 py-0.5 rounded bg-[#0F4C81] text-white">HOD</span>}</td>
                     <td className="text-slate-500">{f.designation || '–'}</td>
                     <td className="text-center">{num(f.allocationExperience, n => saveField(f, { allocationExperience: n }))}</td>
                     <td className="text-center">{num(f.maxWeeklyPeriods, n => saveField(f, { maxWeeklyPeriods: n }), 1, 40)}</td>
@@ -186,5 +190,21 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
       )}
       {importing && <ImportWizard kind="teachers" onClose={() => setImporting(false)} onDone={() => load()} />}
     </div>
+  )
+}
+
+/** Round picture of a teacher; clicking it lets the HOD set or replace their photo. */
+function PhotoPick({ f, onSaved }: { f: { id: string; name: string; photoAt?: string | null }; onSaved: () => void }) {
+  const ref = useRef<HTMLInputElement>(null)
+  async function pick(file?: File) {
+    if (!file || !file.type.startsWith('image/')) return
+    try { await api.photo.set(f.id, await resizeToDataUrl(file)); photoChanged(f.id); onSaved() } catch { /* shown by the next load */ }
+    if (ref.current) ref.current.value = ''
+  }
+  return (
+    <>
+      <button type="button" title="Change photo" onClick={() => ref.current?.click()} className="rounded-full hover:ring-2 hover:ring-[#0F4C81]/40 transition"><Avatar id={f.id} name={f.name} photoAt={f.photoAt ?? null} size={28} /></button>
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={e => pick(e.target.files?.[0])} />
+    </>
   )
 }

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Bell, Search, Send, X } from 'lucide-react'
 import { api, type ChatMsg, type MsgThread } from '../api'
 import { getSession } from '../session'
+import Avatar from './Avatar'
 
 const clock = (iso: string) => {
   const d = new Date(iso), now = new Date()
@@ -62,6 +63,7 @@ export default function MessagesPanel({ role }: { role?: 'HOD' | 'FACULTY' }) {
         <div className="fixed top-14 right-3 z-[100] w-[min(94vw,380px)] h-[min(78vh,540px)] rounded-2xl overflow-hidden flex flex-col bg-slate-900/95 backdrop-blur-xl border border-white/10 shadow-2xl text-slate-100">
           <div className="px-3.5 py-2.5 flex items-center gap-2 border-b border-white/10 shrink-0">
             {active && role === 'HOD' && <button onClick={() => { setActive(null); setMsgs([]); refreshThreads() }} className="p-1 rounded-lg hover:bg-white/10"><ArrowLeft className="w-4 h-4" /></button>}
+            {active && <Avatar id={active.id} name={active.name} photoAt={active.photoAt} size={32} />}
             <div className="min-w-0">
               <p className="text-sm font-700 truncate">{active ? active.name : 'Messages'}</p>
               <p className="text-[10px] text-white/45">{active ? (active.designation ?? '') : 'Short notes · deleted after 30 days'}</p>
@@ -80,7 +82,7 @@ export default function MessagesPanel({ role }: { role?: 'HOD' | 'FACULTY' }) {
               <div className="flex-1 overflow-y-auto">
                 {shown.map(t => (
                   <button key={t.id} onClick={() => setActive(t)} className="w-full text-left px-3.5 py-2.5 flex items-center gap-3 hover:bg-white/10 transition">
-                    <span className="w-9 h-9 rounded-full bg-cyan-500/20 text-cyan-200 grid place-items-center text-xs font-700 shrink-0">{t.name.replace(/^(mrs|mr|ms|dr|prof)\.?\s*/i, '').charAt(0).toUpperCase()}</span>
+                    <Avatar id={t.id} name={t.name} photoAt={t.photoAt} size={36} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-baseline gap-2"><span className="text-[13px] font-600 truncate">{t.name}</span>{t.lastAt && <span className="ml-auto text-[10px] text-white/40 shrink-0">{clock(t.lastAt)}</span>}</span>
                       <span className="block text-[11px] text-white/50 truncate">{t.lastText ? `${t.lastFromMe ? 'You: ' : ''}${t.lastText}` : 'No messages yet'}</span>
@@ -96,11 +98,13 @@ export default function MessagesPanel({ role }: { role?: 'HOD' | 'FACULTY' }) {
               <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
                 {msgs.length === 0 && <p className="text-xs text-white/40 text-center py-8">Say hello 👋</p>}
                 {msgs.map(m => (
-                  <div key={m.id} className={`flex ${m.fromId === me ? 'justify-end' : 'justify-start'}`}>
+                  <div key={m.id} className={`flex items-end gap-1.5 ${m.fromId === me ? 'justify-end' : 'justify-start'}`}>
+                    {m.fromId !== me && active && <Avatar id={active.id} name={active.name} photoAt={active.photoAt} size={24} />}
                     <div style={{ overflowWrap: 'anywhere' }} className={`max-w-[80%] px-3 py-1.5 rounded-2xl text-[12.5px] ${m.fromId === me ? 'bg-cyan-500/80 text-white rounded-br-md' : 'bg-white/10 rounded-bl-md'}`}>
                       <span className="whitespace-pre-wrap">{m.text}</span>
                       <span className="block text-[9.5px] opacity-60 text-right mt-0.5">{clock(m.sentAt)}{m.fromId === me && (m.readAt ? ' · seen' : '')}</span>
                     </div>
+                    {m.fromId === me && <Avatar id={me} name={getSession()?.user.name ?? ''} size={24} />}
                   </div>
                 ))}
                 <div ref={endRef} />

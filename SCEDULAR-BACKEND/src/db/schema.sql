@@ -355,3 +355,9 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   read_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS chat_messages_pair ON chat_messages (from_id, to_id);
+
+CREATE TABLE IF NOT EXISTS faculty_photos (
+  faculty_id TEXT PRIMARY KEY REFERENCES faculty(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

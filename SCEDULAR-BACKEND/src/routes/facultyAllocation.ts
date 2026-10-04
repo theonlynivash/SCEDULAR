@@ -3,6 +3,7 @@ import { Router, type Request, type Response } from 'express'
 import bcrypt from 'bcryptjs'
 import {
   getFacultyPreferences,
+  listPhotoTimes,
   saveFacultyPreferences,
   reviewFacultyPreference,
   editFacultyPreference,
@@ -402,7 +403,7 @@ facultyAllocationRouter.get('/faculty/me', requireAuth, async (req: Request, res
   if (!fac) {
     return res.status(404).json({ error: 'FACULTY_NOT_FOUND', message: `Faculty ${facultyId} not found` })
   }
-  return res.json(fac)
+  return res.json({ ...fac, photoAt: (await listPhotoTimes())[fac.id] ?? null })
 })
 
 // GET /api/faculty/allocation-policy - authoritative experience policy for the

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import PhotoUploader from './PhotoUploader'
 import { api, type FacultyProfile as FacultyProfileType } from '../api'
 import ProfileResults from './ProfileResults'
 
@@ -19,6 +20,7 @@ function experience(value: number | null | undefined): string {
 export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
   const [profile, setProfile] = useState<FacultyProfileType | null>(null)
   const [loading, setLoading] = useState(true)
+  const [photoAt, setPhotoAt] = useState<string | null | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
 
   const [prevExp, setPrevExp] = useState('')
@@ -41,6 +43,7 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
     try {
       const p = await api.faculty.profile(facultyId)
       setProfile(p)
+      setPhotoAt((p as any).photoAt ?? null)
       setPrevExp(p.previousExperience != null ? String(p.previousExperience) : '')
       setCurrExp(p.currentExperience != null ? String(p.currentExperience) : '')
       setAllocExp(p.allocationExperience != null ? String(p.allocationExperience) : '')
@@ -122,9 +125,7 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
         <>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-700 text-[#f3c326] bg-gradient-to-br from-[#0e254f] to-[#081a38] ring-1 ring-[#f3c326]/60">
-                {(profile.name || '').slice(0, 2).toUpperCase()}
-              </div>
+              <PhotoUploader facultyId={profile.id} name={profile.name || ''} photoAt={photoAt} size={64} onChanged={setPhotoAt} />
               <div>
                 <p className="font-700 text-lg text-slate-900 leading-tight">{display(profile.name)}</p>
                 <p className="text-sm text-slate-500">{display(profile.designation)} · {display(profile.department)}</p>

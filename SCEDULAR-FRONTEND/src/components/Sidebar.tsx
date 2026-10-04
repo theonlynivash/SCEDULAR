@@ -1,5 +1,7 @@
 import type { Page, UserRole } from '../types'
 import { facultyNavItems, hodNavItems } from '../navItems'
+import Avatar from './Avatar'
+import { getSession } from '../session'
 
 export default function Sidebar({
   page,
@@ -60,9 +62,7 @@ export default function Sidebar({
 
       <div className="p-3 border-t border-white/10">
         <div className="flex items-center gap-3 px-2 py-1">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-700 text-[#f3c326] bg-gradient-to-br from-[#0e254f] to-[#081a38] ring-1 ring-[#f3c326]/60">
-            {userName.slice(0, 2).toUpperCase()}
-          </div>
+          <Avatar id={getSession()?.user.facultyId ?? ''} name={userName} size={32} />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-600 truncate text-white">{userName}</p>
             <p className="text-white/50 text-xs truncate">{userDesignation} · AI&amp;DS</p>

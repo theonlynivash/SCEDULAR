@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { LogOut, X } from 'lucide-react'
 import type { Page, UserRole } from '../types'
 import { facultyNavItems, hodNavItems } from '../navItems'
+import Avatar from './Avatar'
+import { getSession } from '../session'
 
 /** Phone-sized replacement for the left sidebar: slides in from the left with every page, who is signed in, and Logout. */
 export default function MobileDrawer({ open, onClose, page, navigate, role = 'FACULTY', userName = '', userDesignation = 'Faculty', onLogout }: {
@@ -38,7 +40,7 @@ export default function MobileDrawer({ open, onClose, page, navigate, role = 'FA
         </nav>
         <div className="p-3 border-t border-white/10 space-y-2.5">
           <div className="flex items-center gap-3 px-1">
-            <span className="grid place-items-center w-9 h-9 rounded-full text-xs font-700 text-[#f3c326] bg-gradient-to-br from-[#0e254f] to-[#081a38] ring-1 ring-[#f3c326]/60">{userName.slice(0, 2).toUpperCase()}</span>
+            <Avatar id={getSession()?.user.facultyId ?? ''} name={userName} size={36} />
             <div className="min-w-0"><p className="text-sm font-600 text-white truncate">{userName}</p><p className="text-xs text-white/50 truncate">{userDesignation}</p></div>
           </div>
           <button onClick={() => { onClose(); onLogout() }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-white/10 text-white/90 text-[13px] font-600 hover:bg-white/15"><LogOut size={15} /> Log out</button>

@@ -667,6 +667,9 @@ Press **SCEDULAR AI** (bottom right). Use a **preset chat** (grouped buttons: St
 If you ask it to email someone it prepares an **editable draft card** with a Send button; nothing is sent until you press it. The
 sparkle button next to the message box brings the presets back. (§20)
 
+### 10.14a Profile pictures
+Every teacher (and the HOD) can add a photo on **My Profile** ("Add a photo" / the camera button). The picture is cropped to a square and shrunk to 256 × 256 in the browser (about 20 KB), then stored with the teacher's record (a small JPEG/PNG/WebP, at most 300 KB). It shows in the sidebar and menu, in the Teachers list, and everywhere in the **chat**: the conversation list, the conversation header and next to each message. Teachers without a photo show their initials. The HOD can set or replace anyone's photo by clicking their round picture on the Teachers page. Any signed-in user can see a teacher's picture (that is what makes it appear in chat); only the owner or the HOD can change or remove it. API: `GET/PUT/DELETE /api/faculty/:id/photo`; the teacher lists carry only `photoAt`, never the image.
+
 ### 10.14 My Profile
 
 Shows your details, an **Update experience** form and **Contact details** (email and phone). Your own email is used by Forgot Password.
@@ -1141,6 +1144,7 @@ already so before this build and does not indicate a failure of the product).
 | `merge_lab` | Theory + lab pairs become one subject, one teacher per class, timetable regenerates |
 | `staffing` | Quota and "need more teachers" arithmetic (12 sections × 3 subjects × 4T example) and the server refusing a choice once a subject is full |
 | `data_erase` | The two erase actions are HOD + password only, keep what they must keep, and no bulk-erase routes exist |
+| `photos` | Set own picture, others can see it, only HOD changes someone else's, size and type limits, lists never carry image data |
 | `exports` | Teacher PDF only for self (HOD any), master PDF HOD only, valid PDF bytes |
 
 ### 23.2 Isolation (important)

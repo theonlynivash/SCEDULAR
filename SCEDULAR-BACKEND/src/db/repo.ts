@@ -439,6 +439,7 @@ export async function deleteFacultyCascade(id: string): Promise<void> {
   mem.messages = (mem.messages ?? []).filter(m => m.fromId !== id && m.toId !== id)
   mem.sessions = mem.sessions.filter(x => x.facultyId !== id)
   if (mem.facultyPasswords) delete mem.facultyPasswords[id]
+  if (mem.facultyPhotos) delete mem.facultyPhotos[id]
   try {
     await pool.query('DELETE FROM faculty WHERE id = $1', [id])
   } catch {
@@ -520,6 +521,35 @@ export async function upsertFacultyPasswordHash(facultyId: string, passwordHash:
     mem.facultyPasswords = { ...(mem.facultyPasswords ?? {}), [facultyId]: passwordHash }
     saveLocalDb()
   }
+}
+
+// ── profile pictures ──
+export async function getFacultyPhoto(id: string): Promise<{ data: string; at: string } | null> {
+  try {
+    const { rows } = await pool.query('SELECT data, updated_at FROM faculty_photos WHERE faculty_id = $1', [id])
+    return rows[0] ? { data: rows[0].data, at: new Date(rows[0].updated_at).toISOString() } : null
+  } catch { return mem.facultyPhotos?.[id] ?? null }
+}
+export async function setFacultyPhoto(id: string, data: string): Promise<string> {
+  const at = new Date().toISOString()
+  try {
+    await pool.query('INSERT INTO faculty_photos (faculty_id, data, updated_at) VALUES ($1,$2,$3) ON CONFLICT (faculty_id) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at', [id, data, at])
+  } catch {
+    mem.facultyPhotos = { ...(mem.facultyPhotos ?? {}), [id]: { data, at } }
+    saveLocalDb()
+  }
+  return at
+}
+export async function deleteFacultyPhoto(id: string): Promise<void> {
+  try { await pool.query('DELETE FROM faculty_photos WHERE faculty_id = $1', [id]) }
+  catch { if (mem.facultyPhotos) { delete mem.facultyPhotos[id]; saveLocalDb() } }
+}
+/** When each teacher's picture was last set (no image data), for cache-busting and "has a picture". */
+export async function listPhotoTimes(): Promise<Record<string, string>> {
+  try {
+    const { rows } = await pool.query('SELECT faculty_id, updated_at FROM faculty_photos')
+    return Object.fromEntries(rows.map(r => [r.faculty_id, new Date(r.updated_at).toISOString()]))
+  } catch { return Object.fromEntries(Object.entries(mem.facultyPhotos ?? {}).map(([k, v]) => [k, v.at])) }
 }
 
 // ---------- Sections ----------

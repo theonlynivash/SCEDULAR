@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { requireAuth } from '../auth/middleware.js'
-import { addMessage, getFaculty, listFaculty, listMessagesFor, markMessagesRead } from '../db/repo.js'
+import { addMessage, getFaculty, listFaculty, listMessagesFor, listPhotoTimes, markMessagesRead } from '../db/repo.js'
 
 export const messagesRouter = Router()
 
@@ -15,11 +15,12 @@ messagesRouter.get('/messages/threads', requireAuth, async (req, res, next) => {
   try {
     const me = req.auth!.facultyId
     const mine = await listMessagesFor(me)
+    const photos = await listPhotoTimes()
     const partners = req.auth!.role === 'HOD' ? (await listFaculty()).filter(f => f.id !== me) : [(await listFaculty()).find(f => f.role === 'HOD')].filter(Boolean) as any[]
     const threads = partners.map(p => {
       const msgs = mine.filter(m => m.fromId === p.id || m.toId === p.id)
       const last = msgs[msgs.length - 1]
-      return { id: p.id, name: p.name, designation: p.designation, lastText: last?.text ?? null, lastAt: last?.sentAt ?? null, lastFromMe: last ? last.fromId === me : null, unread: msgs.filter(m => m.toId === me && !m.readAt).length }
+      return { id: p.id, photoAt: photos[p.id] ?? null, name: p.name, designation: p.designation, lastText: last?.text ?? null, lastAt: last?.sentAt ?? null, lastFromMe: last ? last.fromId === me : null, unread: msgs.filter(m => m.toId === me && !m.readAt).length }
     })
     threads.sort((a, b) => (b.lastAt ?? '').localeCompare(a.lastAt ?? '') || a.name.localeCompare(b.name))
     res.json(threads)

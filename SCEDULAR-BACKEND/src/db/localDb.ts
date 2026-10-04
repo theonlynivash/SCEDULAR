@@ -61,6 +61,8 @@ export interface LocalDbState {
   appOwned?: boolean
   /** facultyId -> bcrypt hash. Kept apart from the faculty rows so hashes never leak through faculty listings. */
   facultyPasswords?: Record<string, string>
+  /** small profile pictures (JPEG/PNG/WebP data URLs), by faculty id */
+  facultyPhotos?: Record<string, { data: string; at: string }>
   faculty: Faculty[]
   sections: Section[]
   subjects: Subject[]

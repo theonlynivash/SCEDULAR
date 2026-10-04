@@ -22,6 +22,13 @@ function resolveApiBase(): string {
 export const API_BASE = resolveApiBase()
 
 /** Download a protected file (needs the session token, so a plain <a href> would not work). */
+/** The picture of a teacher as a blob URL (null if they have none). Needs the session token, so it cannot be a plain <img src>. */
+export async function fetchPhotoUrl(facultyId: string): Promise<string | null> {
+  const token = getSessionToken()
+  const res = await fetch(`${API_BASE}/faculty/${encodeURIComponent(facultyId)}/photo`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  return res.ok ? URL.createObjectURL(await res.blob()) : null
+}
+
 export async function downloadFile(path: string, fallbackName: string): Promise<void> {
   const token = getSessionToken()
   const res = await fetch(`${API_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
@@ -91,6 +98,7 @@ export interface Faculty {
   currentExperience?: number
   allocationExperience?: number
   email?: string | null
+  photoAt?: string | null
   role?: "HOD" | "FACULTY"
   maxDailyPeriods: number
   maxWeeklyPeriods: number
@@ -497,7 +505,7 @@ export interface ImportPreview { kind: ImportKind; sheet: string; columns: Impor
 export interface ImportCommit { success: boolean; created: number; updated: number; skipped: number; removed?: number; logins: { facultyId: string; name: string; email: string | null; password: string }[]; subjects: string[] }
 export interface DataCheck { items: { level: 'error' | 'warning'; area: 'teachers' | 'syllabus' | 'sections' | 'assignment'; message: string; ref?: string }[]; ready: { preferences: boolean; timetable: boolean }; counts: { teachers: number; subjects: number; sections: number } }
 
-export interface MsgThread { id: string; name: string; designation: string | null; lastText: string | null; lastAt: string | null; lastFromMe: boolean | null; unread: number }
+export interface MsgThread { id: string; photoAt?: string | null; name: string; designation: string | null; lastText: string | null; lastAt: string | null; lastFromMe: boolean | null; unread: number }
 export interface ChatMsg { id: number; fromId: string; toId: string; text: string; sentAt: string; readAt: string | null }
 
 export const api = {
@@ -638,6 +646,10 @@ export const api = {
   },
   contact: {
     update: (b: { email?: string | null; phone?: string | null }) => request<{ email: string | null; phone: string | null }>('/faculty/me/contact', { method: 'PATCH', body: JSON.stringify(b) }),
+  },
+  photo: {
+    set: (facultyId: string, image: string) => request<{ success: boolean; photoAt: string }>(`/faculty/${encodeURIComponent(facultyId)}/photo`, { method: 'PUT', body: JSON.stringify({ image }) }),
+    remove: (facultyId: string) => request<{ success: boolean }>(`/faculty/${encodeURIComponent(facultyId)}/photo`, { method: 'DELETE' }),
   },
   messages: {
     threads: () => request<MsgThread[]>('/messages/threads'),
