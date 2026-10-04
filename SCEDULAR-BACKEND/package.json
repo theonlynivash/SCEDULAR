@@ -8,16 +8,10 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test": "tsx tests/stage6.test.ts && npx vitest run tests/core_workflow.test.ts tests/rebuild_e2e.test.ts tests/phase1_reconciliation.test.ts tests/phase2_auth.test.ts tests/phase3_faculty_allocation.test.ts tests/phase4_5_hod_review_allocation.test.ts tests/phase5_workload_templates.test.ts tests/hod_assign.test.ts tests/blank_dataset_e2e.test.ts tests/teacher_extras.test.ts && npm run build && node tests/facultyAllocationPolicy.test.mjs",
-    "test:phase5": "npx vitest run tests/phase5_workload_templates.test.ts",
-    "test:phase4_5": "npx vitest run tests/phase4_5_hod_review_allocation.test.ts",
-    "test:phase1": "npx vitest run tests/phase1_reconciliation.test.ts",
-    "test:phase2": "npx vitest run tests/phase2_auth.test.ts",
-    "test:phase3": "npx vitest run tests/phase3_faculty_allocation.test.ts",
-    "test:workflow": "npx vitest run tests/core_workflow.test.ts",
+    "test": "vitest run",
     "test:solver": "tsx tests/stage6.test.ts",
-    "test:live": "node scripts/live_smoke.mjs ../SCEDULAR_REAL_DATA_FROM_PDFS_STAGE8.xlsx",
-    "preflight": "node scripts/final_preflight.mjs"
+    "preflight": "node scripts/final_preflight.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",

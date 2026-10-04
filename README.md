@@ -98,7 +98,7 @@ SCEDULAR/
 
 ```bash
 cd SCEDULAR-BACKEND
-npx vitest run          # 190+ tests, about a minute; they never touch your real data or send real mail
+npm test                # 190+ tests, about a minute; they never touch your real data or send real mail
 npx tsc --noEmit        # type-check (also in SCEDULAR-FRONTEND)
 ```
 
