@@ -255,6 +255,26 @@ setupRouter.put('/setup/subjects/:id', async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+// PUT /setup/subjects/:id/lab-rooms { rooms: [{ labId, sectionId? }] } -> replaces ALL lab-room mappings of a subject:
+// an entry without sectionId is a room for every section, an entry with one fixes that room for that section only.
+setupRouter.put('/setup/subjects/:id/lab-rooms', async (req, res, next) => {
+  try {
+    const p = z.object({ rooms: z.array(z.object({ labId: z.string().min(1), sectionId: z.string().nullable().optional() })).max(200) }).safeParse(req.body)
+    if (!p.success) return fail(res, 400, 'INVALID_INPUT', 'Send the rooms as [{ labId, sectionId? }].')
+    const sub = (await listSubjects()).find(x => x.id === req.params.id)
+    if (!sub) return fail(res, 404, 'NOT_FOUND', 'Subject not found.')
+    const [labs, sections] = await Promise.all([listLabs(), listSections()])
+    for (const r of p.data.rooms) {
+      if (!labs.some(l => l.id === r.labId)) return fail(res, 400, 'UNKNOWN_LAB', `Lab room ${r.labId} does not exist.`)
+      if (r.sectionId && !sections.some(x => x.id === r.sectionId)) return fail(res, 400, 'UNKNOWN_SECTION', `Section ${r.sectionId} does not exist.`)
+    }
+    for (const m of (await listLabSubjectMappings()).filter(x => x.subjectId === sub.id)) await deleteLabSubjectMapping(m.labId, sub.id, m.sectionId)
+    for (const r of p.data.rooms) await setLabSubjectMapping(r.labId, sub.id, r.sectionId ?? null)
+    saveLocalDb()
+    res.json({ success: true, rooms: p.data.rooms.length })
+  } catch (err) { next(err) }
+})
+
 // ── theory + lab pairs ──
 // A course such as "AIES" is ONE subject with theory AND lab periods (xT + yL) taught to a class by the same teacher.
 // Some syllabi list it twice: "AIES" (theory) and "AIES Laboratory" (lab). These routes find such pairs and merge them.
@@ -314,7 +334,13 @@ setupRouter.post('/setup/subjects/merge-lab', async (req, res, next) => {
       if (o.theoryPeriods > 0) await addTeachingAssignment({ facultyId: who, sectionSubjectId: o.id, component: 'THEORY', batch: null })
       if (o.labPeriods > 0) await addTeachingAssignment({ facultyId: who, sectionSubjectId: o.id, component: 'LAB', batch: null })
     }
-    await syncLabRooms(sub, [...new Set([...labMaps.filter(m => m.subjectId === t.id && !m.sectionId), ...labMaps.filter(m => m.subjectId === l.id && !m.sectionId)].map(m => m.labId))])
+    // the lab room(s) set for the lab subject (for all sections and any room fixed for one section) become the room(s) of the
+    // combined subject; only if the lab subject had none do the theory subject's own rooms stay
+    const labRooms = labMaps.filter(m => m.subjectId === l.id)
+    if (labRooms.length > 0) {
+      for (const m of labMaps.filter(x => x.subjectId === t.id)) await deleteLabSubjectMapping(m.labId, t.id, m.sectionId)
+      for (const m of labRooms) await setLabSubjectMapping(m.labId, t.id, m.sectionId)
+    }
 
     // a teacher who chose the lab subject keeps that choice as a choice of the combined subject
     const holders = new Set(prefs.filter(x => x.subjectId === t.id).map(x => x.facultyId))
