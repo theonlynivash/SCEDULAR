@@ -1,21 +1,12 @@
 import ScedularLogo from './ScedularLogo'
 import { useState } from 'react'
 import MessagesPanel from './MessagesPanel'
-
-const THEMES = [
-  { id: 'orchid', name: 'Orchid & Sandal', dots: ['#5b3a9a', '#d4b98c', '#c2527a'] },
-  { id: 'pine', name: 'Pine & Brass', dots: ['#1f6a63', '#c9a24a', '#6f8f4e'] },
-  { id: 'dusk', name: 'Dusk Indigo', dots: ['#3b4fa6', '#e3c08d', '#e0705a'] },
-]
+import { THEMES, applyTheme, currentTheme } from '../themes'
 
 function ThemeSwitcher() {
   const [open, setOpen] = useState(false)
-  const [cur, setCur] = useState(() => document.documentElement.dataset.theme || 'orchid')
-  const pick = (id: string) => {
-    document.documentElement.dataset.theme = id
-    try { localStorage.setItem('scedular-theme', id) } catch { /* private window: the choice just is not remembered */ }
-    setCur(id); setOpen(false)
-  }
+  const [cur, setCur] = useState(currentTheme)
+  const pick = (id: string) => { applyTheme(id); setCur(id); setOpen(false) }
   return (
     <div className="relative">
       <button onClick={() => setOpen(o => !o)} title="Colour theme" className="grid place-items-center w-8 h-8 rounded-lg hover:bg-white/15 transition text-white/70">
@@ -27,7 +18,7 @@ function ThemeSwitcher() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 z-50 w-52 rounded-xl p-1.5 bg-white shadow-xl border border-slate-200 animate-[pop-in_.18s_ease-out]">
+          <div className="absolute right-0 top-10 z-50 w-56 max-h-[70vh] overflow-auto rounded-xl p-1.5 bg-white shadow-xl border border-slate-200 animate-[pop-in_.18s_ease-out]">
             {THEMES.map(t => (
               <button key={t.id} onClick={() => pick(t.id)}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-[13px] font-600 transition ${cur === t.id ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}>

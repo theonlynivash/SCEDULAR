@@ -9,6 +9,7 @@ import SetupDatasetTab from './SetupDatasetTab'
 import SetupInchargeTab from './SetupInchargeTab'
 import SetupImportTab from './SetupImportTab'
 import SetupLabsTab from './SetupLabsTab'
+import SetupAppearanceTab from './SetupAppearanceTab'
 import { PillTabs } from './ui'
 
 interface AllocationBand {
@@ -313,7 +314,7 @@ function PolicyAndCycle() {
   )
 }
 
-type Tab = 'setup' | 'sections' | 'syllabus' | 'labs' | 'incharge' | 'import' | 'policy' | 'dataset'
+type Tab = 'setup' | 'sections' | 'syllabus' | 'labs' | 'incharge' | 'import' | 'policy' | 'appearance' | 'dataset'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'setup', label: 'Semester setup' },
   { id: 'sections', label: 'Sections' },
@@ -322,6 +323,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'import', label: 'Import' },
   { id: 'incharge', label: 'Class in-charge' },
   { id: 'policy', label: 'Policy & cycle' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'dataset', label: 'Dataset' },
 ]
 
@@ -344,6 +346,7 @@ export default function HodSettings({ navigate }: { navigate: (p: Page) => void 
       {tab === 'import' && <SetupImportTab say={say} />}
       {tab === 'incharge' && <SetupInchargeTab say={say} />}
       {tab === 'policy' && <PolicyAndCycle />}
+      {tab === 'appearance' && <SetupAppearanceTab />}
       {tab === 'dataset' && <SetupDatasetTab say={say} />}
     </div>
   )
