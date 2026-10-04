@@ -99,8 +99,8 @@ export default function AutoPlanner({ semester, board, say, onChanged }: {
           <h2 className="font-display font-700 text-sm text-slate-800">Auto-fill with editable workload</h2>
           <p className="text-[11px] text-slate-500">Build a plan from the preferences, then change anyone's share with − / +. Whatever you add or remove changes what the subject still needs; fill the difference with other teachers. A subject can be assigned only when its sections add up exactly.</p>
         </div>
-        <button disabled={busy} onClick={build} className="px-4 py-1.5 border border-[#1f6a63] text-[#1f6a63] text-xs font-700 rounded-lg disabled:opacity-40">{plans ? 'Rebuild plan' : 'Build plan'}</button>
-        {plans && balanced.length > 1 && <button disabled={busy} onClick={applyAll} className="px-4 py-1.5 bg-[#1f6a63] text-white text-xs font-700 rounded-lg disabled:opacity-40">Assign all {balanced.length} balanced subjects</button>}
+        <button disabled={busy} onClick={build} className="px-4 py-1.5 border border-[color:var(--c-600)] text-[color:var(--c-600)] text-xs font-700 rounded-lg disabled:opacity-40">{plans ? 'Rebuild plan' : 'Build plan'}</button>
+        {plans && balanced.length > 1 && <button disabled={busy} onClick={applyAll} className="px-4 py-1.5 bg-[color:var(--c-600)] text-white text-xs font-700 rounded-lg disabled:opacity-40">Assign all {balanced.length} balanced subjects</button>}
       </div>
 
       {plans && plans.length > 0 && pending.length === 0 && <p className="text-xs font-700 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">✓ Every subject of this plan is assigned. Semester allocation is done; move on to the next semester or generate the timetable.</p>}
@@ -113,7 +113,7 @@ export default function AutoPlanner({ semester, board, say, onChanged }: {
             <div key={p.subjectId} className={`border rounded-xl overflow-hidden ${p.applied ? 'border-emerald-200 bg-emerald-50/40' : bal === 0 ? 'border-slate-200' : 'border-amber-300 bg-amber-50/30'}`}>
               <button onClick={() => !p.applied && setActive(isOpen ? '' : p.subjectId)} className="w-full text-left px-3 py-2 flex items-center gap-2 text-xs">
                 <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-                <span className="font-mono text-[11px] text-[#1f6a63] font-700">{p.code}</span>
+                <span className="font-mono text-[11px] text-[color:var(--c-600)] font-700">{p.code}</span>
                 <span className="font-600 text-slate-800 truncate">{p.name}</span>
                 <span className="ml-auto flex items-center gap-2 shrink-0">
                   <span className="text-[10.5px] text-slate-500">{covered} of {p.open} sections · {p.rows.length}{p.wanted ? ` of ${p.wanted}` : ''} teachers</span>
@@ -157,12 +157,12 @@ export default function AutoPlanner({ semester, board, say, onChanged }: {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setAdding(adding === p.subjectId ? '' : p.subjectId)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-700 text-[#1b5550] hover:bg-slate-50"><Plus className="w-3.5 h-3.5" /> Add a teacher</button>
-                    <button disabled={busy || bal !== 0 || p.rows.length === 0} onClick={() => apply(p)} title={bal !== 0 ? 'Make the sections add up first' : ''} className="ml-auto px-5 py-1.5 rounded-lg bg-[#1f6a63] text-white text-xs font-700 disabled:opacity-40">Assign {p.code}</button>
+                    <button onClick={() => setAdding(adding === p.subjectId ? '' : p.subjectId)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-700 text-[color:var(--c-700)] hover:bg-slate-50"><Plus className="w-3.5 h-3.5" /> Add a teacher</button>
+                    <button disabled={busy || bal !== 0 || p.rows.length === 0} onClick={() => apply(p)} title={bal !== 0 ? 'Make the sections add up first' : ''} className="ml-auto px-5 py-1.5 rounded-lg bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">Assign {p.code}</button>
                   </div>
                   {adding === p.subjectId && (
                     <TeacherPicker teachers={board.teachers} subjectId={p.subjectId} semester={semester} exclude={new Set(p.rows.map(r => r.facultyId))} maxHeight={260}
-                      action={t => <button onClick={() => add(p, t)} className="px-3 py-1.5 rounded-md bg-[#1f6a63] text-white text-xs font-700">Add</button>} />
+                      action={t => <button onClick={() => add(p, t)} className="px-3 py-1.5 rounded-md bg-[color:var(--c-600)] text-white text-xs font-700">Add</button>} />
                   )}
                 </div>
               )}

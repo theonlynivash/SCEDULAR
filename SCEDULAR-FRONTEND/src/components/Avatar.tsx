@@ -35,5 +35,5 @@ export default function Avatar({ id, name, photoAt, size = 32, className = '' }:
   const style = { width: size, height: size, fontSize: Math.max(9, Math.round(size * 0.36)) }
   return src
     ? <img src={src} alt={name} style={style} className={`rounded-full object-cover shrink-0 ring-1 ring-white/30 ${className}`} />
-    : <span style={style} className={`rounded-full grid place-items-center font-700 shrink-0 text-[#c9a24a] bg-gradient-to-br from-[#17403d] to-[#0f2f2d] ring-1 ring-[#c9a24a]/50 ${className}`} title={name}>{initialsOf(name)}</span>
+    : <span style={style} className={`rounded-full grid place-items-center font-700 shrink-0 text-[color:var(--accent)] bg-gradient-to-br from-[var(--ink-800)] to-[var(--ink-900)] ring-1 ring-[color:var(--accent)]/50 ${className}`} title={name}>{initialsOf(name)}</span>
 }

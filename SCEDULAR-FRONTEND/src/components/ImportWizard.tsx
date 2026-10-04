@@ -85,7 +85,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
 
   const cellCls = (r: CheckedRow, key: string) => {
     const lv = r.issues.filter(i => i.field === key).some(i => i.level === 'error') ? 'error' : r.issues.some(i => i.field === key) ? 'warning' : ''
-    return `w-full rounded-lg border px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 ${lv === 'error' ? 'border-rose-400 bg-rose-50/60 focus:ring-rose-300' : lv === 'warning' ? 'border-amber-300 bg-amber-50/50 focus:ring-amber-200' : 'border-slate-200 focus:ring-[#1f6a63]/30'}`
+    return `w-full rounded-lg border px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 ${lv === 'error' ? 'border-rose-400 bg-rose-50/60 focus:ring-rose-300' : lv === 'warning' ? 'border-amber-300 bg-amber-50/50 focus:ring-amber-200' : 'border-slate-200 focus:ring-[color:var(--c-600)]/30'}`
   }
   const focusCell = (row: number, key: string) => { const el = document.getElementById(`imp-${row}-${key}`) as HTMLElement | null; el?.scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => el?.focus(), 250) }
 
@@ -93,7 +93,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
     <div className="fixed inset-0 z-[70] bg-slate-950/50 backdrop-blur-[2px] flex items-center justify-center p-3" onClick={() => !busy && onClose()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[94vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3 shrink-0">
-          <FileSpreadsheet className="w-5 h-5 text-[#1f6a63]" />
+          <FileSpreadsheet className="w-5 h-5 text-[color:var(--c-600)]" />
           <div>
             <h2 className="text-sm font-800 text-slate-800">Import {TITLE[kind].toLowerCase()} from Excel</h2>
             <p className="text-[11px] text-slate-500">{step === 'upload' ? 'Download the template, fill it, then upload it.' : step === 'review' ? 'Fix anything marked in red (blocks the import) or amber (a warning), then import.' : 'Done.'}</p>
@@ -109,8 +109,8 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
             {kind === 'teachers' && (
               <div className="md:col-span-2 grid gap-2 sm:grid-cols-2">
                 {([['add', 'Add teachers', 'Adds the teachers in the file to your current list. A Faculty ID in the file updates that teacher instead.'], ['replace', 'Replace all teachers', 'Full rewrite for another department: every current teacher (except you) is removed with their logins, preferences and assignments, and the file becomes the new list.']] as [ImportMode, string, string][]).map(([m, t, d]) => (
-                  <button key={m} onClick={() => setMode(m)} className={`text-left rounded-xl border p-3 transition ${mode === m ? (m === 'replace' ? 'border-rose-400 bg-rose-50/60 ring-1 ring-rose-200' : 'border-[#1f6a63] bg-blue-50/50 ring-1 ring-[#1f6a63]/20') : 'border-slate-200 hover:bg-slate-50'}`}>
-                    <p className={`text-xs font-800 ${m === 'replace' ? 'text-rose-700' : 'text-[#1f6a63]'}`}>{mode === m ? '● ' : '○ '}{t}</p>
+                  <button key={m} onClick={() => setMode(m)} className={`text-left rounded-xl border p-3 transition ${mode === m ? (m === 'replace' ? 'border-rose-400 bg-rose-50/60 ring-1 ring-rose-200' : 'border-[color:var(--c-600)] bg-blue-50/50 ring-1 ring-[color:var(--c-600)]/20') : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <p className={`text-xs font-800 ${m === 'replace' ? 'text-rose-700' : 'text-[color:var(--c-600)]'}`}>{mode === m ? '● ' : '○ '}{t}</p>
                     <p className="text-[11px] text-slate-500 mt-0.5">{d}</p>
                   </button>
                 ))}
@@ -120,7 +120,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
               <p className="text-xs font-800 text-slate-700">1 · Get the template</p>
               <p className="text-[11px] text-slate-500 mt-1">It lists every column, marks the required ones and has example rows to copy. Rows that start with "Example:" are ignored.</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button onClick={() => downloadFile(`/setup/import/template/${kind}`, 'template.xlsx').catch(e => setError(e.message))} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#1f6a63] text-[#1f6a63] text-xs font-700 hover:bg-blue-50"><Download className="w-3.5 h-3.5" /> {TITLE[kind]} template</button>
+                <button onClick={() => downloadFile(`/setup/import/template/${kind}`, 'template.xlsx').catch(e => setError(e.message))} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[color:var(--c-600)] text-[color:var(--c-600)] text-xs font-700 hover:bg-blue-50"><Download className="w-3.5 h-3.5" /> {TITLE[kind]} template</button>
                 <button onClick={() => downloadFile('/setup/import/template/all', 'template.xlsx').catch(e => setError(e.message))} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-300 text-slate-600 text-xs font-600 hover:bg-slate-50"><Download className="w-3.5 h-3.5" /> All-in-one (sections + syllabus + teachers)</button>
               </div>
               <div className="mt-4 text-[11px] text-slate-500">
@@ -134,7 +134,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
               <p className="text-xs font-700 text-slate-700 mt-2">2 · Upload the filled file</p>
               <p className="text-[11px] text-slate-500 mt-1">Drop the .xlsx here, or</p>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => choose(e.target.files?.[0])} />
-              <button disabled={busy} onClick={() => fileRef.current?.click()} className="mt-2 px-4 py-1.5 rounded-full bg-[#1f6a63] text-white text-xs font-700 disabled:opacity-40">{busy ? 'Reading…' : 'Choose file'}</button>
+              <button disabled={busy} onClick={() => fileRef.current?.click()} className="mt-2 px-4 py-1.5 rounded-full bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">{busy ? 'Reading…' : 'Choose file'}</button>
               <p className="text-[10.5px] text-slate-400 mt-3">Nothing is saved yet. You review and fix everything first.</p>
             </div>
           </div>
@@ -161,7 +161,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
                     <li key={i} className="text-[11px] flex gap-2">
                       <span className={`shrink-0 font-700 ${p.level === 'error' ? 'text-rose-700' : 'text-amber-700'}`}>{p.level === 'error' ? '✕' : '!'} Row {p.row} · {p.label}</span>
                       <span className="text-slate-700 min-w-0">{p.message}</span>
-                      <button onClick={() => focusCell(p.row, p.field)} className="ml-auto shrink-0 text-[#1b5550] font-700 hover:underline">Fix</button>
+                      <button onClick={() => focusCell(p.row, p.field)} className="ml-auto shrink-0 text-[color:var(--c-700)] font-700 hover:underline">Fix</button>
                     </li>
                   ))}
                 </ul>
@@ -204,7 +204,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
                 </tbody>
               </table>
               {shown.length === 0 && <p className="text-xs text-slate-400 text-center py-8">{rows.length === 0 ? 'No rows left.' : 'No problems. 🎉'}</p>}
-              <button onClick={addRow} className="mt-2 inline-flex items-center gap-1 text-[11px] font-700 text-[#1b5550] hover:underline"><Plus className="w-3.5 h-3.5" /> Add a row</button>
+              <button onClick={addRow} className="mt-2 inline-flex items-center gap-1 text-[11px] font-700 text-[color:var(--c-700)] hover:underline"><Plus className="w-3.5 h-3.5" /> Add a row</button>
             </div>
 
             {replacing && (
@@ -221,7 +221,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
               {errorRows > 0 && (
                 <label className="flex items-center gap-1.5 text-[11px] text-slate-600"><input type="checkbox" checked={skipInvalid} onChange={e => setSkipInvalid(e.target.checked)} /> Skip the {errorRows} row{errorRows === 1 ? '' : 's'} that still have errors</label>
               )}
-              <button disabled={busy || toImport === 0 || (errorRows > 0 && !skipInvalid) || (replacing && (!password || confirmText !== 'REPLACE'))} onClick={commit} className="ml-auto px-5 py-2 rounded-full bg-[#1f6a63] text-white text-xs font-700 disabled:opacity-40">
+              <button disabled={busy || toImport === 0 || (errorRows > 0 && !skipInvalid) || (replacing && (!password || confirmText !== 'REPLACE'))} onClick={commit} className="ml-auto px-5 py-2 rounded-full bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">
                 {busy ? 'Importing…' : errorRows > 0 && !skipInvalid ? `Fix ${errorRows} error${errorRows === 1 ? '' : 's'} to import` : replacing ? `Replace all teachers with these ${toImport}` : `Import ${toImport} ${TITLE[kind].toLowerCase()}`}
               </button>
             </div>
@@ -236,12 +236,12 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
               <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
                 <div className="flex items-center gap-2"><p className="text-xs font-800 text-amber-900">One-time passwords — shown only now. Save or hand them out.</p><button onClick={csv} className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-amber-300 text-amber-900 text-[11px] font-700 hover:bg-amber-100"><Download className="w-3 h-3" /> CSV</button></div>
                 <div className="mt-2 grid gap-1 sm:grid-cols-2 max-h-48 overflow-y-auto">
-                  {result.logins.map(l => <div key={l.facultyId} className="flex items-center gap-2 bg-white border border-amber-100 rounded-md px-2.5 py-1 text-xs"><span className="font-mono text-[11px] text-[#1f6a63]">{l.facultyId}</span><span className="truncate flex-1">{l.name}</span><span className="font-mono font-700">{l.password}</span></div>)}
+                  {result.logins.map(l => <div key={l.facultyId} className="flex items-center gap-2 bg-white border border-amber-100 rounded-md px-2.5 py-1 text-xs"><span className="font-mono text-[11px] text-[color:var(--c-600)]">{l.facultyId}</span><span className="truncate flex-1">{l.name}</span><span className="font-mono font-700">{l.password}</span></div>)}
                 </div>
               </div>
             )}
             <ReadyPanel check={check} />
-            <div className="flex justify-end"><button onClick={onClose} className="px-5 py-2 rounded-full bg-[#1f6a63] text-white text-xs font-700">Close</button></div>
+            <div className="flex justify-end"><button onClick={onClose} className="px-5 py-2 rounded-full bg-[color:var(--c-600)] text-white text-xs font-700">Close</button></div>
           </div>
         )}
       </div>

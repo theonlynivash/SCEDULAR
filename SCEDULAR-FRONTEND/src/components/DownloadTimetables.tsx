@@ -39,32 +39,32 @@ export default function DownloadTimetables({ compact = false }: { compact?: bool
   return (
     <div className="relative" ref={box}>
       <button onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 rounded-full text-[#1b5550] bg-white/15 backdrop-blur ring-1 ring-[#1b5550]/25 hover:bg-white/30 transition font-500 ${compact ? 'px-3 py-1.5 text-[12px]' : 'px-4 py-2 text-[13px]'}`}>
+        className={`flex items-center gap-1.5 rounded-full text-[color:var(--c-700)] bg-white/15 backdrop-blur ring-1 ring-[color:var(--c-700)]/25 hover:bg-white/30 transition font-500 ${compact ? 'px-3 py-1.5 text-[12px]' : 'px-4 py-2 text-[13px]'}`}>
         <Download size={14} /> Download PDF <ChevronDown size={13} />
       </button>
       {open && (
-        <div className="absolute right-0 mt-1.5 w-60 z-30 rounded-2xl bg-white/95 backdrop-blur-xl ring-1 ring-[#17403d]/10 shadow-[0_12px_32px_rgba(23,64,61,0.18)] overflow-hidden">
+        <div className="absolute right-0 mt-1.5 w-60 z-30 rounded-2xl bg-white/95 backdrop-blur-xl ring-1 ring-[color:var(--ink-800)]/10 shadow-[0_12px_32px_rgba(var(--ink-rgb),0.18)] overflow-hidden">
           <p className="px-4 pt-3 pb-1 text-[10.5px] uppercase tracking-[0.12em] text-slate-400">Class timetables</p>
           {sems.map(x => (
-            <button key={x.sem} onClick={() => getClass(x.sem)} className="flex items-center justify-between px-4 py-2 text-[13px] text-slate-700 hover:bg-[#3a8a80]/8 w-full text-left">
+            <button key={x.sem} onClick={() => getClass(x.sem)} className="flex items-center justify-between px-4 py-2 text-[13px] text-slate-700 hover:bg-[color:var(--c-500)]/8 w-full text-left">
               <span>Semester {x.sem}</span><span className="text-[11px] text-slate-400">{x.sections} sections</span>
             </button>
           ))}
           {sems.length > 1 && (
-            <button onClick={() => getClass('all')} className="flex items-center justify-between px-4 py-2 text-[13px] font-500 text-[#1b5550] border-t border-[#17403d]/8 hover:bg-[#3a8a80]/8 w-full text-left">
+            <button onClick={() => getClass('all')} className="flex items-center justify-between px-4 py-2 text-[13px] font-500 text-[color:var(--c-700)] border-t border-[color:var(--ink-800)]/8 hover:bg-[color:var(--c-500)]/8 w-full text-left">
               <span>All semesters</span><span className="text-[11px] text-slate-400">one file</span>
             </button>
           )}
           {isHod && (
             <>
-              <p className="px-4 pt-3 pb-1 text-[10.5px] uppercase tracking-[0.12em] text-slate-400 border-t border-[#17403d]/8">Master timetable (all sections)</p>
+              <p className="px-4 pt-3 pb-1 text-[10.5px] uppercase tracking-[0.12em] text-slate-400 border-t border-[color:var(--ink-800)]/8">Master timetable (all sections)</p>
               {sems.map(x => (
-                <button key={x.sem} onClick={() => getMaster(x.sem)} className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-slate-700 hover:bg-[#3a8a80]/8 text-left">
+                <button key={x.sem} onClick={() => getMaster(x.sem)} className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-slate-700 hover:bg-[color:var(--c-500)]/8 text-left">
                   <span>Semester {x.sem}</span><span className="text-[11px] text-slate-400">master</span>
                 </button>
               ))}
               {sems.length > 1 && (
-                <button onClick={() => getMaster('all')} className="w-full flex items-center justify-between px-4 py-2 text-[13px] font-500 text-[#1b5550] hover:bg-[#3a8a80]/8 text-left">
+                <button onClick={() => getMaster('all')} className="w-full flex items-center justify-between px-4 py-2 text-[13px] font-500 text-[color:var(--c-700)] hover:bg-[color:var(--c-500)]/8 text-left">
                   <span>All semesters</span><span className="text-[11px] text-slate-400">one file</span>
                 </button>
               )}

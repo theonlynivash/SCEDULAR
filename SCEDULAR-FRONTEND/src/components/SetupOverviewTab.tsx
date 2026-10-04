@@ -15,7 +15,7 @@ export default function SetupOverviewTab({ navigate, goTo }: { navigate: (p: Pag
     <div className="flex items-center gap-3 py-2">
       <span className={`w-5 h-5 rounded-full grid place-items-center flex-shrink-0 ${done ? 'bg-emerald-500 text-white' : 'border border-slate-300 text-slate-300'}`}>{done ? <Check className="w-3 h-3" strokeWidth={3} /> : <Circle className="w-2 h-2" />}</span>
       <div className="min-w-0 flex-1"><p className="text-xs font-700 text-slate-800">{title}</p><p className="text-[11px] text-slate-500">{detail}</p></div>
-      {action && <button onClick={action.run} className="px-3 py-1 rounded-md border border-[#1f6a63]/40 text-[#1f6a63] text-[11px] font-700 hover:bg-blue-50">{action.label}</button>}
+      {action && <button onClick={action.run} className="px-3 py-1 rounded-md border border-[color:var(--c-600)]/40 text-[color:var(--c-600)] text-[11px] font-700 hover:bg-blue-50">{action.label}</button>}
     </div>
   )
 

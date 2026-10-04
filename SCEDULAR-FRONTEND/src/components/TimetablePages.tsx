@@ -572,14 +572,14 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
         <div className="max-w-lg mx-auto text-center py-20">
           {isHod ? (
             <>
-              <div className="mx-auto mb-5 w-20 h-20 rounded-full bg-[#1f6a63]/10 flex items-center justify-center shadow-sm">
-                <Cpu size={36} className="text-[#1f6a63]" strokeWidth={1.4} />
+              <div className="mx-auto mb-5 w-20 h-20 rounded-full bg-[color:var(--c-600)]/10 flex items-center justify-center shadow-sm">
+                <Cpu size={36} className="text-[color:var(--c-600)]" strokeWidth={1.4} />
               </div>
               <p className="font-display font-800 text-xl text-slate-800 mb-1.5">No Timetable Generated Yet</p>
               <p className="text-slate-400 text-sm mb-8 max-w-xs mx-auto">Generate a timetable to view it here. The AI scheduler will optimize faculty, section, and lab allocations.</p>
               <button
                 onClick={() => navigate('generate')}
-                className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-gradient-to-r from-[#1f6a63] to-[#17403d] text-white font-700 text-base shadow-lg shadow-[#1f6a63]/25 hover:from-[#17504b] hover:to-[#0c1d42] hover:shadow-xl hover:shadow-[#1f6a63]/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-gradient-to-r from-[var(--c-600)] to-[var(--ink-800)] text-white font-700 text-base shadow-lg shadow-[color:var(--c-600)]/25 hover:from-[var(--c-650)] hover:to-[#0c1d42] hover:shadow-xl hover:shadow-[color:var(--c-600)]/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
               >
                 <Cpu size={20} strokeWidth={2} />
                 Generate Timetable
@@ -605,7 +605,7 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="flex gap-1 glass-pill rounded-2xl p-1.5">
           {tabs.map((t, i) => (
-            <button key={t} onClick={() => setTab(i)} className={`px-4 py-2 rounded-xl text-sm font-500 transition ${tab === i ? 'glass-pill-active text-[#17403d] font-700' : 'text-slate-600 hover:text-slate-800'}`}>
+            <button key={t} onClick={() => setTab(i)} className={`px-4 py-2 rounded-xl text-sm font-500 transition ${tab === i ? 'glass-pill-active text-[color:var(--ink-800)] font-700' : 'text-slate-600 hover:text-slate-800'}`}>
               {t}
             </button>
           ))}
@@ -613,7 +613,7 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
 
         {tab === 0 && selectedFaculty && (
           <button onClick={() => downloadFile(`/timetable/export/faculty/${encodeURIComponent(selectedFaculty)}`, 'Timetable.pdf').catch(e => setError(e.message))}
-            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-500 text-[#1b5550] bg-white/40 ring-1 ring-[#1b5550]/25 hover:bg-white/70 transition">
+            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-500 text-[color:var(--c-700)] bg-white/40 ring-1 ring-[color:var(--c-700)]/25 hover:bg-white/70 transition">
             <Download size={14} /> {isHod ? 'Download PDF' : 'Download my timetable'}
           </button>
         )}
@@ -650,12 +650,12 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
           <table className="w-full text-xs" style={{ minWidth: 820, tableLayout: 'fixed' }}>
             <thead>
               <tr>
-                <th className="px-4 py-3 text-left font-600 w-20 text-white align-middle rounded-tl-3xl" style={{ background: 'linear-gradient(135deg, #17403d, #0f2f2d)' }}>Day</th>
+                <th className="px-4 py-3 text-left font-600 w-20 text-white align-middle rounded-tl-3xl" style={{ background: 'linear-gradient(135deg, var(--ink-800), var(--ink-900))' }}>Day</th>
                 {columns.map(col =>
                   col.type === 'gap' ? (
                     <th key={col.key} className="px-2 py-2 text-center font-600 text-white" style={{ background: '#d97706', width: 62 }}>{col.label}</th>
                   ) : (
-                    <th key={col.index} className="px-2 py-2 text-center font-500 text-white" style={{ background: 'linear-gradient(135deg, #17403d, #0f2f2d)' }}>
+                    <th key={col.index} className="px-2 py-2 text-center font-500 text-white" style={{ background: 'linear-gradient(135deg, var(--ink-800), var(--ink-900))' }}>
                       <div className="font-700">{col.label}</div>
                       <div className="font-400 text-white/70 text-xs">{time12(col.start)}–{time12(col.end)}</div>
                     </th>
@@ -668,7 +668,7 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
                 const skipUntil = new Set<number>()
                 return (
                   <tr key={day} className={`border-b border-white/30 ${di % 2 === 0 ? 'bg-white/25' : 'bg-white/10'}`}>
-                    <td className="px-4 py-2 font-600 text-[#17403d] text-xs align-middle">{day}</td>
+                    <td className="px-4 py-2 font-600 text-[color:var(--ink-800)] text-xs align-middle">{day}</td>
                     {columns.map((col, ci) => {
                       if (col.type === 'gap') {
                         return (
@@ -716,8 +716,8 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
             const isToday = day.toLowerCase().startsWith(todayName.slice(0, 3))
             const periodCol = (i: number) => columns.find(c => c.type === 'period' && c.index === i) as Extract<GridColumn, { type: 'period' }> | undefined
             return (
-              <section key={day} className={`rounded-2xl border p-3.5 ${isToday ? 'border-[#17403d]/40 bg-white/80' : 'border-white/40 bg-white/45'}`}>
-                <h3 className="flex items-center gap-2 text-sm font-700 text-[#17403d]">{day}{isToday && <span className="text-[10px] font-700 uppercase tracking-wider rounded-full bg-[#c9a24a]/30 text-[#8a6500] px-2 py-0.5">Today</span>}<span className="ml-auto text-[11px] font-500 text-slate-400">{rows.length} class{rows.length === 1 ? '' : 'es'}</span></h3>
+              <section key={day} className={`rounded-2xl border p-3.5 ${isToday ? 'border-[color:var(--ink-800)]/40 bg-white/80' : 'border-white/40 bg-white/45'}`}>
+                <h3 className="flex items-center gap-2 text-sm font-700 text-[color:var(--ink-800)]">{day}{isToday && <span className="text-[10px] font-700 uppercase tracking-wider rounded-full bg-[color:var(--accent)]/30 text-[#8a6500] px-2 py-0.5">Today</span>}<span className="ml-auto text-[11px] font-500 text-slate-400">{rows.length} class{rows.length === 1 ? '' : 'es'}</span></h3>
                 {rows.length === 0 ? <p className="text-xs text-slate-400 mt-2">Free day</p> : (
                   <ul className="mt-2.5 space-y-2">
                     {rows.map((a, i) => {
@@ -777,20 +777,20 @@ export function EditTimetable({ navigate }: { navigate: (p: Page) => void }) {
         <table className="w-full text-xs" style={{ minWidth: 900 }}>
           <thead>
             <tr>
-              <th rowSpan={2} className="px-4 py-3 text-left font-600 w-24 text-white align-middle rounded-tl-3xl" style={{ background: 'linear-gradient(135deg, #17403d, #0f2f2d)' }}>Day</th>
-              <th colSpan={4} className="px-2 py-2 text-center font-600 text-white" style={{ background: 'linear-gradient(135deg, #17403d, #0f2f2d)' }}><span className="inline-flex items-center gap-1"><Sun size={16} strokeWidth={1.8} />Before Lunch</span></th>
+              <th rowSpan={2} className="px-4 py-3 text-left font-600 w-24 text-white align-middle rounded-tl-3xl" style={{ background: 'linear-gradient(135deg, var(--ink-800), var(--ink-900))' }}>Day</th>
+              <th colSpan={4} className="px-2 py-2 text-center font-600 text-white" style={{ background: 'linear-gradient(135deg, var(--ink-800), var(--ink-900))' }}><span className="inline-flex items-center gap-1"><Sun size={16} strokeWidth={1.8} />Before Lunch</span></th>
               <th rowSpan={2} className="px-2 py-2 text-center font-600 text-white align-middle" style={{ background: '#d97706', minWidth: 70 }}><span className="inline-flex items-center gap-1"><Utensils size={16} strokeWidth={1.8} />Lunch</span></th>
-              <th colSpan={3} className="px-2 py-2 text-center font-600 text-white" style={{ background: 'linear-gradient(135deg, #0f2f2d, #c9a24a)' }}><span className="inline-flex items-center gap-1"><CloudSun size={16} strokeWidth={1.8} />After Lunch</span></th>
+              <th colSpan={3} className="px-2 py-2 text-center font-600 text-white" style={{ background: 'linear-gradient(135deg, var(--ink-900), var(--accent))' }}><span className="inline-flex items-center gap-1"><CloudSun size={16} strokeWidth={1.8} />After Lunch</span></th>
             </tr>
             <tr>
               {beforeLunchPeriods.map(p => (
-                <th key={p.id} className="px-2 py-2 text-center font-500 text-white" style={{ background: 'linear-gradient(135deg, #17403d, #0f2f2d)', minWidth: 100 }}>
+                <th key={p.id} className="px-2 py-2 text-center font-500 text-white" style={{ background: 'linear-gradient(135deg, var(--ink-800), var(--ink-900))', minWidth: 100 }}>
                   <div className="font-700">{p.id}</div>
                   <div className="font-400 text-white/70 text-xs">{p.time}</div>
                 </th>
               ))}
               {afterLunchPeriods.map(p => (
-                <th key={p.id} className="px-2 py-2 text-center font-500 text-white" style={{ background: 'linear-gradient(135deg, #0f2f2d, #c9a24a)', minWidth: 100 }}>
+                <th key={p.id} className="px-2 py-2 text-center font-500 text-white" style={{ background: 'linear-gradient(135deg, var(--ink-900), var(--accent))', minWidth: 100 }}>
                   <div className="font-700">{p.id}</div>
                   <div className="font-400 text-white/70 text-xs">{p.time}</div>
                 </th>
@@ -802,7 +802,7 @@ export function EditTimetable({ navigate }: { navigate: (p: Page) => void }) {
               const abbr = dayAbbr[day]
               return (
                 <tr key={day} className={`border-b border-white/30 ${di % 2 === 0 ? 'bg-white/25' : 'bg-white/10'}`}>
-                  <td className="px-4 py-2 font-600 text-[#17403d] text-xs align-middle">{day}</td>
+                  <td className="px-4 py-2 font-600 text-[color:var(--ink-800)] text-xs align-middle">{day}</td>
                   {beforeLunchPeriods.map((_, pi) => {
                     const key = `${abbr}-${pi}`
                     const cell = cellData[key]
@@ -812,7 +812,7 @@ export function EditTimetable({ navigate }: { navigate: (p: Page) => void }) {
                       <td key={pi} className="px-1.5 py-1.5">
                         <div
                           onClick={() => setSelected(isSelected ? null : key)}
-                          className={`rounded-lg p-2 min-h-[52px] cursor-pointer transition border-2 ${isSelected ? 'border-[#17403d] bg-[#17403d]/15' : isConflict ? 'border-rose-300 bg-rose-400/15' : 'border-transparent hover:border-white/60'}`}
+                          className={`rounded-lg p-2 min-h-[52px] cursor-pointer transition border-2 ${isSelected ? 'border-[color:var(--ink-800)] bg-[color:var(--ink-800)]/15' : isConflict ? 'border-rose-300 bg-rose-400/15' : 'border-transparent hover:border-white/60'}`}
                           style={!isSelected && !isConflict && cell ? { background: getCellColor(cell) } : {}}
                         >
                           {cell ? (
@@ -841,7 +841,7 @@ export function EditTimetable({ navigate }: { navigate: (p: Page) => void }) {
                       <td key={pi} className="px-1.5 py-1.5">
                         <div
                           onClick={() => setSelected(isSelected ? null : key)}
-                          className={`rounded-lg p-2 min-h-[52px] cursor-pointer transition border-2 ${isSelected ? 'border-[#17403d] bg-[#17403d]/15' : isConflict ? 'border-rose-300 bg-rose-400/15' : 'border-transparent hover:border-white/60'}`}
+                          className={`rounded-lg p-2 min-h-[52px] cursor-pointer transition border-2 ${isSelected ? 'border-[color:var(--ink-800)] bg-[color:var(--ink-800)]/15' : isConflict ? 'border-rose-300 bg-rose-400/15' : 'border-transparent hover:border-white/60'}`}
                           style={!isSelected && !isConflict && cell ? { background: getCellColor(cell) } : {}}
                         >
                           {cell ? (

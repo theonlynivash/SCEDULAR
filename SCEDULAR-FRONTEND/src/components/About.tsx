@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react'
 
 /* ──────────────────────────── content ──────────────────────────── */
 
-const ACCENTS = ['#2f7f74', '#8c6a1f', '#9a4a2f', '#5a6f3c', '#1f5851', '#7a4a62', '#b0623a', '#456a8a']
+const ACCENTS = ['var(--t1)', 'var(--t2d)', 'var(--t3)', 'var(--t4)', 'var(--t5)', 'var(--t6)', 'var(--c-500)', 'var(--t3d)']
 const STEPS = [
   { label: 'Set up', phrase: 'The HOD builds sections, syllabus and teachers.' },
   { label: 'Log in', phrase: 'Every teacher gets a personal login.' },
@@ -136,7 +136,7 @@ function Workflow() {
           {Array.from({ length: 40 }, (_, i) => {
             const col = i % 8, row = Math.floor(i / 8)
             const order = col * 5 + row
-            return <span key={i} className="rounded-md border transition-all duration-500" style={{ borderColor: order < filled ? `color-mix(in srgb, ${accent} 40%, transparent)` : 'rgba(23,64,61,.14)', background: order < filled ? `color-mix(in srgb, ${accent} 28%, transparent)` : 'rgba(255,255,255,.35)', transform: order < filled ? 'none' : 'scale(.94)' }} />
+            return <span key={i} className="rounded-md border transition-all duration-500" style={{ borderColor: order < filled ? `color-mix(in srgb, ${accent} 40%, transparent)` : 'rgba(var(--ink-rgb),.14)', background: order < filled ? `color-mix(in srgb, ${accent} 28%, transparent)` : 'rgba(255,255,255,.35)', transform: order < filled ? 'none' : 'scale(.94)' }} />
           })}
         </div>
 
@@ -204,7 +204,7 @@ function Rules() {
       </Reveal>
       <div ref={row} className="ab-hscroll flex gap-3.5 overflow-x-auto pb-3 -mx-1 px-1 snap-x snap-mandatory">
         {RULES.map((r, i) => (
-          <article key={r.t} className="snap-start shrink-0 w-[250px] rounded-2xl border border-slate-300/60 bg-white/55 p-5 transition-all duration-300 hover:-translate-y-1 hover:bg-white/85 hover:shadow-[0_10px_30px_-14px_rgba(23,64,61,.35)]">
+          <article key={r.t} className="snap-start shrink-0 w-[250px] rounded-2xl border border-slate-300/60 bg-white/55 p-5 transition-all duration-300 hover:-translate-y-1 hover:bg-white/85 hover:shadow-[0_10px_30px_-14px_rgba(var(--ink-rgb),.35)]">
             <span className="block h-1 w-9 rounded-full" style={{ background: ACCENTS[i % ACCENTS.length] }} />
             <p className="mt-4 text-[11px] font-700 tracking-widest" style={{ color: ACCENTS[i % ACCENTS.length] }}>{String(i + 1).padStart(2, '0')}</p>
             <h3 className="mt-3 font-display font-700 text-[1.05rem] text-slate-900">{r.t}</h3>
@@ -227,7 +227,7 @@ function Roles() {
         <h2 className="font-editorial text-3xl md:text-4xl tracking-tight text-slate-900 mt-1">Who does what</h2>
         <div className="inline-flex mt-5 p-1 rounded-full bg-slate-900/[0.06]">
           {(Object.keys(ROLES) as (keyof typeof ROLES)[]).map(k => (
-            <button key={k} onClick={() => setWho(k)} className={`px-5 py-1.5 rounded-full text-[13px] font-600 transition-all ${who === k ? 'bg-white text-[#17403d] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{k}</button>
+            <button key={k} onClick={() => setWho(k)} className={`px-5 py-1.5 rounded-full text-[13px] font-600 transition-all ${who === k ? 'bg-white text-[color:var(--ink-800)] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{k}</button>
           ))}
         </div>
       </Reveal>
@@ -249,7 +249,7 @@ function Band({ words, reverse = false }: { words: string[]; reverse?: boolean }
   const line = [...words, ...words, ...words].join('   ·   ')
   return (
     <div className="overflow-hidden py-6 select-none" aria-hidden>
-      <div className="whitespace-nowrap font-editorial text-[3.6rem] md:text-[5.5rem] leading-none tracking-tight" style={{ transform: reverse ? 'translateX(calc(var(--sy,0) * 0.28px - 1500px))' : 'translateX(calc(var(--sy,0) * -0.28px))', color: 'transparent', WebkitTextStroke: '1px rgba(23,64,61,.28)' }}>
+      <div className="whitespace-nowrap font-editorial text-[3.6rem] md:text-[5.5rem] leading-none tracking-tight" style={{ transform: reverse ? 'translateX(calc(var(--sy,0) * 0.28px - 1500px))' : 'translateX(calc(var(--sy,0) * -0.28px))', color: 'transparent', WebkitTextStroke: '1px rgba(var(--ink-rgb),.28)' }}>
         {line}   ·   {line}
       </div>
     </div>
@@ -259,8 +259,8 @@ function Band({ words, reverse = false }: { words: string[]; reverse?: boolean }
 /* ──────────────────────── legacy & developers ──────────────────────── */
 
 const PEOPLE = [
-  { name: 'Srinivash Karthikeyan', role: 'Lead System Architect & Developer', sub: 'B.Tech AI & DS (2nd Year)', email: 'theonlynivash@gmail.com', initials: 'SK', badge: 'Lead Developer', color: '#3a8a80' },
-  { name: 'Prof. Suganya Devi J', role: 'Faculty Advisor & Academic Domain Expert', sub: 'M.Tech, Panimalar Engineering College', email: 'suganyadevipec@gmail.com', initials: 'SD', badge: 'Faculty Collaborator', color: '#8c6a1f' },
+  { name: 'Srinivash Karthikeyan', role: 'Lead System Architect & Developer', sub: 'B.Tech AI & DS (2nd Year)', email: 'theonlynivash@gmail.com', initials: 'SK', badge: 'Lead Developer', color: 'var(--c-500)' },
+  { name: 'Prof. Suganya Devi J', role: 'Faculty Advisor & Academic Domain Expert', sub: 'M.Tech, Panimalar Engineering College', email: 'suganyadevipec@gmail.com', initials: 'SD', badge: 'Faculty Collaborator', color: 'var(--accent-dark)' },
 ]
 
 function Legacy() {
@@ -274,7 +274,7 @@ function Legacy() {
       <div className="mt-9 grid md:grid-cols-2 gap-4">
         {PEOPLE.map((m, i) => (
           <Reveal key={m.name} delay={i * 120}>
-            <article className="group relative overflow-hidden rounded-3xl border border-slate-300/60 bg-white/60 p-6 transition-all duration-300 hover:-translate-y-1 hover:bg-white/90 hover:shadow-[0_18px_40px_-20px_rgba(23,64,61,.4)]">
+            <article className="group relative overflow-hidden rounded-3xl border border-slate-300/60 bg-white/60 p-6 transition-all duration-300 hover:-translate-y-1 hover:bg-white/90 hover:shadow-[0_18px_40px_-20px_rgba(var(--ink-rgb),.4)]">
               <span className="absolute -right-10 -top-10 h-36 w-36 rounded-full opacity-[.12] transition-transform duration-500 group-hover:scale-125" style={{ background: m.color }} />
               <div className="relative flex items-start gap-4">
                 <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-[15px] font-700 text-white" style={{ background: m.color }}>{m.initials}</span>
@@ -327,15 +327,15 @@ export default function About({ navigate }: { navigate: (p: Page) => void }) {
   return (
     <div ref={root} className="relative -m-5 px-5 md:px-10 pt-5 min-h-full">
       <style>{CSS}</style>
-      <div className="sticky top-0 z-30 -mx-5 md:-mx-10 h-[3px] -mt-5 mb-[2px]"><div className="h-full origin-left" style={{ transform: 'scaleX(var(--sp,0))', background: 'linear-gradient(90deg,#3a8a80,#0f766e,#8c6a1f,#c2410c,#9a4a62)' }} /></div>
+      <div className="sticky top-0 z-30 -mx-5 md:-mx-10 h-[3px] -mt-5 mb-[2px]"><div className="h-full origin-left" style={{ transform: 'scaleX(var(--sp,0))', background: 'linear-gradient(90deg,var(--c-500),#0f766e,var(--accent-dark),#c2410c,#9a4a62)' }} /></div>
       {/* backdrop: stays in view while scrolling; coloured shapes drift and shift at different speeds */}
       <div className="sticky top-0 h-0 z-0 pointer-events-none" aria-hidden>
         <div className="ab-bg" style={{ height: bgH }}>
           <div className="ab-grid" />
           {[
-            ['6%', '12%', 190, 0, '#3a8a80', 0.10, 0.06],
+            ['6%', '12%', 190, 0, 'var(--c-500)', 0.10, 0.06],
             ['70%', '8%', 240, -6, '#0f766e', 0.09, 0.11],
-            ['52%', '56%', 160, -11, '#8c6a1f', 0.10, 0.04],
+            ['52%', '56%', 160, -11, 'var(--accent-dark)', 0.10, 0.04],
             ['12%', '68%', 220, -3, '#7a5c80', 0.08, 0.09],
             ['84%', '74%', 170, -8, '#c2410c', 0.07, 0.05],
           ].map(([l, t, w, delay, c, op, sp], i) => (
@@ -352,12 +352,12 @@ export default function About({ navigate }: { navigate: (p: Page) => void }) {
         <header className="min-h-[68vh] flex flex-col justify-center py-16">
           <Reveal>
             <p className="text-[11px] font-600 uppercase tracking-[0.24em] text-slate-500">Panimalar Engineering College · AI &amp; Data Science</p>
-            <h1 className="mt-4 font-editorial text-[3.2rem] md:text-[5.2rem] leading-[1.02] tracking-tight text-[#17403d]">SCEDULAR</h1>
+            <h1 className="mt-4 font-editorial text-[3.2rem] md:text-[5.2rem] leading-[1.02] tracking-tight text-[color:var(--ink-800)]">SCEDULAR</h1>
             <p className="mt-5 max-w-xl text-[1.15rem] md:text-[1.3rem] leading-snug text-slate-700">One department. Every teacher, subject and lab, scheduled without a clash.</p>
           </Reveal>
           <Reveal delay={120}>
             <div className="mt-9 flex items-center gap-4">
-              <button onClick={() => navigate('dashboard')} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#17403d] text-white text-[13px] font-600 hover:bg-[#0f2f2d] transition">Open dashboard <ArrowUpRight size={15} /></button>
+              <button onClick={() => navigate('dashboard')} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[color:var(--ink-800)] text-white text-[13px] font-600 hover:bg-[color:var(--ink-900)] transition">Open dashboard <ArrowUpRight size={15} /></button>
               <span className="text-[12px] text-slate-400">Scroll to see how it works ↓</span>
             </div>
           </Reveal>
@@ -389,7 +389,7 @@ export default function About({ navigate }: { navigate: (p: Page) => void }) {
         <Reveal>
           <footer className="mt-10 pt-6 border-t border-slate-300/60 flex flex-wrap items-center gap-3 text-[12px] text-slate-500">
             <span>SCEDULAR · AI &amp; DS Timetable Suite</span>
-            <button onClick={() => navigate('dashboard')} className="ml-auto text-[#17403d] font-600 hover:underline">Back to dashboard</button>
+            <button onClick={() => navigate('dashboard')} className="ml-auto text-[color:var(--ink-800)] font-600 hover:underline">Back to dashboard</button>
           </footer>
         </Reveal>
       </div>
@@ -404,11 +404,11 @@ const CSS = `
 @keyframes ab-pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .ab-hscroll{scrollbar-width:none}.ab-hscroll::-webkit-scrollbar{display:none}
 .ab-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
-.ab-grid{position:absolute;inset:-80px;background-image:linear-gradient(rgba(23,64,61,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(23,64,61,.07) 1px,transparent 1px);background-size:88px 64px;animation:ab-drift 60s linear infinite;mask-image:radial-gradient(ellipse at 50% 30%,#000 25%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 25%,transparent 75%)}
+.ab-grid{position:absolute;inset:-80px;background-image:linear-gradient(rgba(var(--ink-rgb),.07) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--ink-rgb),.07) 1px,transparent 1px);background-size:88px 64px;animation:ab-drift 60s linear infinite;mask-image:radial-gradient(ellipse at 50% 30%,#000 25%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 25%,transparent 75%)}
 @keyframes ab-drift{to{transform:translate(88px,64px)}}
 .ab-blob{position:absolute;border-radius:46% 54% 58% 42% / 48% 44% 56% 52%;filter:blur(38px);animation:ab-morph ease-in-out infinite alternate}
 @keyframes ab-morph{0%{transform:translate(0,0) rotate(0) scale(1)}50%{transform:translate(40px,-30px) rotate(40deg) scale(1.12)}100%{transform:translate(-30px,34px) rotate(-30deg) scale(.94)}}
-.ab-block{position:absolute;height:44px;border-radius:12px;background:rgba(23,64,61,.06);border:1px solid rgba(23,64,61,.09);animation:ab-float ease-in-out infinite alternate}
+.ab-block{position:absolute;height:44px;border-radius:12px;background:rgba(var(--ink-rgb),.06);border:1px solid rgba(var(--ink-rgb),.09);animation:ab-float ease-in-out infinite alternate}
 @keyframes ab-float{from{transform:translate(0,0)}to{transform:translate(36px,-28px)}}
 @media (prefers-reduced-motion:reduce){.ab-grid,.ab-block,.ab-blob,.ab-pop{animation:none}.ab-reveal{opacity:1;transform:none;transition:none}}
 `

@@ -137,7 +137,7 @@ function PolicyAndCycle() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-700 text-slate-800">Faculty Allocation Experience Policy</h2>
-          <button onClick={() => addBand()} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-[#1f6a63] border border-blue-200 text-[11px] font-700 hover:bg-blue-100">
+          <button onClick={() => addBand()} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-[color:var(--c-600)] border border-blue-200 text-[11px] font-700 hover:bg-blue-100">
             <Plus className="w-3.5 h-3.5" /> Add Band
           </button>
         </div>
@@ -148,7 +148,7 @@ function PolicyAndCycle() {
                 <input
                   value={band.name}
                   onChange={e => updateBand(idx, { name: e.target.value })}
-                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-600 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1f6a63]/20"
+                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-600 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[color:var(--c-600)]/20"
                 />
                 <button onClick={() => removeBand(idx)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
@@ -177,7 +177,7 @@ function PolicyAndCycle() {
                     <button
                       key={y}
                       onClick={() => toggleYear(idx, y)}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-600 border transition ${band.eligibleYears.includes(y) ? 'bg-[#1f6a63] text-white border-[#1f6a63]' : 'bg-white text-slate-500 border-slate-200'}`}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-600 border transition ${band.eligibleYears.includes(y) ? 'bg-[color:var(--c-600)] text-white border-[color:var(--c-600)]' : 'bg-white text-slate-500 border-slate-200'}`}
                     >
                       {y}
                     </button>
@@ -188,7 +188,7 @@ function PolicyAndCycle() {
           ))}
         </div>
         <div className="flex justify-end">
-          <button onClick={() => saveConfig(config)} disabled={saving} className="px-5 py-2 rounded-lg bg-[#1f6a63] text-white font-600 text-xs shadow-sm hover:bg-[#17504b] disabled:opacity-50">
+          <button onClick={() => saveConfig(config)} disabled={saving} className="px-5 py-2 rounded-lg bg-[color:var(--c-600)] text-white font-600 text-xs shadow-sm hover:bg-[color:var(--c-650)] disabled:opacity-50">
             {saving ? 'Saving…' : 'Save Experience Policy'}
           </button>
         </div>
@@ -204,7 +204,7 @@ function PolicyAndCycle() {
               key={c}
               onClick={() => { if (c !== cycle) { setPendingCycle(c); setCycleError(null); setCyclePassword('') } }}
               disabled={saving || c === cycle}
-              className={`px-3 py-1.5 rounded-lg text-xs font-600 border transition ${cycle === c ? 'bg-[#1f6a63] text-white border-[#1f6a63]' : 'bg-white text-slate-600 border-slate-200 hover:border-[#1f6a63]/40'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-600 border transition ${cycle === c ? 'bg-[color:var(--c-600)] text-white border-[color:var(--c-600)]' : 'bg-white text-slate-600 border-slate-200 hover:border-[color:var(--c-600)]/40'}`}
             >
               {c}
             </button>
@@ -237,7 +237,7 @@ function PolicyAndCycle() {
             <span className="block text-[11px] text-slate-400 mt-1">Assigning past this needs an explicit override; auto-fill never goes past it.</span>
           </label>
         </div>
-        <button onClick={() => saveConfig(config)} disabled={saving} className="px-4 py-1.5 rounded-full bg-[#1f6a63] text-white text-xs font-700 disabled:opacity-40">Save weightage</button>
+        <button onClick={() => saveConfig(config)} disabled={saving} className="px-4 py-1.5 rounded-full bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">Save weightage</button>
       </div>
 
       {/* 4. AI toggle */}
@@ -246,7 +246,7 @@ function PolicyAndCycle() {
         return (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#1f6a63]/10 text-[#1f6a63] shrink-0"><Bot className="w-4.5 h-4.5" /></span>
+              <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[color:var(--c-600)]/10 text-[color:var(--c-600)] shrink-0"><Bot className="w-4.5 h-4.5" /></span>
               <div className="min-w-0">
                 <h2 className="text-sm font-700 text-slate-800">SCEDULAR AI for Faculty</h2>
                 <p className="text-[11px] text-slate-500">{on ? 'Teachers can use the AI assistant.' : 'Hidden from teachers. The HOD can still use it.'}</p>
@@ -266,7 +266,7 @@ function PolicyAndCycle() {
 
       {/* 5. Other info */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-        <h2 className="text-sm font-700 text-slate-800 flex items-center gap-2 mb-3"><Info className="w-4 h-4 text-[#1f6a63]" /> Department Snapshot</h2>
+        <h2 className="text-sm font-700 text-slate-800 flex items-center gap-2 mb-3"><Info className="w-4 h-4 text-[color:var(--c-600)]" /> Department Snapshot</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div><span className="block text-slate-400">Current Cycle</span><span className="font-700 text-slate-800">{cycle ?? '—'}</span></div>
           <div><span className="block text-slate-400">Senior Threshold</span><span className="font-700 text-slate-800">{config.seniorThreshold} yrs</span></div>
@@ -279,7 +279,7 @@ function PolicyAndCycle() {
       {pendingCycle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-xl">
-            <h3 className="text-slate-800 font-700 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[#1f6a63]" /> Switch academic cycle to {pendingCycle}?</h3>
+            <h3 className="text-slate-800 font-700 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[color:var(--c-600)]" /> Switch academic cycle to {pendingCycle}?</h3>
             <p className="text-xs text-slate-500">
               Faculty will immediately only be able to submit preferences for {pendingCycle} semesters, drawn from that semester's actual subject syllabus. Confirm with your HOD password.
             </p>
@@ -290,7 +290,7 @@ function PolicyAndCycle() {
                 value={cyclePassword}
                 onChange={e => setCyclePassword(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && cyclePassword) confirmCycleChange() }}
-                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1f6a63]/30"
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-[color:var(--c-600)]/30"
                 autoFocus
               />
             </div>
@@ -300,7 +300,7 @@ function PolicyAndCycle() {
               <button
                 onClick={confirmCycleChange}
                 disabled={saving || !cyclePassword}
-                className="px-4 py-2 rounded-lg bg-[#1f6a63] text-white text-xs font-700 hover:bg-[#17504b] disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-[color:var(--c-600)] text-white text-xs font-700 hover:bg-[color:var(--c-650)] disabled:opacity-50"
               >
                 {saving ? 'Switching…' : `Confirm Switch to ${pendingCycle}`}
               </button>
@@ -333,7 +333,7 @@ export default function HodSettings({ navigate }: { navigate: (p: Page) => void 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-5 flex-wrap">
-        <h1 className="font-display font-700 text-lg text-[#1f6a63] flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Settings</h1>
+        <h1 className="font-display font-700 text-lg text-[color:var(--c-600)] flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Settings</h1>
         <PillTabs value={tab} onChange={setTab} tabs={TABS} />
       </div>
       {notice && <div className={`slide-down text-xs font-600 rounded-lg px-4 py-2.5 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>{notice.ok ? '✓' : '⚠'} {notice.text}</div>}

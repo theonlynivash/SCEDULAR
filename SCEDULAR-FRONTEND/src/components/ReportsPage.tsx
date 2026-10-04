@@ -5,14 +5,14 @@ import { api, type TeacherWorkload, type AssignBoard, type Assignment, type Facu
 import { PillTabs } from './ui'
 
 type Tab = 'overview' | 'needs' | 'workload' | 'results' | 'timetable'
-const NAVY = '#1b5550', BLUE = '#3a8a80', GOLD = '#c9a24a', GREEN = '#16a34a', MUTED = 'rgba(23,64,61,0.10)'
+const NAVY = 'var(--c-700)', BLUE = 'var(--c-500)', GOLD = 'var(--accent)', GREEN = '#16a34a', MUTED = 'rgba(var(--ink-rgb),0.10)'
 const tl = (t: number, l: number) => (l > 0 ? `${t}T+${l}L` : `${t}T`)
 
 // ───────── small chart primitives (pure SVG / CSS, no chart library) ─────────
 // Every card has its own hue ("tone"); bars, columns and rings inside it pick that hue up unless told otherwise.
 type Tone = 'teal' | 'brass' | 'terra' | 'sage' | 'slate' | 'plum'
 const TONES: Tone[] = ['teal', 'brass', 'terra', 'sage', 'slate', 'plum']
-const TONE_HEX: Record<Tone, [string, string]> = { teal: ['#2f7f74', '#1f5851'], brass: ['#c29a3d', '#8c6a1f'], terra: ['#b0623a', '#7e4325'], sage: ['#6f8f4e', '#4b6a30'], slate: ['#4f6f8f', '#34506b'], plum: ['#8a5a78', '#613c52'] }
+const TONE_HEX: Record<Tone, [string, string]> = { teal: ['var(--t1)', 'var(--t1d)'], brass: ['var(--t2)', 'var(--t2d)'], terra: ['var(--t3)', 'var(--t3d)'], sage: ['var(--t4)', 'var(--t4d)'], slate: ['var(--t5)', 'var(--t5d)'], plum: ['var(--t6)', 'var(--t6d)'] }
 const ToneCtx = createContext<Tone>('teal')
 const TITLE_TONE: Record<string, Tone> = {
   'Staffing by semester': 'sage', 'How loaded are teachers': 'teal', 'Experience mix': 'plum', "Teachers' choices": 'slate', 'Busiest teachers': 'terra',
@@ -106,7 +106,7 @@ function Bar({ pct, color, h = 8, marker }: { pct: number; color?: string; h?: n
   const tone = useContext(ToneCtx)
   const fill = color ?? TONE_HEX[tone][0]
   return (
-    <div className="relative rounded-full overflow-hidden" style={{ height: h, background: 'rgba(23,64,61,0.10)' }}>
+    <div className="relative rounded-full overflow-hidden" style={{ height: h, background: 'rgba(var(--ink-rgb),0.10)' }}>
       <div className="h-full rounded-full bar-grow" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: `linear-gradient(90deg, ${fill}, ${color ? fill : TONE_HEX[tone][1]})` }} />
       {marker !== undefined && <div className="absolute inset-y-0 w-px bg-slate-700/50" style={{ left: `${Math.min(100, marker)}%` }} />}
     </div>
@@ -227,7 +227,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
   const buckets = [['0', 0, 0], ['1–6', 1, 6], ['7–12', 7, 12], ['13–18', 13, 18], ['19–24', 19, 24], ['25+', 25, 99]] as const
   const loadHist = buckets.map(([label, lo, hi]) => ({ label, value: teachers.filter(t => t.load >= lo && t.load <= hi).length, hint: `${label} periods per week` }))
   const band = (e?: number) => (e == null ? 'Not set' : e < 10 ? 'Under 10 yrs' : e < 13 ? '10–13 yrs' : '13+ yrs')
-  const bandParts = ['Under 10 yrs', '10–13 yrs', '13+ yrs', 'Not set'].map((label, i) => ({ label, color: ['#2f7f74', '#4f6f8f', '#c29a3d', 'rgba(23,64,61,0.22)'][i], value: faculty.filter(f => f.role !== 'HOD' && band(f.allocationExperience) === label).length }))
+  const bandParts = ['Under 10 yrs', '10–13 yrs', '13+ yrs', 'Not set'].map((label, i) => ({ label, color: ['var(--t1)', 'var(--t5)', 'var(--t2)', 'rgba(var(--ink-rgb),0.22)'][i], value: faculty.filter(f => f.role !== 'HOD' && band(f.allocationExperience) === label).length }))
 
   return (
     <div className="space-y-2">
@@ -243,7 +243,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
             : tab === 'workload'
             ? download('teacher-workload.csv', [['Teacher', 'Designation', 'Load', 'Weekly limit', 'Subjects'], ...teachers.map(t => [t.name, t.designation, t.load, t.max, t.subjects.map(s => `${s.code}x${s.n}`).join(' ')])])
             : download('subject-needs.csv', [['Semester', 'Subject', 'Code', 'Sections', 'Staffed', 'Periods/week needed', 'Teachers', 'Chose it'], ...rows.map(r => [r.sem, r.name, r.code, r.sections, r.assigned, r.periods, r.teachers, r.chose])])}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full liquid text-[12px] font-600 text-[#17403d]"><Download size={13} /> Export CSV</button>
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full liquid text-[12px] font-600 text-[color:var(--ink-800)]"><Download size={13} /> Export CSV</button>
         </div>
       </div>
 
@@ -289,7 +289,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                 <p className="text-[11px] text-slate-400 flex gap-3 pt-1"><span><i className="inline-block w-2 h-2 rounded-sm mr-1" style={{ background: BLUE }} />approved</span><span><i className="inline-block w-2 h-2 rounded-sm mr-1" style={{ background: GOLD }} />waiting</span></p>
               </div>
             </Card>
-            <Card className="xl:col-span-6" title="Busiest teachers" sub="periods per week out of their limit" right={<button onClick={() => setTab('workload')} className="text-[11px] font-600 text-[#3a8a80] hover:underline">All teachers →</button>}>
+            <Card className="xl:col-span-6" title="Busiest teachers" sub="periods per week out of their limit" right={<button onClick={() => setTab('workload')} className="text-[11px] font-600 text-[color:var(--c-500)] hover:underline">All teachers →</button>}>
               <div className="space-y-2 pt-1">
                 {[...active].sort((a, b) => b.load / b.max - a.load / a.max).slice(0, 6).map(t => (
                   <div key={t.facultyId} className="text-[12px]"><div className="flex justify-between"><span className="text-slate-700 truncate pr-2">{t.name}</span><span className="font-600 text-slate-600">{t.load}/{t.max}</span></div><Bar pct={(100 * t.load) / t.max} /></div>
@@ -315,8 +315,8 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                   const pct = (100 * r.assigned) / Math.max(1, r.sections)
                   const note = r.assigned < r.sections ? (r.chose === 0 ? 'Nobody chose it' : `${r.sections - r.assigned} open`) : r.chose === 0 ? 'Assigned directly' : r.chose < r.teachers ? 'Some assigned without choosing' : 'Covered'
                   return (
-                    <tr key={r.sem + r.code} className="border-t border-[#17403d]/6">
-                      <td className="py-2 pr-2"><span className="font-mono text-[10.5px] text-[#3a8a80] mr-1.5">{r.code}</span><span className="text-slate-800">{r.name}</span> <span className="text-slate-400 text-[10.5px]">Sem {r.sem}</span></td>
+                    <tr key={r.sem + r.code} className="border-t border-[color:var(--ink-800)]/6">
+                      <td className="py-2 pr-2"><span className="font-mono text-[10.5px] text-[color:var(--c-500)] mr-1.5">{r.code}</span><span className="text-slate-800">{r.name}</span> <span className="text-slate-400 text-[10.5px]">Sem {r.sem}</span></td>
                       <td className="text-slate-500 whitespace-nowrap">{tl(r.per.theory, r.per.lab)}</td>
                       <td className="pr-4"><div className="flex items-center gap-2"><div className="flex-1"><Bar pct={pct} color={pct >= 100 ? BLUE : GOLD} /></div><span className="text-slate-600 w-9 text-right">{r.assigned}/{r.sections}</span></div></td>
                       <td className="text-center text-slate-700">{r.periods}</td>
@@ -342,7 +342,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
               ))}
               {teachers.some(t => t.load === 0) && (
                 <div className="pt-2 border-t border-slate-200/60">
-                  <button onClick={() => setShowIdle(v => !v)} className="text-[11.5px] font-700 text-[#1b5550] hover:underline">{showIdle ? 'Hide' : 'Show'} {teachers.filter(t => t.load === 0).length} teachers who are not teaching yet</button>
+                  <button onClick={() => setShowIdle(v => !v)} className="text-[11.5px] font-700 text-[color:var(--c-700)] hover:underline">{showIdle ? 'Hide' : 'Show'} {teachers.filter(t => t.load === 0).length} teachers who are not teaching yet</button>
                   {showIdle && <div className="mt-2 space-y-2.5">{teachers.filter(t => t.load === 0).map(t => <WorkloadRow key={t.facultyId} t={t} d={tw.get(t.facultyId)} open={openW === t.facultyId} onToggle={() => setOpenW(openW === t.facultyId ? null : t.facultyId)} />)}</div>}
                 </div>
               )}
@@ -392,7 +392,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
             </div>
             {rview === 'teacher' ? (
               <Card>
-                <div className="divide-y divide-[#17403d]/8">
+                <div className="divide-y divide-[color:var(--ink-800)]/8">
                   {teachersR.map(t => {
                     const open = openT === t.facultyId
                     return (
@@ -408,7 +408,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                             {t.results.map(r => (
                               <div key={r.id} className="flex items-center gap-3 text-[12px]">
                                 <span className="w-24 text-slate-400">{r.academicYear} · {r.semester}</span>
-                                <span className="flex-1 text-slate-700 truncate">{r.subjectCode && <span className="font-mono text-[10.5px] text-[#3a8a80] mr-1.5">{r.subjectCode}</span>}{r.subjectName}</span>
+                                <span className="flex-1 text-slate-700 truncate">{r.subjectCode && <span className="font-mono text-[10.5px] text-[color:var(--c-500)] mr-1.5">{r.subjectCode}</span>}{r.subjectName}</span>
                                 {r.studentsAppeared ? <span className="text-slate-400">{r.studentsAppeared} students</span> : null}
                                 <div className="w-32"><Bar pct={r.passPercent} color={tone(r.passPercent)} h={6} /></div>
                                 <span className="w-12 text-right font-600 text-slate-700">{r.passPercent}%</span>
@@ -427,8 +427,8 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                   <thead><tr className="text-left text-[10.5px] uppercase tracking-wider text-slate-400"><th className="py-1.5 font-600">Subject</th><th className="font-600 w-[34%]">Average pass</th><th className="font-600 text-center">Entries</th><th className="font-600">Taught by</th></tr></thead>
                   <tbody>
                     {subj.map(g => (
-                      <tr key={g.name} className="border-t border-[#17403d]/6">
-                        <td className="py-2 pr-2">{g.code && <span className="font-mono text-[10.5px] text-[#3a8a80] mr-1.5">{g.code}</span>}<span className="text-slate-800">{g.name}</span></td>
+                      <tr key={g.name} className="border-t border-[color:var(--ink-800)]/6">
+                        <td className="py-2 pr-2">{g.code && <span className="font-mono text-[10.5px] text-[color:var(--c-500)] mr-1.5">{g.code}</span>}<span className="text-slate-800">{g.name}</span></td>
                         <td className="pr-4"><div className="flex items-center gap-2"><div className="flex-1"><Bar pct={g.avg} color={tone(g.avg)} /></div><span className="w-12 text-right font-600 text-slate-700">{g.avg}%</span></div></td>
                         <td className="text-center text-slate-700">{g.marks.length}</td>
                         <td className="text-slate-500 truncate max-w-[260px]">{[...g.teachers].join(', ')}</td>
@@ -445,7 +445,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
       {/* ───────── TIMETABLE ANALYSIS ───────── */}
       {tab === 'timetable' && (
         !run ? (
-          <Card><p className="text-sm text-slate-500 py-8 text-center">No timetable has been generated yet. <button onClick={() => navigate('generate')} className="text-[#3a8a80] font-600 hover:underline">Generate one</button> to see its analysis.</p></Card>
+          <Card><p className="text-sm text-slate-500 py-8 text-center">No timetable has been generated yet. <button onClick={() => navigate('generate')} className="text-[color:var(--c-500)] font-600 hover:underline">Generate one</button> to see its analysis.</p></Card>
         ) : (
           <div className="grid gap-2 xl:grid-cols-12">
             <Card className="xl:col-span-8" title="When the department teaches" sub={`classes running at the same time, run #${run.runId}`}>
@@ -458,7 +458,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                         <td className="text-[10.5px] font-600 text-slate-500 pr-1">{d}</td>
                         {periods.map(p => {
                           const n = grid.get(`${d}|${p.index}`) ?? 0, a = n / gridMax
-                          return <td key={p.index} title={`${d} P${p.index}: ${n} classes`} className="h-9 text-center text-[11px] font-600 rounded-md" style={{ background: n ? `rgba(22,54,122,${0.10 + a * 0.80})` : 'rgba(23,64,61,0.04)', color: a > 0.5 ? '#fff' : '#2c332f' }}>{n || ''}</td>
+                          return <td key={p.index} title={`${d} P${p.index}: ${n} classes`} className="h-9 text-center text-[11px] font-600 rounded-md" style={{ background: n ? `rgba(22,54,122,${0.10 + a * 0.80})` : 'rgba(var(--ink-rgb),0.04)', color: a > 0.5 ? '#fff' : 'var(--text)' }}>{n || ''}</td>
                         })}
                       </tr>
                     ))}
@@ -466,7 +466,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                 </table>
               </div>
               <p className="text-[11px] text-slate-400 mt-1">Each cell counts the classes in session at that moment. The maximum is {new Set(placements.map(a => a.sectionId)).size} (every section has a class), so a full grid means no section has a free period, and paler cells are slots where some sections are free.</p>
-              <div className="grid gap-2 md:grid-cols-2 mt-3 pt-3 border-t border-[#17403d]/8">
+              <div className="grid gap-2 md:grid-cols-2 mt-3 pt-3 border-t border-[color:var(--ink-800)]/8">
                 <div>
                   <p className="text-[12px] font-700 text-slate-700 mb-2">Theory vs lab periods</p>
                   <Donut size={104} parts={[
@@ -556,9 +556,9 @@ function WorkloadRow({ t, d, open, onToggle }: {
                     <tbody>
                       {d.subjects.map(s => (
                         <tr key={s.subjectId} className="border-t border-slate-100 align-top">
-                          <td className="py-1.5 pr-3"><span className="font-mono text-[10.5px] text-[#1b5550] font-700">{s.code}</span> <span className="text-slate-700">{s.name}</span></td>
+                          <td className="py-1.5 pr-3"><span className="font-mono text-[10.5px] text-[color:var(--c-700)] font-700">{s.code}</span> <span className="text-slate-700">{s.name}</span></td>
                           <td className="pr-3 text-slate-500">{s.semester}</td>
-                          <td className="pr-3"><span className="inline-flex flex-wrap gap-1">{s.sections.map(x => <span key={x} className="px-1.5 py-0.5 rounded bg-[#3a8a80]/10 text-[#1b5550] font-600 text-[10.5px]">{x.replace(/^Y\d(S\d)?-/, '')}</span>)}</span> <span className="text-slate-400">· {s.sections.length}</span></td>
+                          <td className="pr-3"><span className="inline-flex flex-wrap gap-1">{s.sections.map(x => <span key={x} className="px-1.5 py-0.5 rounded bg-[color:var(--c-500)]/10 text-[color:var(--c-700)] font-600 text-[10.5px]">{x.replace(/^Y\d(S\d)?-/, '')}</span>)}</span> <span className="text-slate-400">· {s.sections.length}</span></td>
                           <td className="pr-3 text-slate-600 whitespace-nowrap">{s.perSection.l > 0 ? (s.perSection.t > 0 ? `${s.perSection.t}T + ${s.perSection.l}L` : `${s.perSection.l}L`) : `${s.perSection.t}T`}</td>
                           <td className="text-right font-700 text-slate-700">{s.periods}</td>
                         </tr>
@@ -575,7 +575,7 @@ function WorkloadRow({ t, d, open, onToggle }: {
                     {days.map(([day, n]) => (
                       <div key={day} className="flex-1 flex flex-col items-center justify-end gap-0.5">
                         <span className="text-[10px] font-700 text-slate-600">{n}</span>
-                        <div className="w-full rounded-t bg-[#3a8a80]/70" style={{ height: `${(100 * n) / maxDay * 0.32}px`, minHeight: n ? 3 : 1 }} />
+                        <div className="w-full rounded-t bg-[color:var(--c-500)]/70" style={{ height: `${(100 * n) / maxDay * 0.32}px`, minHeight: n ? 3 : 1 }} />
                         <span className="text-[9.5px] text-slate-400">{DAY_LABEL[day] ?? day}</span>
                       </div>
                     ))}

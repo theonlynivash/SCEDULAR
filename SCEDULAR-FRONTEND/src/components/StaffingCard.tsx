@@ -25,9 +25,9 @@ export default function StaffingCard({ refreshKey }: { refreshKey: unknown }) {
         </dl>
       </div>
       <div className="mt-2.5">
-        <div className="relative h-2 rounded-full bg-[#17403d]/8 overflow-hidden">
-          <div className="absolute inset-y-0 left-0 rounded-full bg-[#17403d]/20" style={{ width: `${(100 * capacity) / scale}%` }} title="Total teacher capacity" />
-          <div className="absolute inset-y-0 left-0 rounded-full bg-[#3a8a80]/75" style={{ width: `${(100 * r.assignedPeriods) / scale}%` }} title="Periods already assigned" />
+        <div className="relative h-2 rounded-full bg-[color:var(--ink-800)]/8 overflow-hidden">
+          <div className="absolute inset-y-0 left-0 rounded-full bg-[color:var(--ink-800)]/20" style={{ width: `${(100 * capacity) / scale}%` }} title="Total teacher capacity" />
+          <div className="absolute inset-y-0 left-0 rounded-full bg-[color:var(--c-500)]/75" style={{ width: `${(100 * r.assignedPeriods) / scale}%` }} title="Periods already assigned" />
           {r.totalDemandPeriods > capacity && <div className="absolute inset-y-0 right-0 rounded-full bg-amber-400/80" style={{ width: `${(100 * (r.totalDemandPeriods - capacity)) / scale}%` }} title="Demand beyond capacity" />}
         </div>
         <div className="flex justify-between text-[10.5px] text-slate-500 mt-1">

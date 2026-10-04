@@ -501,7 +501,7 @@ export default function HodFacultyManagement() {
           <GlassPanel className="p-4 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-700 text-slate-800 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-[#1f6a63]" />
+                <Layers className="w-4 h-4 text-[color:var(--c-600)]" />
                 Curriculum Subject Allocation & Capacity Matrix
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">

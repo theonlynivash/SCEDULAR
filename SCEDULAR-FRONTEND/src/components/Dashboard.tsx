@@ -143,9 +143,9 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
   const quoteData = quote ?? getCachedQuote()
 
   const statCards = [
-    { label: 'Sections', value: totalSections, icon: Building2, tone: 'from-blue-500/10 to-indigo-500/10', textTone: 'text-[#1f6a63]', page: 'settings' as Page },
+    { label: 'Sections', value: totalSections, icon: Building2, tone: 'from-blue-500/10 to-indigo-500/10', textTone: 'text-[color:var(--c-600)]', page: 'settings' as Page },
     { label: 'Subjects', value: totalSubjects, icon: BookOpen, tone: 'from-emerald-500/10 to-teal-500/10', textTone: 'text-emerald-700', page: 'settings' as Page },
-    { label: 'Faculty', value: totalFaculty, icon: Users, tone: 'from-indigo-500/10 to-blue-500/10', textTone: 'text-[#1f6a63]', page: 'faculty' as Page },
+    { label: 'Faculty', value: totalFaculty, icon: Users, tone: 'from-indigo-500/10 to-blue-500/10', textTone: 'text-[color:var(--c-600)]', page: 'faculty' as Page },
     { label: 'Labs', value: totalLabs, icon: FlaskConical, tone: 'from-amber-500/10 to-yellow-500/10', textTone: 'text-amber-700', page: 'lab-management' as Page },
   ]
 
@@ -174,7 +174,7 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8 relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1f6a63]/10 text-[#1f6a63] text-xs font-700 mb-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[color:var(--c-600)]/10 text-[color:var(--c-600)] text-xs font-700 mb-2">
               <Sparkles size={13} className="text-amber-500" />
               Panimalar AI &amp; DS Department
             </div>
@@ -212,16 +212,16 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* ✨ SCEDULAR AI live status summary — real, grounded in current DB/readiness state */}
-        <div className="rounded-2xl border border-[#1f6a63]/20 bg-gradient-to-br from-[#1f6a63]/5 to-blue-400/5 p-5 flex items-start gap-3">
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#1f6a63] text-white flex-shrink-0">
+        <div className="rounded-2xl border border-[color:var(--c-600)]/20 bg-gradient-to-br from-[var(--c-600)]/5 to-blue-400/5 p-5 flex items-start gap-3">
+          <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[color:var(--c-600)] text-white flex-shrink-0">
             <Bot size={18} />
           </span>
           <div className="min-w-0">
-            <p className="text-[11px] font-700 tracking-wide text-[#1f6a63] uppercase">✨ SCEDULAR AI — Status Summary</p>
+            <p className="text-[11px] font-700 tracking-wide text-[color:var(--c-600)] uppercase">✨ SCEDULAR AI — Status Summary</p>
             {aiSummaryLoading ? (
               <div className="mt-2 space-y-1.5 animate-pulse">
-                <div className="h-3 bg-[#1f6a63]/10 rounded w-11/12" />
-                <div className="h-3 bg-[#1f6a63]/10 rounded w-2/3" />
+                <div className="h-3 bg-[color:var(--c-600)]/10 rounded w-11/12" />
+                <div className="h-3 bg-[color:var(--c-600)]/10 rounded w-2/3" />
               </div>
             ) : aiSummaryError ? (
               <p className="text-xs text-slate-500 mt-1.5">AI summary unavailable right now — ask SCEDULAR AI directly using the chat button.</p>
@@ -233,12 +233,12 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
 
         {/* Motivational quote — decorative only, no allocation logic */}
         {quoteData && (
-        <div className="rounded-2xl border border-[#1f6a63]/20 bg-gradient-to-br from-[#1f6a63]/5 to-amber-400/5 p-5 flex items-start gap-3">
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#1f6a63] text-white flex-shrink-0">
+        <div className="rounded-2xl border border-[color:var(--c-600)]/20 bg-gradient-to-br from-[var(--c-600)]/5 to-amber-400/5 p-5 flex items-start gap-3">
+          <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[color:var(--c-600)] text-white flex-shrink-0">
             <Sparkles size={18} className="text-amber-300" />
           </span>
           <div>
-            <p className="text-[11px] font-700 tracking-wide text-[#1f6a63] uppercase">Today's Note</p>
+            <p className="text-[11px] font-700 tracking-wide text-[color:var(--c-600)] uppercase">Today's Note</p>
             <p className="text-sm text-slate-700 italic mt-1">"{quoteData.text}"</p>
             <p className="text-xs text-slate-500 mt-1">— {quoteData.author}</p>
           </div>
@@ -252,7 +252,7 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
               <p className="text-xs font-600 text-slate-500">Current Academic Cycle</p>
-              <p className="font-display font-800 text-2xl text-[#1f6a63] mt-1">{cycle ?? '—'}</p>
+              <p className="font-display font-800 text-2xl text-[color:var(--c-600)] mt-1">{cycle ?? '—'}</p>
               <p className="text-xs text-slate-400 mt-0.5">Regulation 2024 · AI &amp; DS</p>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
@@ -269,14 +269,14 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
                 const IconComp = a.icon
                 return (
                   <button key={a.title} onClick={() => navigate(a.page)} className="text-left group transition-all duration-200">
-                    <div style={{ '--stagger': idx } as CSSProperties} className={`animate-in bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-full flex items-center justify-between transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md ${a.highlight ? 'border-[#1f6a63]/40 bg-blue-50/20' : ''}`}>
+                    <div style={{ '--stagger': idx } as CSSProperties} className={`animate-in bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-full flex items-center justify-between transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md ${a.highlight ? 'border-[color:var(--c-600)]/40 bg-blue-50/20' : ''}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${a.highlight ? 'bg-[#1f6a63] text-white shadow-sm' : 'bg-[#1f6a63]/10 text-[#1f6a63]'}`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${a.highlight ? 'bg-[color:var(--c-600)] text-white shadow-sm' : 'bg-[color:var(--c-600)]/10 text-[color:var(--c-600)]'}`}>
                           <IconComp size={20} strokeWidth={1.8} />
                         </div>
-                        <span className="font-display font-700 text-sm text-slate-900 group-hover:text-[#1f6a63] transition">{a.title}</span>
+                        <span className="font-display font-700 text-sm text-slate-900 group-hover:text-[color:var(--c-600)] transition">{a.title}</span>
                       </div>
-                      <ArrowRight size={16} className="text-slate-400 group-hover:text-[#1f6a63] group-hover:translate-x-1 transition-all" />
+                      <ArrowRight size={16} className="text-slate-400 group-hover:text-[color:var(--c-600)] group-hover:translate-x-1 transition-all" />
                     </div>
                   </button>
                 )
@@ -349,14 +349,14 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
                 const IconComp = a.icon
                 return (
                   <button key={a.title} onClick={() => navigate(a.page)} className="text-left group transition-all duration-200">
-                    <div style={{ '--stagger': idx } as CSSProperties} className={`animate-in bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-full flex items-center justify-between transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md ${a.highlight ? 'border-[#1f6a63]/40 bg-blue-50/20' : ''}`}>
+                    <div style={{ '--stagger': idx } as CSSProperties} className={`animate-in bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-full flex items-center justify-between transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md ${a.highlight ? 'border-[color:var(--c-600)]/40 bg-blue-50/20' : ''}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${a.highlight ? 'bg-[#1f6a63] text-white shadow-sm' : 'bg-[#1f6a63]/10 text-[#1f6a63]'}`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${a.highlight ? 'bg-[color:var(--c-600)] text-white shadow-sm' : 'bg-[color:var(--c-600)]/10 text-[color:var(--c-600)]'}`}>
                           <IconComp size={20} strokeWidth={1.8} />
                         </div>
-                        <span className="font-display font-700 text-sm text-slate-900 group-hover:text-[#1f6a63] transition">{a.title}</span>
+                        <span className="font-display font-700 text-sm text-slate-900 group-hover:text-[color:var(--c-600)] transition">{a.title}</span>
                       </div>
-                      <ArrowRight size={16} className="text-slate-400 group-hover:text-[#1f6a63] group-hover:translate-x-1 transition-all" />
+                      <ArrowRight size={16} className="text-slate-400 group-hover:text-[color:var(--c-600)] group-hover:translate-x-1 transition-all" />
                     </div>
                   </button>
                 )

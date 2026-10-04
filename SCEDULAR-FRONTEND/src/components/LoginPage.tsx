@@ -125,7 +125,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   type="button"
                   onClick={() => setShowPass(s => !s)}
                   aria-label={showPass ? 'Hide password' : 'Show password'}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-500 hover:text-[#17403d] hover:bg-white/60 transition"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-500 hover:text-[color:var(--ink-800)] hover:bg-white/60 transition"
                 >
                   {showPass ? (
                     <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
@@ -151,16 +151,16 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   type="checkbox"
                   checked={remember}
                   onChange={e => setRemember(e.target.checked)}
-                  className="accent-[#17403d]"
+                  className="accent-[color:var(--ink-800)]"
                 />
                 <span className="text-sm text-slate-600">Remember me</span>
               </label>
-              <button type="button" onClick={() => { setMode(mode === 'login' ? 'ask' : 'login'); setError(null); setNotice(null) }} className="text-sm text-[#17403d] hover:text-[#0f2f2d] font-500 transition">{mode === 'login' ? 'Forgot Password?' : 'Back to sign in'}</button>
+              <button type="button" onClick={() => { setMode(mode === 'login' ? 'ask' : 'login'); setError(null); setNotice(null) }} className="text-sm text-[color:var(--ink-800)] hover:text-[color:var(--ink-900)] font-500 transition">{mode === 'login' ? 'Forgot Password?' : 'Back to sign in'}</button>
             </div>
             <button
               type="submit"
               disabled={submitting}
-              className="w-full text-white font-600 py-3 rounded-xl transition-all text-sm tracking-wide bg-gradient-to-br from-[#17403d] to-[#0f2f2d] ring-1 ring-[#c9a24a]/60 shadow-[0_8px_24px_rgba(23,64,61,0.45)] hover:brightness-110 disabled:opacity-60"
+              className="w-full text-white font-600 py-3 rounded-xl transition-all text-sm tracking-wide bg-gradient-to-br from-[var(--ink-800)] to-[var(--ink-900)] ring-1 ring-[color:var(--accent)]/60 shadow-[0_8px_24px_rgba(var(--ink-rgb),0.45)] hover:brightness-110 disabled:opacity-60"
             >
               {submitting ? 'Please wait…' : mode === 'login' ? 'Sign In to SCEDULAR' : mode === 'ask' ? 'Email me a code' : 'Set new password'}
             </button>

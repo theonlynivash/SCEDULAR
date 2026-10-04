@@ -3,7 +3,7 @@ import { Trash2, Plus } from 'lucide-react'
 import { api, type FacultyResultRow, type ResultSummary, type Subject } from '../api'
 
 const SEMS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
-const input = 'w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-[13px] text-slate-800 focus:outline-none focus:border-[#1f6a63] focus:ring-2 focus:ring-[#1f6a63]/15'
+const input = 'w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-[13px] text-slate-800 focus:outline-none focus:border-[color:var(--c-600)] focus:ring-2 focus:ring-[color:var(--c-600)]/15'
 const label = 'block text-[11px] font-600 uppercase tracking-wider text-slate-500 mb-1'
 
 /** The last few academic years, newest first: ["2025-26", "2024-25", …]. */
@@ -71,7 +71,7 @@ export default function ProfileResults() {
   }
 
   const avg = summary?.average
-  const tone = (p: number) => (p >= 85 ? 'bg-[#3a8a80]' : p >= 70 ? 'bg-[#3a8a80]/70' : 'bg-[#c9a24a]')
+  const tone = (p: number) => (p >= 85 ? 'bg-[color:var(--c-500)]' : p >= 70 ? 'bg-[color:var(--c-500)]/70' : 'bg-[color:var(--accent)]')
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
@@ -83,7 +83,7 @@ export default function ProfileResults() {
         {avg != null && (
           <div className="text-right">
             <p className="text-[10.5px] uppercase tracking-[0.12em] text-slate-400">Your average pass</p>
-            <p className="font-display text-[30px] font-600 text-[#1b5550] leading-none">{avg}<span className="text-lg">%</span></p>
+            <p className="font-display text-[30px] font-600 text-[color:var(--c-700)] leading-none">{avg}<span className="text-lg">%</span></p>
           </div>
         )}
       </div>
@@ -106,7 +106,7 @@ export default function ProfileResults() {
           {subjectId === '__other' && <input className={input} placeholder="Subject name" value={otherName} onChange={e => setOtherName(e.target.value)} />}
           <label className="block"><span className={label}>Pass percentage</span>
             <div className="flex items-center gap-3">
-              <input type="range" min={0} max={100} step={0.5} value={pass === '' ? 0 : pct} onChange={e => setPass(e.target.value)} className="flex-1 accent-[#3a8a80]" />
+              <input type="range" min={0} max={100} step={0.5} value={pass === '' ? 0 : pct} onChange={e => setPass(e.target.value)} className="flex-1 accent-[color:var(--c-500)]" />
               <div className="relative w-24"><input type="number" min={0} max={100} step={0.1} className={`${input} pr-7 text-right`} value={pass} onChange={e => setPass(e.target.value)} placeholder="–" /><span className="absolute right-3 top-2 text-slate-400 text-[13px]">%</span></div>
             </div></label>
           <div className="grid grid-cols-2 gap-3">
@@ -114,15 +114,15 @@ export default function ProfileResults() {
             <label><span className={label}>Sections (optional)</span><input type="number" min={1} max={26} className={input} value={sections} onChange={e => setSections(e.target.value)} /></label>
           </div>
           <div className="flex items-center gap-3">
-            <button disabled={busy || !valid} onClick={add} className="flex items-center gap-1.5 px-5 py-2.5 rounded-full text-[13px] font-500 text-white bg-gradient-to-br from-[#1b5550] to-[#123432] shadow-[0_4px_14px_rgba(10,29,69,0.25)] disabled:opacity-40"><Plus size={14} /> Save result</button>
-            {msg && <span className={`text-[12.5px] ${msg.ok ? 'text-[#1b5550]' : 'text-rose-600'}`}>{msg.text}</span>}
+            <button disabled={busy || !valid} onClick={add} className="flex items-center gap-1.5 px-5 py-2.5 rounded-full text-[13px] font-500 text-white bg-gradient-to-br from-[var(--c-700)] to-[var(--ink-850)] shadow-[0_4px_14px_rgba(10,29,69,0.25)] disabled:opacity-40"><Plus size={14} /> Save result</button>
+            {msg && <span className={`text-[12.5px] ${msg.ok ? 'text-[color:var(--c-700)]' : 'text-rose-600'}`}>{msg.text}</span>}
           </div>
         </div>
 
         {/* what you have entered */}
         <div className="min-w-0">
           {loading ? <p className="text-sm text-slate-400">Loading…</p> : rows.length === 0 ? (
-            <div className="h-full min-h-[160px] grid place-items-center rounded-2xl bg-[#17403d]/[0.03] text-center px-6">
+            <div className="h-full min-h-[160px] grid place-items-center rounded-2xl bg-[color:var(--ink-800)]/[0.03] text-center px-6">
               <p className="text-[13px] text-slate-500">No results yet. Add the subjects you took in earlier semesters and the pass percentage your classes achieved.</p>
             </div>
           ) : (
@@ -134,7 +134,7 @@ export default function ProfileResults() {
                     {summary.bySemester.map(b => (
                       <div key={b.label} className="text-[12px]">
                         <div className="flex justify-between"><span className="text-slate-600">{b.label}</span><span className="font-600 text-slate-700">{b.average}%</span></div>
-                        <div className="h-2 rounded-full bg-[#17403d]/10 overflow-hidden"><div className={`h-full rounded-full ${tone(b.average)}`} style={{ width: `${b.average}%` }} /></div>
+                        <div className="h-2 rounded-full bg-[color:var(--ink-800)]/10 overflow-hidden"><div className={`h-full rounded-full ${tone(b.average)}`} style={{ width: `${b.average}%` }} /></div>
                       </div>
                     ))}
                   </div>
@@ -148,7 +148,7 @@ export default function ProfileResults() {
                 {rows.map(r => (
                   <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 last:border-0 text-[13px]">
                     <div className="min-w-0 flex-1">
-                      <p className="text-slate-800 truncate">{r.subjectCode && <span className="font-mono text-[11px] text-[#3a8a80] mr-1.5">{r.subjectCode}</span>}{r.subjectName}</p>
+                      <p className="text-slate-800 truncate">{r.subjectCode && <span className="font-mono text-[11px] text-[color:var(--c-500)] mr-1.5">{r.subjectCode}</span>}{r.subjectName}</p>
                       <p className="text-[11px] text-slate-400">{r.academicYear} · Sem {r.semester}{r.studentsAppeared ? ` · ${r.studentsAppeared} students` : ''}{r.sectionsHandled ? ` · ${r.sectionsHandled} section${r.sectionsHandled === 1 ? '' : 's'}` : ''}</p>
                     </div>
                     <span className="font-600 text-slate-800 w-14 text-right">{r.passPercent}%</span>

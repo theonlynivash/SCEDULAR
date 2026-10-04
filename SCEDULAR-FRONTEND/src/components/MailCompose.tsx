@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Sparkles, Send, Mail, KeyRound, User } from 'lucide-react'
 import { api, type FacultyProfile, type MailLogRow, type MailStatus, type ResultSummary } from '../api'
 
-const field = 'w-full rounded-xl border border-slate-200 bg-white/80 px-3.5 py-2.5 text-[13px] text-slate-800 focus:outline-none focus:border-[#1f6a63] focus:ring-2 focus:ring-[#1f6a63]/15'
+const field = 'w-full rounded-xl border border-slate-200 bg-white/80 px-3.5 py-2.5 text-[13px] text-slate-800 focus:outline-none focus:border-[color:var(--c-600)] focus:ring-2 focus:ring-[color:var(--c-600)]/15'
 const cap = 'block text-[11px] font-600 uppercase tracking-wider text-slate-500 mb-1.5'
-const glass = 'rounded-2xl bg-gradient-to-br from-white/60 to-white/25 backdrop-blur-xl ring-1 ring-[#17403d]/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_24px_rgba(23,64,61,0.06)]'
+const glass = 'rounded-2xl bg-gradient-to-br from-white/60 to-white/25 backdrop-blur-xl ring-1 ring-[color:var(--ink-800)]/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_24px_rgba(var(--ink-rgb),0.06)]'
 
 /** "Dr.T.VEERAMANI" -> "VE": the first letters of the longest word of the name. */
 const initials = (name: string) => (name.replace(/^(Dr|Mr|Mrs|Ms)\.?\s*/i, '').split(/[\s.]+/).filter(Boolean).sort((a, b) => b.length - a.length)[0] ?? name).slice(0, 2).toUpperCase()
@@ -91,29 +91,29 @@ export default function MailCompose({ facultyId, onBack }: { facultyId: string; 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-500 text-[#1b5550] bg-white/40 backdrop-blur ring-1 ring-[#1b5550]/20 hover:bg-white/70"><ArrowLeft size={14} /> Teachers</button>
+        <button onClick={onBack} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-500 text-[color:var(--c-700)] bg-white/40 backdrop-blur ring-1 ring-[color:var(--c-700)]/20 hover:bg-white/70"><ArrowLeft size={14} /> Teachers</button>
         <h1 className="font-display font-600 text-[22px] text-slate-800">Send mail</h1>
       </div>
 
-      {notice && <div className={`rounded-2xl px-4 py-3 text-[13px] ${notice.ok ? 'bg-[#3a8a80]/10 text-[#1b5550] ring-1 ring-[#3a8a80]/20' : 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'}`}>{notice.ok ? '✓' : '⚠'} {notice.text}</div>}
+      {notice && <div className={`rounded-2xl px-4 py-3 text-[13px] ${notice.ok ? 'bg-[color:var(--c-500)]/10 text-[color:var(--c-700)] ring-1 ring-[color:var(--c-500)]/20' : 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'}`}>{notice.ok ? '✓' : '⚠'} {notice.text}</div>}
 
       <div className="mail-split">
         {/* recipient */}
         <div className="space-y-4">
           <div className={`${glass} p-5`}>
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full grid place-items-center text-[#c9a24a] font-600 bg-gradient-to-br from-[#1b5550] to-[#123432]">{initials(teacher.name)}</div>
+              <div className="w-11 h-11 rounded-full grid place-items-center text-[color:var(--accent)] font-600 bg-gradient-to-br from-[var(--c-700)] to-[var(--ink-850)]">{initials(teacher.name)}</div>
               <div className="min-w-0"><p className="text-[15px] font-600 text-slate-800 truncate">{teacher.name}</p><p className="text-[12px] text-slate-500 truncate">{teacher.designation || 'Faculty'} · {teacher.id}</p></div>
             </div>
             <div className="mt-4 text-[13px]">
               <p className={cap}>Email</p>
               {teacher.email ? <p className="text-slate-800 break-all">{teacher.email}</p> : (
                 <div className="flex gap-2"><input className={field} type="email" placeholder="name@gmail.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
-                  <button disabled={!newEmail.includes('@')} onClick={saveEmail} className="px-3 rounded-xl text-[12.5px] font-500 text-white bg-[#1b5550] disabled:opacity-40">Save</button></div>
+                  <button disabled={!newEmail.includes('@')} onClick={saveEmail} className="px-3 rounded-xl text-[12.5px] font-500 text-white bg-[color:var(--c-700)] disabled:opacity-40">Save</button></div>
               )}
             </div>
             {results?.average != null && (
-              <div className="mt-4"><p className={cap}>Average pass in past semesters</p><p className="text-[20px] font-display font-600 text-[#1b5550]">{results.average}%<span className="text-[12px] font-400 text-slate-400"> · {results.count} subject{results.count === 1 ? '' : 's'}</span></p></div>
+              <div className="mt-4"><p className={cap}>Average pass in past semesters</p><p className="text-[20px] font-display font-600 text-[color:var(--c-700)]">{results.average}%<span className="text-[12px] font-400 text-slate-400"> · {results.count} subject{results.count === 1 ? '' : 's'}</span></p></div>
             )}
           </div>
 
@@ -135,18 +135,18 @@ export default function MailCompose({ facultyId, onBack }: { facultyId: string; 
         {/* composer */}
         <div className="space-y-4">
           <div className={`${glass} p-5`}>
-            <div className="flex items-center gap-2 mb-2"><Sparkles size={15} className="text-[#8c6a1f]" /><h2 className="text-[14px] font-600 text-slate-800">Write it with AI</h2><span className="text-[11.5px] text-slate-400">describe it in a few words</span></div>
+            <div className="flex items-center gap-2 mb-2"><Sparkles size={15} className="text-[color:var(--accent-dark)]" /><h2 className="text-[14px] font-600 text-slate-800">Write it with AI</h2><span className="text-[11.5px] text-slate-400">describe it in a few words</span></div>
             <textarea className={`${field} resize-none`} rows={2} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder={`e.g. Congratulate ${first} on the best paper award and invite them to share it at the next department meeting`} />
             <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-              {IDEAS.map(i => <button key={i} onClick={() => setPrompt(`${i}.`)} className="px-3 py-1 rounded-full text-[11.5px] text-[#1b5550] bg-white/50 ring-1 ring-[#1b5550]/15 hover:bg-white/80">{i}</button>)}
-              <button disabled={drafting || prompt.trim().length < 3} onClick={draft} className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-500 text-[#1b5550] bg-[#c9a24a]/90 hover:bg-[#c9a24a] disabled:opacity-40"><Sparkles size={13} /> {drafting ? 'Writing…' : 'Write draft'}</button>
+              {IDEAS.map(i => <button key={i} onClick={() => setPrompt(`${i}.`)} className="px-3 py-1 rounded-full text-[11.5px] text-[color:var(--c-700)] bg-white/50 ring-1 ring-[color:var(--c-700)]/15 hover:bg-white/80">{i}</button>)}
+              <button disabled={drafting || prompt.trim().length < 3} onClick={draft} className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-500 text-[color:var(--c-700)] bg-[color:var(--accent)]/90 hover:bg-[color:var(--accent)] disabled:opacity-40"><Sparkles size={13} /> {drafting ? 'Writing…' : 'Write draft'}</button>
             </div>
           </div>
 
           <div className={`${glass} p-5 space-y-4`}>
             <div className="flex items-center gap-2">
               <h2 className="text-[14px] font-600 text-slate-800">Your message</h2>
-              {source === 'ai' && <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#3a8a80]/10 text-[#1b5550]">AI draft · read it before sending</span>}
+              {source === 'ai' && <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[color:var(--c-500)]/10 text-[color:var(--c-700)]">AI draft · read it before sending</span>}
               {source === 'template' && <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800">Basic draft · AI is unavailable, please edit</span>}
             </div>
             <label className="block"><span className={cap}>Subject</span><input className={field} value={subject} onChange={e => setSubject(e.target.value)} maxLength={150} placeholder="Subject line" /></label>
@@ -156,8 +156,8 @@ export default function MailCompose({ facultyId, onBack }: { facultyId: string; 
               <span className={cap}>Login details</span>
               <div className="grid gap-2 sm:grid-cols-3">
                 {CREDS.map(c => (
-                  <button key={c.id} onClick={() => setCreds(c.id)} className={`text-left rounded-2xl px-3.5 py-3 transition ring-1 ${creds === c.id ? 'bg-white/90 ring-[#3a8a80] shadow-sm' : 'bg-white/40 ring-[#17403d]/10 hover:bg-white/70'}`}>
-                    <c.icon size={15} className={creds === c.id ? 'text-[#3a8a80]' : 'text-slate-400'} />
+                  <button key={c.id} onClick={() => setCreds(c.id)} className={`text-left rounded-2xl px-3.5 py-3 transition ring-1 ${creds === c.id ? 'bg-white/90 ring-[color:var(--c-500)] shadow-sm' : 'bg-white/40 ring-[color:var(--ink-800)]/10 hover:bg-white/70'}`}>
+                    <c.icon size={15} className={creds === c.id ? 'text-[color:var(--c-500)]' : 'text-slate-400'} />
                     <p className="text-[13px] font-500 text-slate-800 mt-1.5">{c.title}</p>
                     <p className="text-[11.5px] text-slate-500 leading-snug mt-0.5">{c.hint}</p>
                   </button>
@@ -175,9 +175,9 @@ export default function MailCompose({ facultyId, onBack }: { facultyId: string; 
             )}
 
             <div className="flex items-center gap-3">
-              <button disabled={!canSend} onClick={send} className="flex items-center gap-1.5 px-6 py-2.5 rounded-full text-[13px] font-500 text-white bg-gradient-to-br from-[#1b5550] to-[#123432] shadow-[0_4px_14px_rgba(10,29,69,0.28)] disabled:opacity-40"><Send size={14} /> {sending ? 'Sending…' : 'Send mail'}</button>
+              <button disabled={!canSend} onClick={send} className="flex items-center gap-1.5 px-6 py-2.5 rounded-full text-[13px] font-500 text-white bg-gradient-to-br from-[var(--c-700)] to-[var(--ink-850)] shadow-[0_4px_14px_rgba(10,29,69,0.28)] disabled:opacity-40"><Send size={14} /> {sending ? 'Sending…' : 'Send mail'}</button>
               {teacher.email && <span className="text-[12px] text-slate-500">to {teacher.email}</span>}
-              <button onClick={checkSetup} disabled={checking} className="ml-auto text-[12px] text-[#3a8a80] hover:underline disabled:opacity-50">{checking ? 'Checking…' : 'Check mail setup'}</button>
+              <button onClick={checkSetup} disabled={checking} className="ml-auto text-[12px] text-[color:var(--c-500)] hover:underline disabled:opacity-50">{checking ? 'Checking…' : 'Check mail setup'}</button>
             </div>
           </div>
         </div>

@@ -130,7 +130,7 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
                 <p className="font-700 text-lg text-slate-900 leading-tight">{display(profile.name)}</p>
                 <p className="text-sm text-slate-500">{display(profile.designation)} · {display(profile.department)}</p>
               </div>
-              <span className="ml-auto text-xs font-700 px-3 py-1 rounded-full bg-[#1f6a63]/10 text-[#1f6a63] uppercase tracking-wide">
+              <span className="ml-auto text-xs font-700 px-3 py-1 rounded-full bg-[color:var(--c-600)]/10 text-[color:var(--c-600)] uppercase tracking-wide">
                 {display(profile.role)}
               </span>
             </div>
@@ -163,7 +163,7 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="text-white font-600 py-2.5 px-5 rounded-xl text-sm bg-gradient-to-br from-[#17403d] to-[#0f2f2d] ring-1 ring-[#c9a24a]/60 shadow hover:brightness-110 disabled:opacity-60"
+                className="text-white font-600 py-2.5 px-5 rounded-xl text-sm bg-gradient-to-br from-[var(--ink-800)] to-[var(--ink-900)] ring-1 ring-[color:var(--accent)]/60 shadow hover:brightness-110 disabled:opacity-60"
               >
                 {saving ? 'Saving…' : 'Save Experience'}
               </button>
@@ -176,12 +176,12 @@ export default function FacultyProfile({ facultyId }: FacultyProfileProps) {
             <p className="text-xs text-slate-500 mb-5">Your email is where the HOD can reach you (announcements, awards, login details).</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="block"><span className="block text-xs font-600 text-slate-500 mb-1.5">Email (Gmail)</span>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@gmail.com" className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1f6a63]/40" /></label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@gmail.com" className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[color:var(--c-600)]/40" /></label>
               <label className="block"><span className="block text-xs font-600 text-slate-500 mb-1.5">Phone</span>
-                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Optional" className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1f6a63]/40" /></label>
+                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Optional" className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[color:var(--c-600)]/40" /></label>
             </div>
             <div className="flex items-center gap-3 mt-5">
-              <button onClick={saveContact} disabled={savingContact} className="text-white font-600 py-2.5 px-5 rounded-xl text-sm bg-gradient-to-br from-[#17403d] to-[#0f2f2d] ring-1 ring-[#c9a24a]/60 shadow hover:brightness-110 disabled:opacity-60">{savingContact ? 'Saving…' : 'Save contact details'}</button>
+              <button onClick={saveContact} disabled={savingContact} className="text-white font-600 py-2.5 px-5 rounded-xl text-sm bg-gradient-to-br from-[var(--ink-800)] to-[var(--ink-900)] ring-1 ring-[color:var(--accent)]/60 shadow hover:brightness-110 disabled:opacity-60">{savingContact ? 'Saving…' : 'Save contact details'}</button>
               {contactMsg && <span className={`text-sm ${contactMsg.ok ? 'text-slate-600' : 'text-rose-600'}`}>{contactMsg.text}</span>}
             </div>
           </div>
@@ -212,7 +212,7 @@ function NumberField({ label, value, onChange }: { label: string; value: string;
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder="Not Set"
-        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1f6a63]/40"
+        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[color:var(--c-600)]/40"
       />
     </label>
   )

@@ -6,7 +6,7 @@ import { resizeToDataUrl } from './PhotoUploader'
 import { photoChanged } from './Avatar'
 import { api, type Faculty, type IssuedLogin } from '../api'
 
-const inputCls = 'w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#1f6a63] bg-white'
+const inputCls = 'w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[color:var(--c-600)] bg-white'
 const labelCls = 'block text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1'
 
 function downloadCsv(rows: IssuedLogin[]) {
@@ -85,21 +85,21 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
   const num = (v: number | null | undefined, onSave: (n: number) => void, min = 0, max = 60) => (
     <input key={String(v)} type="number" min={min} max={max} defaultValue={v ?? ''} placeholder="–"
       onBlur={e => { const n = Number(e.target.value); if (e.target.value !== '' && n !== v && n >= min && n <= max) onSave(n) }}
-      className="w-14 text-center border border-transparent hover:border-slate-200 focus:border-[#1f6a63] rounded px-1 py-0.5 text-xs bg-transparent focus:bg-white focus:outline-none" />
+      className="w-14 text-center border border-transparent hover:border-slate-200 focus:border-[color:var(--c-600)] rounded px-1 py-0.5 text-xs bg-transparent focus:bg-white focus:outline-none" />
   )
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <div>
-          <h1 className="font-display font-800 text-lg text-[#1f6a63]">Teachers</h1>
+          <h1 className="font-display font-800 text-lg text-[color:var(--c-600)]">Teachers</h1>
           <p className="text-[11px] text-slate-500">{faculty.length} in the department · {missing === 0 ? 'everyone has a login' : <span className="text-amber-700 font-600">{missing} without a login</span>}</p>
         </div>
         <div className="ml-auto flex items-center gap-2 flex-wrap">
-          <div className="relative"><Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-400" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-48 focus:outline-none focus:border-[#1f6a63] bg-white" /></div>
-          {missing > 0 && <button disabled={busy} onClick={bulk} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#1f6a63]/40 text-[#1f6a63] text-xs font-700 hover:bg-blue-50 disabled:opacity-40"><KeyRound className="w-3.5 h-3.5" /> Create {missing} missing login{missing === 1 ? '' : 's'}</button>}
-          <button onClick={() => setImporting(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#1f6a63]/40 text-[#1f6a63] text-xs font-700 hover:bg-blue-50"><FileSpreadsheet className="w-3.5 h-3.5" /> Import from Excel</button>
-          <button onClick={() => setAdding(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1f6a63] text-white text-xs font-700"><Plus className="w-3.5 h-3.5" /> Add teacher</button>
+          <div className="relative"><Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-400" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-48 focus:outline-none focus:border-[color:var(--c-600)] bg-white" /></div>
+          {missing > 0 && <button disabled={busy} onClick={bulk} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[color:var(--c-600)]/40 text-[color:var(--c-600)] text-xs font-700 hover:bg-blue-50 disabled:opacity-40"><KeyRound className="w-3.5 h-3.5" /> Create {missing} missing login{missing === 1 ? '' : 's'}</button>}
+          <button onClick={() => setImporting(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[color:var(--c-600)]/40 text-[color:var(--c-600)] text-xs font-700 hover:bg-blue-50"><FileSpreadsheet className="w-3.5 h-3.5" /> Import from Excel</button>
+          <button onClick={() => setAdding(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[color:var(--c-600)] text-white text-xs font-700"><Plus className="w-3.5 h-3.5" /> Add teacher</button>
         </div>
       </div>
 
@@ -117,7 +117,7 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
               <div key={i.facultyId} className="flex items-center gap-2 bg-white border border-amber-100 rounded-md px-2.5 py-1.5 text-xs">
                 <span className="font-600 text-slate-800 truncate">{i.name}</span>
                 <span className="font-mono text-[10px] text-slate-400">{i.facultyId}</span>
-                <span className="ml-auto font-mono font-700 text-[#1f6a63]">{i.password}</span>
+                <span className="ml-auto font-mono font-700 text-[color:var(--c-600)]">{i.password}</span>
                 <button title="Copy" onClick={() => navigator.clipboard?.writeText(`${i.facultyId} / ${i.password}`)} className="p-0.5 text-slate-400 hover:text-slate-700"><Copy className="w-3 h-3" /></button>
               </div>
             ))}
@@ -136,7 +136,7 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
                 return (
                   <tr key={f.id} className="hover:bg-slate-50/70">
                     <td className="font-mono text-[11px] text-slate-500">{f.id}</td>
-                    <td className="font-600 text-slate-800"><span className="inline-flex items-center gap-2"><PhotoPick f={f} onSaved={reloadAll} />{f.name}</span>{hod && <span className="ml-1.5 text-[9px] font-800 px-1.5 py-0.5 rounded bg-[#1f6a63] text-white">HOD</span>}</td>
+                    <td className="font-600 text-slate-800"><span className="inline-flex items-center gap-2"><PhotoPick f={f} onSaved={reloadAll} />{f.name}</span>{hod && <span className="ml-1.5 text-[9px] font-800 px-1.5 py-0.5 rounded bg-[color:var(--c-600)] text-white">HOD</span>}</td>
                     <td className="text-slate-500">{f.designation || '–'}</td>
                     <td className="text-center">{num(f.allocationExperience, n => saveField(f, { allocationExperience: n }))}</td>
                     <td className="text-center">{num(f.maxWeeklyPeriods, n => saveField(f, { maxWeeklyPeriods: n }), 1, 40)}</td>
@@ -144,16 +144,16 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
                     <td className="text-center">{results[f.id]?.average != null ? <span title={`${results[f.id].count} subject(s)`} className="font-600 text-slate-700">{results[f.id].average}%</span> : <span className="text-slate-300">–</span>}</td>
                     <td className="whitespace-nowrap">
                       {editingMail === f.id ? (
-                        <input autoFocus type="email" defaultValue={f.email ?? ''} placeholder="name@gmail.com" className="w-44 border border-slate-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-[#1f6a63]"
+                        <input autoFocus type="email" defaultValue={f.email ?? ''} placeholder="name@gmail.com" className="w-44 border border-slate-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-[color:var(--c-600)]"
                           onKeyDown={e => { if (e.key === 'Escape') setEditingMail(null) }}
                           onBlur={e => { const v = e.target.value.trim(); setEditingMail(null); if (v !== (f.email ?? '')) run(async () => { await api.setup.updateTeacher(f.id, { email: v || null }); say(true, v ? `Email saved for ${f.name}.` : `Email removed for ${f.name}.`) }) }} />
                       ) : f.email ? (
                         <span className="inline-flex items-center gap-1.5">
-                          <button title="Edit email" onClick={() => setEditingMail(f.id)} className="text-[12px] text-slate-600 hover:text-[#1b5550] max-w-[150px] truncate">{f.email}</button>
-                          <button title={`Send mail to ${f.name}`} onClick={() => onMail(f.id)} className="p-1 rounded-md text-[#3a8a80] hover:bg-[#3a8a80]/10"><Mail className="w-3.5 h-3.5" /></button>
+                          <button title="Edit email" onClick={() => setEditingMail(f.id)} className="text-[12px] text-slate-600 hover:text-[color:var(--c-700)] max-w-[150px] truncate">{f.email}</button>
+                          <button title={`Send mail to ${f.name}`} onClick={() => onMail(f.id)} className="p-1 rounded-md text-[color:var(--c-500)] hover:bg-[color:var(--c-500)]/10"><Mail className="w-3.5 h-3.5" /></button>
                         </span>
                       ) : (
-                        <button onClick={() => setEditingMail(f.id)} className="text-[12px] text-slate-400 hover:text-[#1b5550]">+ add email</button>
+                        <button onClick={() => setEditingMail(f.id)} className="text-[12px] text-slate-400 hover:text-[color:var(--c-700)]">+ add email</button>
                       )}
                     </td>
                     <td>{logins[f.id] ? <span className="text-emerald-700 font-600">✓ personal</span> : <span className="text-amber-700 font-600">none yet</span>}</td>
@@ -183,7 +183,7 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
             </div>
             <div className="px-5 py-3 border-t border-slate-100 flex justify-end gap-2">
               <button onClick={() => setAdding(false)} className="px-4 py-1.5 rounded-lg border border-slate-200 text-xs font-600 text-slate-600">Cancel</button>
-              <button disabled={busy || form.name.trim().length < 2} onClick={add} className="px-4 py-1.5 rounded-lg bg-[#1f6a63] text-white text-xs font-700 disabled:opacity-40">Add & create login</button>
+              <button disabled={busy || form.name.trim().length < 2} onClick={add} className="px-4 py-1.5 rounded-lg bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">Add & create login</button>
             </div>
           </div>
         </div>
@@ -203,7 +203,7 @@ function PhotoPick({ f, onSaved }: { f: { id: string; name: string; photoAt?: st
   }
   return (
     <>
-      <button type="button" title="Change photo" onClick={() => ref.current?.click()} className="rounded-full hover:ring-2 hover:ring-[#1f6a63]/40 transition"><Avatar id={f.id} name={f.name} photoAt={f.photoAt ?? null} size={28} /></button>
+      <button type="button" title="Change photo" onClick={() => ref.current?.click()} className="rounded-full hover:ring-2 hover:ring-[color:var(--c-600)]/40 transition"><Avatar id={f.id} name={f.name} photoAt={f.photoAt ?? null} size={28} /></button>
       <input ref={ref} type="file" accept="image/*" className="hidden" onChange={e => pick(e.target.files?.[0])} />
     </>
   )

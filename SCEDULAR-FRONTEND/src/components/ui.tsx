@@ -27,9 +27,9 @@ export function Btn({
 }) {
   const styles: Record<string, string> = {
     primary:
-      'text-white bg-gradient-to-br from-[#17403d] to-[#0f2f2d] ring-1 ring-[#c9a24a]/60 border border-white/40 shadow-[0_4px_16px_rgba(23,64,61,0.4)] hover:brightness-110',
+      'text-white bg-gradient-to-br from-[var(--ink-800)] to-[var(--ink-900)] ring-1 ring-[color:var(--accent)]/60 border border-white/40 shadow-[0_4px_16px_rgba(var(--ink-rgb),0.4)] hover:brightness-110',
     secondary: 'glass-pill text-slate-700 hover:bg-white/60',
-    outline: 'bg-transparent border border-[#17403d]/50 text-[#17403d] hover:bg-[#17403d]/10',
+    outline: 'bg-transparent border border-[color:var(--ink-800)]/50 text-[color:var(--ink-800)] hover:bg-[color:var(--ink-800)]/10',
     danger: 'text-white bg-gradient-to-br from-[#fb7185] to-[#f43f5e] border border-white/40 hover:brightness-110',
   }
   return (
@@ -122,7 +122,7 @@ export function Chip({
     success: 'text-emerald-700 bg-emerald-400/20 border-emerald-300/50',
     warning: 'text-amber-700 bg-amber-400/20 border-amber-300/50',
     danger: 'text-rose-700 bg-rose-400/20 border-rose-300/50',
-    accent: 'text-[#17403d] bg-[#17403d]/10 border-[#17403d]/30',
+    accent: 'text-[color:var(--ink-800)] bg-[color:var(--ink-800)]/10 border-[color:var(--ink-800)]/30',
   }
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-600 border backdrop-blur-md ${tones[tone]}`}>
@@ -143,8 +143,8 @@ export function StatCard({
   tone?: 'accent' | 'success' | 'warning'
 }) {
   const glow: Record<string, string> = {
-    accent: 'from-[#17403d]/25 to-[#c9a24a]/20 text-[#17403d]',
-    success: 'from-[#34d399]/25 to-[#c9a24a]/15 text-emerald-600',
+    accent: 'from-[var(--ink-800)]/25 to-[var(--accent)]/20 text-[color:var(--ink-800)]',
+    success: 'from-[#34d399]/25 to-[var(--accent)]/15 text-emerald-600',
     warning: 'from-[#fbbf24]/25 to-[#fb7185]/15 text-amber-600',
   }
   return (
