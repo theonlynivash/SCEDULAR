@@ -21,10 +21,8 @@ import {
   listTeachingAssignments,
   listLabSubjectMappings,
   getScheduleConfig,
-  resetWorkflowStateRepo,
   getCurrentAcademicCycle,
   setCurrentAcademicCycle,
-  clearAllFacultyAllocationExperience,
   upsertFacultyPasswordHash,
   getFacultyPasswordHash,
 } from '../db/repo.js'
@@ -52,7 +50,6 @@ import { callLlm as callGrokLlm } from '../ai/llm.js'
 
 export const facultyAllocationRouter = Router()
 
-const RESET_PASSKEY = process.env.SCEDULAR_RESET_PASSKEY?.trim() || 'SCEDULAR_RESET'
 
 function findFacultyByIdOrEmail(input: string): (Faculty & { passwordHash?: string | null }) | undefined {
   const id = String(input || '').trim().toLowerCase()
@@ -373,17 +370,6 @@ facultyAllocationRouter.get('/auth/me', requireAuth, async (req: Request, res: R
     designation: fac.designation,
     department: fac.department,
     role: req.auth!.role,
-  })
-})
-
-// POST /api/reset-workflow - resets transaction state (preferences, assignments, runs) keeping master data
-facultyAllocationRouter.post('/reset-workflow', async (_req: Request, res: Response) => {
-  const result = await resetWorkflowStateRepo()
-  return res.json({
-    success: true,
-    message: 'Workflow transaction state reset. Master data preserved.',
-    before: result.before,
-    after: result.after,
   })
 })
 
@@ -1009,29 +995,6 @@ facultyAllocationRouter.post('/hod/academic-cycle', requireAuth, requireRole('HO
   }
   const currentCycle = await setCurrentAcademicCycle(normalizeCycle(cycle))
   return res.json({ success: true, currentCycle, allowedSemesters: semestersForCycle(currentCycle) })
-})
-
-// POST /api/hod/reset-allocation-cycle - HOD-only, explicitly re-authenticated
-// (current session + password + a separate reset passkey), closes out the
-// current faculty-subject allocation cycle for a fresh round: clears
-// preferences/teaching_assignments/generation runs (master data -- faculty,
-// subjects, sections, labs, curriculum -- is never touched) and clears every
-// faculty's allocationExperience so each teacher must complete their profile
-// again before they can submit new preferences. This is deliberately harder
-// to trigger than a normal action: wrong password or wrong passkey both fail
-// closed, and only a HOD session can call it at all.
-facultyAllocationRouter.post('/hod/reset-allocation-cycle', requireAuth, requireRole('HOD'), async (req: Request, res: Response) => {
-  const { password, passkey } = req.body ?? {}
-  const passwordOk = await verifyFacultyPassword(req.auth!.facultyId, String(password || ''))
-  if (!passwordOk) {
-    return res.status(401).json({ error: 'RESET_CONFIRMATION_FAILED', message: 'Password is incorrect.' })
-  }
-  if (String(passkey || '') !== RESET_PASSKEY) {
-    return res.status(401).json({ error: 'RESET_CONFIRMATION_FAILED', message: 'Reset passkey is incorrect.' })
-  }
-  const result = await resetWorkflowStateRepo()
-  await clearAllFacultyAllocationExperience()
-  return res.json({ success: true, message: 'Allocation cycle reset. Faculty must complete their profile experience before submitting new preferences.', ...result })
 })
 
 // PATCH /api/hod/faculty/:id - update allocation experience

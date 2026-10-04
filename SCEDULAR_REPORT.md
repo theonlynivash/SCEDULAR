@@ -173,7 +173,8 @@ already visible to all (for example class timetables).
 | Send email to teachers (with or without login details) | ✔ | — |
 | Chat via the bell | ✔ (any teacher) | ✔ (HOD only) |
 | AI assistant | ✔ always | ✔ unless the HOD turns it off |
-| Erase the dataset / reset allocation cycle | ✔ (password-gated) | — |
+| Erase submitted preferences / erase allocation (password-gated) | ✔ | — |
+| Erase teachers, sections or the syllabus in bulk | not possible for anyone | not possible |
 
 ## 4. Vocabulary: the terms used everywhere
 
@@ -504,13 +505,20 @@ each section. It saves at once and is printed on that section's timetable PDF.
   pick from, and how many preferences are allowed in total and per year. Add or remove bands. Press **Save** to store.
 * **SCEDULAR AI for Faculty** switch — turn the assistant on or off for teachers. When off, the SCEDULAR AI button disappears for
   teachers and the server refuses their questions. The HOD is never affected. (A fixed bug: the switch used to save only in memory and the knob was drawn out of place.)
-* **Reset allocation cycle** — closes out the current preference round. It needs your password *and* a separate reset passkey.
 * **Department snapshot** — counts of faculty, bands and the current cycle.
 
 #### Tab 5 — Dataset
-Explains that everything lives in the app, and offers **Erase and start a new dataset**. To use it you type `ERASE` and
-your password. It removes sections, subjects, teachers (except the HOD), assignments and runs, and keeps the HOD login,
-the labs and the period grid. Use it only to start a completely fresh institution.
+The only two erase actions in SCEDULAR. Each card shows what it would remove *right now* (for example "131 preferences" or
+"332 assignments · 2 timetable runs"), says what is kept, and asks for **your HOD password** before it does anything.
+
+1. **Erase submitted preferences** — removes every subject choice teachers saved or submitted so the next round starts clean.
+   *Kept:* teachers, logins, sections, syllabus, assignments and timetables.
+2. **Erase allocation** — removes who teaches which section, the workload allocations and the timetables generated from them.
+   *Kept:* teachers, logins, sections, syllabus and **all teacher preferences**.
+
+Teachers and the syllabus can **never** be erased in bulk — not here, not in the Data Hub, not through the server. They are changed
+one at a time (Teachers page; Settings → Syllabus & sections). The older "Delete all data", "Start a new dataset" and "Reset
+allocation cycle" buttons and their server routes were removed for this reason.
 
 ### 10.4 Choosing the academic cycle
 1. Settings → Policy & cycle.
@@ -646,7 +654,7 @@ A scrolling story page: how it works (eight steps that slide sideways as you scr
 ### 10.16 A complete first-time setup, step by step
 
 1. Sign in as `FAC-001`.
-2. Settings → Dataset: decide between the sample department (keep) or **Erase** for a fresh start.
+2. Review the sample department that comes with the app (teachers, sections, syllabus); edit or delete items one at a time as needed. To clear an old round later use Settings → Dataset (erase preferences / erase allocation).
 3. Settings → Policy & cycle: select the cycle, review the experience bands.
 4. Settings → Syllabus & sections: for each semester add sections, then add the syllabus.
 5. Teachers: add every teacher, set emails, press **Create missing logins**, download the CSV.
@@ -999,7 +1007,7 @@ npm run dev                   # starts on http://localhost:8443  (Vite)
 Open `http://localhost:8443`. Sign in as `FAC-001`. With no `DATABASE_URL` the app runs in local-JSON mode and creates the
 sample department on first start. Health check: `http://localhost:8090/api/health` → `{"ok":true}`.
 
-Starting empty: set `SCEDULAR_START_BLANK=true` in `.env` **before the very first start** (no data file yet), or use Settings → Dataset → Erase.
+Starting empty: set `SCEDULAR_START_BLANK=true` in `.env` **before the very first start** (no data file yet). There is no in-app button that wipes teachers or the syllabus.
 
 ### 21.3 Production build of the frontend
 ```bash
@@ -1039,7 +1047,6 @@ What `vercel.json` does:
 | `SCEDULAR_DB_FILE` | Path of a different JSON database (tests) | `data/scedular_local_db.json` |
 | `SCEDULAR_START_BLANK` | First start with an empty dataset | off |
 | `SCEDULAR_MASTER_PASSWORD` | Bootstrap password for accounts with no personal password | `SCEDULAR_AIDS` |
-| `SCEDULAR_RESET_PASSKEY` | Second secret for *Reset allocation cycle* | `SCEDULAR_RESET` — **change it in production** |
 | `SMTP_USER`, `SMTP_PASS` | Gmail sender and App Password | mail disabled if empty |
 | `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` | Mail details | smtp.gmail.com, 465 |
 | `MAIL_TRANSPORT` | `json` capture / `fail` (tests, demos only) | unset |
@@ -1054,7 +1061,7 @@ Never commit `.env`; it is git-ignored.
 ## 23. Testing
 
 ### 23.1 What exists
-Sixteen test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts`). At the time of writing **154 tests pass**; two files
+Seventeen test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts`). At the time of writing **156 tests pass**; two files
 (`stage6.test.ts`, `facultyAllocationPolicy.test.mjs`) contain no runnable suites and are reported as "No test suite found" (this was
 already so before this build and does not indicate a failure of the product).
 
@@ -1070,6 +1077,7 @@ already so before this build and does not indicate a failure of the product).
 | `password_reset` | Forgot password flow, code checks, change notice never contains the password |
 | `messages` | Delivery both ways, unread counts, teacher→teacher refused, 30-day deletion |
 | `assistant` | Auth required, input checks, HOD switch disables teacher access |
+| `data_erase` | The two erase actions are HOD + password only, keep what they must keep, and no bulk-erase routes exist |
 | `exports` | Teacher PDF only for self (HOD any), master PDF HOD only, valid PDF bytes |
 
 ### 23.2 Isolation (important)
@@ -1095,9 +1103,9 @@ Layout checks were done in a headless Chrome at desktop and phone sizes (About p
 
 * **Backup (local mode):** copy `SCEDULAR-BACKEND/data/scedular_local_db.json` while the backend is stopped (or at least idle). That one file is the entire database.
 * **Restore:** stop the backend, replace the file, start again.
-* **Before risky operations** (Erase dataset, big imports) make a copy.
-* **Erase dataset** (Settings → Dataset) needs `ERASE` + your password. It keeps the HOD login, labs and period grid.
-* **Reset allocation cycle** needs password + passkey and only closes the preference round.
+* **Before risky operations** (erasing preferences or allocation, big Excel imports) make a copy.
+* **Erase submitted preferences** and **Erase allocation** (Settings → Dataset) each need your HOD password and cannot be undone. They never touch teachers, logins, sections or the syllabus.
+* There is no bulk-delete for teachers or the syllabus anywhere in the app or the API.
 * **Postgres:** use the provider's snapshots/backups (Neon offers point-in-time restore).
 * **Personal data:** the data file contains emails, phone numbers, password hashes and messages. It is excluded from Git. Do not email it or upload it publicly.
 * **Dev-server caveat:** `npm run dev` uses `tsx watch`, which restarts the server when files change; scripts that edit the data file while the server is running can be overwritten by the server's in-memory copy. Stop the server before running such scripts.
@@ -1167,12 +1175,12 @@ Honest list of what to keep in mind before relying on the system in the wild:
 1. **Cloud path unproven.** Postgres/Vercel mode has not been exercised end to end (including the newer tables for messages and results). Run one full rehearsal before the first real term on it.
 2. **Generation inside a web request.** On a slow host a large run may exceed the function time limit (60 s). Mitigation: generate locally against the same database, or by semester groups.
 3. **Rate limiting.** There is no limit on repeated sign-in attempts. Reset-code requests are throttled, but the login endpoint is not. Add a limiter before exposing the site publicly.
-4. **Default secrets.** `SCEDULAR_AIDS` (bootstrap password) and `SCEDULAR_RESET` (reset passkey) are defaults in the code. Set `SCEDULAR_MASTER_PASSWORD` and `SCEDULAR_RESET_PASSKEY` in production.
+4. **Default secret.** `SCEDULAR_AIDS` (bootstrap password) is a default in the code. Set `SCEDULAR_MASTER_PASSWORD` in production.
 5. **Reset codes in memory.** A restart or a different serverless instance forgets pending codes.
 6. **Messages are not encrypted** and are visible to administrators with database access.
 7. **AI service dependence.** The assistant needs an external API key and internet; the free tier is rate-limited. The core scheduling features do not depend on it.
 8. **Year 1 / Semester I** is out of scope in this build.
-9. **Sample data.** The built-in roster/curriculum is for one specific department and year. A different institution should start with Settings → Dataset → Erase.
+9. **Sample data.** The built-in roster/curriculum is for one specific department and year. A different institution should start from a blank install (`SCEDULAR_START_BLANK=true`) and build everything in the app.
 10. **Printed layout is approximate to the pixel.** It follows the department's three printed documents very closely but is not a byte-for-byte copy; staff names and title case come from the database.
 11. **Two empty test files** exist in the repository (see §23).
 12. **Personal data in the repository history.** Earlier commits on the public GitHub repository contain earlier copies of the data file. If that is a concern, make the repository private or rewrite its history.
@@ -1240,7 +1248,8 @@ All routes are under `/api`. "Auth" = needs `Authorization: Bearer <token>`; "HO
 | POST | `/setup/faculty/:id/credentials` | Reissue a login |
 | POST | `/setup/faculty-credentials/missing` | Create all missing logins |
 | GET | `/setup/faculty-logins` | Who has a personal password |
-| POST | `/setup/reset-blank` | `{ password, confirm: "ERASE" }` |
+| GET | `/hod/erase/summary` | (HOD) what each erase would remove |
+| POST | `/hod/erase/preferences` · `/hod/erase/allocation` | (HOD) `{ password }` — the only erase actions |
 
 ### A.3 Teacher allocation and HOD review
 | Method | Path | Auth | Purpose |
@@ -1256,7 +1265,6 @@ All routes are under `/api`. "Auth" = needs `Authorization: Bearer <token>`; "HO
 | POST | `/hod/assign` · `/hod/unassign` · `/hod/auto-assign` | HOD | Assign, remove, auto-fill |
 | GET/POST | `/hod/allocation-settings` | HOD | Experience bands, AI switch |
 | GET/POST | `/hod/academic-cycle` | HOD | Read / set the cycle (password) |
-| POST | `/hod/reset-allocation-cycle` | HOD | Password + passkey |
 | GET | `/hod/workload-summary`, `/hod/confirmed-allocation`, `/section-allocation` | HOD | Summaries |
 | POST | `/hod/allocate-workload`, `/hod/approve-workload-allocation`, `/commit-section-allocation` | HOD | Workload allocation steps |
 | GET/POST/PUT/DELETE | `/workload-templates…` | HOD | Templates |

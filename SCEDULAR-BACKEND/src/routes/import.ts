@@ -1,20 +1,10 @@
 import { Router } from 'express'
 import multer from 'multer'
 import { previewWorkbook } from '../import/index.js'
-import { replaceCanonicalImport, clearAllData, listSections, listSubjects, listSectionSubjects, listFaculty, listTeachingAssignments, listLabs, listLabSubjectMappings, listFacultyUnavailability } from '../db/repo.js'
+import { replaceCanonicalImport, listSections, listSubjects, listSectionSubjects, listFaculty, listTeachingAssignments, listLabs, listLabSubjectMappings, listFacultyUnavailability } from '../db/repo.js'
 import { legacyImportRouter } from './importLegacy.js'
 
 export const importRouter = Router()
-
-// Reset / wipe all database & in-memory dataset state to a clean slate.
-importRouter.post('/master/reset', async (_req, res, next) => {
-  try {
-    await clearAllData()
-    return res.json({ ok: true, message: 'All database and in-memory data wiped clean.' })
-  } catch (err) {
-    return next(err)
-  }
-})
 
 // Read-only canonical dataset summary used by the frontend generation screen.
 importRouter.get('/master/status', async (_req, res, next) => {

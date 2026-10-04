@@ -61,32 +61,11 @@ export function UploadCurriculum({ navigate }: { navigate: (p: Page) => void }) 
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const [resetting, setResetting] = useState(false)
-  const [resetMsg, setResetMsg] = useState<string | null>(null)
-
-  async function resetAllData() {
-    if (!confirm('Are you sure you want to clear all imported database state and reset to a clean slate?')) return
-    setResetting(true)
-    setResetMsg(null)
-    try {
-      await api.importMaster.reset()
-      setFile(null)
-      setPreview(null)
-      setCommitted(null)
-      setResetMsg('✓ All data wiped clean. Ready for your fresh Excel upload!')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Reset failed')
-    } finally {
-      setResetting(false)
-    }
-  }
-
   async function previewFile(nextFile: File) {
     setFile(nextFile)
     setPreview(null)
     setCommitted(null)
     setError(null)
-    setResetMsg(null)
     setBusy(true)
     try {
       setPreview(await api.importMaster.preview(nextFile))
@@ -124,13 +103,6 @@ export function UploadCurriculum({ navigate }: { navigate: (p: Page) => void }) 
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">Required: SECTIONS, SUBJECTS, SECTION_SUBJECTS, FACULTY, TEACHING_ASSIGNMENTS, LABS and LAB_MAPPING. Optional: FACULTY_UNAVAILABILITY and SETTINGS.</p>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={resetAllData}
-                disabled={resetting || busy}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-700 text-rose-700 bg-rose-400/15 border border-rose-300/40 hover:bg-rose-400/25 transition disabled:opacity-50"
-              >
-                {resetting ? 'Resetting…' : 'Clear / Reset All Data'}
-              </button>
               <a href="/scedular_master_template.xlsx" download className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-700 text-[#0e254f] bg-white/70 border border-white/80 hover:bg-white transition">
                 Download Master Template
               </a>
@@ -138,7 +110,6 @@ export function UploadCurriculum({ navigate }: { navigate: (p: Page) => void }) 
           </div>
         </GlassPanel>
 
-        {resetMsg && <div className="bg-emerald-400/15 border border-emerald-300/40 text-emerald-800 font-600 text-sm rounded-xl px-4 py-3">{resetMsg}</div>}
 
         <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => e.target.files?.[0] && previewFile(e.target.files[0])} />
         <div

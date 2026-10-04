@@ -47,10 +47,11 @@ const SUBJECTS = [
 const created = { teachers: [] as { facultyId: string; password: string; token?: string }[], subjectIds: [] as string[] }
 
 describe('blank dataset, everything built inside the app', () => {
-  it('starts empty after the HOD erases the dataset (wrong password / missing confirmation are refused)', async () => {
-    expect((await post('/setup/reset-blank', hod, { password: 'SCEDULAR_AIDS' })).status).toBe(400)
-    expect((await post('/setup/reset-blank', hod, { password: 'nope', confirm: 'ERASE' })).status).toBe(403)
-    expect((await post('/setup/reset-blank', hod, { password: 'SCEDULAR_AIDS', confirm: 'ERASE' })).status).toBe(200)
+  it('starts empty from a blank dataset (no bulk-erase endpoints exist)', async () => {
+    // there is deliberately no HTTP endpoint that erases the dataset
+    expect((await post('/setup/reset-blank', hod, { password: 'SCEDULAR_AIDS', confirm: 'ERASE' })).status).toBe(404)
+    expect((await post('/import/master/reset', hod, {})).status).toBe(404)
+    ;(await import('../src/db/localDb.js')).resetToBlankDb()
     expect((await api('/sections', hod)).body).toEqual([])
     expect((await api('/subjects', hod)).body).toEqual([])
     expect((await api('/faculty', hod)).body.map((f: any) => f.id)).toEqual(['FAC-001'])

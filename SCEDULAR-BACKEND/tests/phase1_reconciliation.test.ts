@@ -163,12 +163,10 @@ describe('Phase 1 Reconciliation Tests', () => {
     db.teachingAssignments.push({ id: 1, facultyId: 'FAC-002', sectionSubjectId: 1, component: 'THEORY', batch: null })
     db.generationRuns.push({ id: 1, status: 'COMPLETED', generatedAt: new Date().toISOString(), warnings: [] })
 
-    // Execute reset via endpoint
-    const res = await fetch(`${baseUrl}/api/reset-workflow`, { method: 'POST' })
-    const body: any = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body.success).toBe(true)
+    // Execute the reset directly: it is no longer exposed over HTTP (no bulk erase endpoints exist)
+    const { resetWorkflowStateRepo } = await import('../src/db/repo.js')
+    const body: any = await resetWorkflowStateRepo()
+    expect((await fetch(`${baseUrl}/api/reset-workflow`, { method: 'POST' })).status).toBe(404)
 
     // Check after counts
     expect(body.after.faculty).toBe(SNAP.faculty)

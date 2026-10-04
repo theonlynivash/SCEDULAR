@@ -23,7 +23,7 @@ beforeAll(async () => {
   const { app } = await import('../src/app.js')
   await new Promise<void>(r => { server = app.listen(0, () => { base = `http://localhost:${(server.address() as any).port}`; r() }) })
   hod = (await login('FAC-001', 'SCEDULAR_AIDS')).token
-  await post('/setup/reset-blank', hod, { password: 'SCEDULAR_AIDS', confirm: 'ERASE' })
+  ;(await import('../src/db/localDb.js')).resetToBlankDb()   // fresh dataset (no HTTP endpoint for this exists any more)
   for (const [who, name] of [[a, 'Teacher A'], [b, 'Teacher B']] as const) {
     const t = await post('/setup/faculty', hod, { name, allocationExperience: 5 })
     who.id = t.body.facultyId; who.pw = t.body.password; who.token = (await login(who.id, who.pw)).token

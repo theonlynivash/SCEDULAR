@@ -168,45 +168,13 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
     }
   }
 
-  const [resetting, setResetting] = useState(false)
-  const [resetMsg, setResetMsg] = useState<string | null>(null)
-
-  async function handleResetAllData() {
-    if (!confirm('Are you sure you want to delete ALL existing dataset rows (sections, subjects, faculty, labs, assignments)? This will wipe all data so you can re-upload fresh.')) return
-    setResetting(true)
-    setResetMsg(null)
-    try {
-      await api.importMaster.reset()
-      setResetMsg('✓ All existing data has been deleted. Ready for fresh Excel re-upload!')
-      loadSectionsAndLabs()
-    } catch (e) {
-      setResetMsg(e instanceof Error ? e.message : 'Failed to reset data')
-    } finally {
-      setResetting(false)
-    }
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader title="Data & Import Hub">
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleResetAllData}
-            disabled={resetting}
-            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-700 text-rose-700 bg-rose-400/15 border border-rose-300/40 hover:bg-rose-400/25 transition disabled:opacity-50 cursor-pointer"
-          >
-            {resetting ? 'Deleting Data…' : '🗑️ Delete All Existing Data'}
-          </button>
           <BackBtn navigate={navigate} />
         </div>
       </PageHeader>
-
-      {resetMsg && (
-        <div className="bg-emerald-400/15 border border-emerald-300/40 text-emerald-800 font-600 text-sm rounded-xl px-4 py-3 flex items-center justify-between">
-          <span>{resetMsg}</span>
-          <Btn onClick={() => navigate('upload-curriculum')}>Go to Master Upload →</Btn>
-        </div>
-      )}
 
       <GlassPanel className="p-5">
         <p className="text-sm font-500 text-slate-700 mb-1.5">How this feeds a balanced timetable</p>
@@ -230,13 +198,6 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={handleResetAllData}
-              disabled={resetting}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-700 text-rose-700 bg-rose-400/15 border border-rose-300/40 hover:bg-rose-400/25 transition disabled:opacity-50 cursor-pointer"
-            >
-              Clear / Reset All Data
-            </button>
             <Btn onClick={() => navigate('upload-curriculum')}>Open Master Import →</Btn>
           </div>
         </div>

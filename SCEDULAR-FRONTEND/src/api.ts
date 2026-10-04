@@ -558,7 +558,6 @@ export const api = {
       form.append('file', file)
       return request<MasterImportCommitResult>('/import/master/commit', { method: 'POST', body: form })
     },
-    reset: () => request<{ ok: true; message: string }>('/import/master/reset', { method: 'POST' }),
   },
   importFacultyWorkload: (file: File) => {
     const form = new FormData()
@@ -611,6 +610,11 @@ export const api = {
     thread: (otherId: string) => request<ChatMsg[]>(`/messages/thread/${encodeURIComponent(otherId)}`),
     send: (toId: string, text: string) => request<ChatMsg>('/messages', { method: 'POST', body: JSON.stringify({ toId, text }) }),
   },
+  erase: {
+    summary: () => request<{ preferences: number; teachingAssignments: number; workloadAllocations: number; generatedRuns: number }>('/hod/erase/summary'),
+    preferences: (password: string) => request<{ success: boolean; erasedPreferences: number }>('/hod/erase/preferences', { method: 'POST', body: JSON.stringify({ password }) }),
+    allocation: (password: string) => request<{ success: boolean; erased: { teachingAssignments: number; workloadAllocations: number; generatedRuns: number } }>('/hod/erase/allocation', { method: 'POST', body: JSON.stringify({ password }) }),
+  },
   assistant: {
     status: () => request<{ enabled: boolean }>('/assistant/status'),
     chat: (messages: { role: 'user' | 'assistant'; content: string }[]) =>
@@ -640,7 +644,6 @@ export const api = {
     issueMissingLogins: () => request<{ issued: IssuedLogin[] }>('/setup/faculty-credentials/missing', { method: 'POST' }),
     logins: () => request<Record<string, boolean>>('/setup/faculty-logins'),
     deleteTeacher: (id: string) => request<{ success: boolean }>(`/setup/faculty/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    resetBlank: (password: string, confirm: string) => request<{ success: boolean }>('/setup/reset-blank', { method: 'POST', body: JSON.stringify({ password, confirm }) }),
   },
   facultyAllocation: {
     // Identity always comes from the authenticated session — these calls send no
@@ -713,8 +716,6 @@ export const api = {
         '/hod/academic-cycle', { method: 'POST', body: JSON.stringify({ cycle, password }) }),
     updateFacultyExperience: (facultyId: string, allocationExperience: number) =>
       request<{ success: boolean }>(`/hod/faculty/${facultyId}`, { method: 'PATCH', body: JSON.stringify({ allocationExperience }) }),
-    resetAllocationCycle: (password: string, passkey: string) =>
-      request<{ success: boolean; message: string }>('/hod/reset-allocation-cycle', { method: 'POST', body: JSON.stringify({ password, passkey }) }),
     explainGenerationFailure: (report: any) =>
       request<{ success: boolean; explanation: any }>('/ai/explain-generation-failure', { method: 'POST', body: JSON.stringify({ report }) }),
     aiChat: (message: string, role: string) =>

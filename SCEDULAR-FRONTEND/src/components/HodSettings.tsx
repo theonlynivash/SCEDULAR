@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import type { AcademicCycle } from '../academicCycle'
-import { ShieldCheck, RotateCcw, Bot, Info, Plus, Trash2 } from 'lucide-react'
+import { ShieldCheck, Bot, Info, Plus, Trash2 } from 'lucide-react'
 import type { Page } from '../types'
 import SetupOverviewTab from './SetupOverviewTab'
 import SetupSyllabusTab from './SetupSyllabusTab'
@@ -35,11 +35,6 @@ function PolicyAndCycle() {
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  const [showResetModal, setShowResetModal] = useState(false)
-  const [resetPassword, setResetPassword] = useState('')
-  const [resetPasskey, setResetPasskey] = useState('')
-  const [resetting, setResetting] = useState(false)
-  const [resetError, setResetError] = useState<string | null>(null)
 
   const [pendingCycle, setPendingCycle] = useState<AcademicCycle | null>(null)
   const [cyclePassword, setCyclePassword] = useState('')
@@ -119,22 +114,6 @@ function PolicyAndCycle() {
       setCycleError(err?.message || 'Incorrect password — cycle was not changed.')
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleReset = async () => {
-    setResetError(null)
-    setResetting(true)
-    try {
-      const res = await api.facultyAllocation.resetAllocationCycle(resetPassword, resetPasskey)
-      setNotice({ type: 'success', message: res.message })
-      setShowResetModal(false)
-      setResetPassword('')
-      setResetPasskey('')
-    } catch (err: any) {
-      setResetError(err?.message || 'Reset failed — check password and passkey.')
-    } finally {
-      setResetting(false)
     }
   }
 
@@ -232,21 +211,6 @@ function PolicyAndCycle() {
         </div>
       </div>
 
-      {/* 3. Allocation Reset */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-700 text-slate-800">Reset Allocation Cycle</h2>
-        <button
-          onClick={() => setShowResetModal(true)}
-          className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white font-700 text-sm shadow-lg hover:from-rose-600 hover:to-rose-700 transition-all hover:shadow-xl hover:-translate-y-0.5"
-        >
-          <RotateCcw className="w-5 h-5" />
-          <div className="text-left">
-            <div>Start New Allocation Cycle</div>
-            <div className="text-[11px] font-500 text-rose-100">Clears preferences, assignments &amp; timetables</div>
-          </div>
-        </button>
-      </div>
-
       {/* 4. AI toggle */}
       {(() => {
         const on = config.facultyAiEnabled ?? true
@@ -316,36 +280,6 @@ function PolicyAndCycle() {
         </div>
       )}
 
-      {/* Reset confirmation modal */}
-      {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-xl">
-            <h3 className="text-slate-800 font-700 flex items-center gap-2"><RotateCcw className="w-4 h-4 text-rose-600" /> Start New Allocation Cycle?</h3>
-            <p className="text-xs text-slate-500">
-              This will close the current faculty subject allocation cycle and prepare SCEDULAR for fresh faculty preferences. This cannot be undone. Confirm with your HOD password and the reset passkey.
-            </p>
-            <div>
-              <label className="block text-[11px] font-700 text-slate-400 uppercase tracking-wider mb-1">HOD Password</label>
-              <input type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-400/30" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-700 text-slate-400 uppercase tracking-wider mb-1">Reset Passkey</label>
-              <input type="text" value={resetPasskey} onChange={e => setResetPasskey(e.target.value)} placeholder="Type SCEDULAR_RESET" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-400/30" />
-            </div>
-            {resetError && <p className="text-xs text-rose-600">{resetError}</p>}
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => { setShowResetModal(false); setResetError(null) }} className="px-4 py-2 rounded-lg bg-white text-slate-600 border border-slate-200 text-xs font-600 hover:bg-slate-50">Cancel</button>
-              <button
-                onClick={handleReset}
-                disabled={resetting || resetPasskey !== 'SCEDULAR_RESET' || !resetPassword}
-                className="px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-700 hover:bg-rose-700 disabled:opacity-50"
-              >
-                {resetting ? 'Resetting…' : 'Confirm Reset'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

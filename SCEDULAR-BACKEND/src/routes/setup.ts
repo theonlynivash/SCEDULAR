@@ -16,7 +16,7 @@ import {
   upsertCourse, deleteCourse, getCurrentAcademicCycle, getFacultyPreferences, listLabs,
   listLabSubjectMappings, setLabSubjectMapping, deleteLabSubjectMapping,
 } from '../db/repo.js'
-import { deriveInitialCourses, resetToBlankDb, saveLocalDb } from '../db/localDb.js'
+import { deriveInitialCourses, saveLocalDb } from '../db/localDb.js'
 import { requireAuth, requireRole } from '../auth/middleware.js'
 import { generatePassword, hasPersonalPassword, setFacultyPassword, verifyFacultyPassword } from '../auth/passwords.js'
 import { SEMESTER_TO_YEAR, isSpecificSemester, semesterInCycle } from '../utils/academicCycle.js'
@@ -369,13 +369,3 @@ setupRouter.delete('/setup/faculty/:id', async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-// ───────────────────────── dataset ─────────────────────────
-// POST /setup/reset-blank { password, confirm: "ERASE" } -> empty dataset (keeps the HOD login, labs and period grid).
-setupRouter.post('/setup/reset-blank', async (req, res, next) => {
-  try {
-    if (req.body?.confirm !== 'ERASE') return fail(res, 400, 'CONFIRMATION_REQUIRED', 'Type ERASE to confirm.')
-    if (!(await verifyFacultyPassword(req.auth!.facultyId, String(req.body?.password ?? '')))) return fail(res, 403, 'WRONG_PASSWORD', 'Your password is incorrect.')
-    resetToBlankDb()
-    res.json({ success: true })
-  } catch (err) { next(err) }
-})

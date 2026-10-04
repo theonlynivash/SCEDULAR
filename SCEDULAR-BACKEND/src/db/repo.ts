@@ -103,6 +103,58 @@ export async function resetWorkflowStateRepo(): Promise<WorkflowResetResult> {
   return { before, after }
 }
 
+export interface EraseSummary { preferences: number; teachingAssignments: number; workloadAllocations: number; generatedRuns: number }
+
+export async function eraseSummary(): Promise<EraseSummary> {
+  return {
+    preferences: (mem.facultyPreferences ?? []).length,
+    teachingAssignments: (mem.teachingAssignments ?? []).length,
+    workloadAllocations: (mem.facultyWorkloadAllocations ?? []).length,
+    generatedRuns: (mem.generationRuns ?? []).length,
+  }
+}
+
+/** Remove every submitted/draft teacher preference. Teachers, syllabus, assignments and timetables are untouched. */
+export async function erasePreferences(): Promise<number> {
+  const n = (mem.facultyPreferences ?? []).length
+  mem.facultyPreferences = []
+  mem.nextPreferenceId = 1
+  saveLocalDb()
+  try { await pool.query('DELETE FROM faculty_subject_preferences') } catch { /* memory mode or DB offline */ }
+  return n
+}
+
+/**
+ * Remove the allocation: who teaches which section, the workload allocations, and the timetables generated from them.
+ * Preferences, teachers, sections and the syllabus are kept.
+ */
+export async function eraseAllocation(): Promise<Omit<EraseSummary, 'preferences'>> {
+  const before = await eraseSummary()
+  mem.teachingAssignments = []
+  mem.facultyWorkloadAllocations = []
+  mem.generationRuns = []
+  mem.assignments = []
+  mem.conflicts = []
+  mem.unscheduled = []
+  mem.nextRunId = 1
+  mem.nextTeachingAssignmentId = 1
+  mem.nextWorkloadAllocationId = 1
+  saveLocalDb()
+  try {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('DELETE FROM unscheduled')
+      await client.query('DELETE FROM conflicts')
+      await client.query('DELETE FROM assignments')
+      await client.query('DELETE FROM generation_runs')
+      await client.query('DELETE FROM teaching_assignments')
+      await client.query('COMMIT')
+    } catch (err) { await client.query('ROLLBACK'); throw err } finally { client.release() }
+  } catch { /* memory mode or DB offline */ }
+  return { teachingAssignments: before.teachingAssignments, workloadAllocations: before.workloadAllocations, generatedRuns: before.generatedRuns }
+}
+
 export async function clearAllData(): Promise<void> {
   mem.faculty = []
   mem.sections = []
