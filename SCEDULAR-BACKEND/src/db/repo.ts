@@ -1,4 +1,5 @@
-import { pool } from './client.js'
+import { pool, isLocalDbMode } from './client.js'
+import { sql, storageMode } from './storage.js'
 import { defaultScheduleConfig } from '../utils/grid.js'
 import { deriveComponentType } from '../subjectConfig.js'
 import type {
@@ -95,7 +96,7 @@ export async function resetWorkflowStateRepo(): Promise<WorkflowResetResult> {
     } finally {
       client.release()
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // operating in memory mode or DB offline
   }
 
@@ -120,7 +121,7 @@ export async function erasePreferences(): Promise<number> {
   mem.facultyPreferences = []
   mem.nextPreferenceId = 1
   saveLocalDb()
-  try { await pool.query('DELETE FROM faculty_subject_preferences') } catch { /* memory mode or DB offline */ }
+  try { await pool.query('DELETE FROM faculty_subject_preferences') } catch (dbErr) { if (!isLocalDbMode) throw dbErr; /* memory mode or DB offline */ }
   return n
 }
 
@@ -151,7 +152,7 @@ export async function eraseAllocation(): Promise<Omit<EraseSummary, 'preferences
       await client.query('DELETE FROM teaching_assignments')
       await client.query('COMMIT')
     } catch (err) { await client.query('ROLLBACK'); throw err } finally { client.release() }
-  } catch { /* memory mode or DB offline */ }
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr; /* memory mode or DB offline */ }
   return { teachingAssignments: before.teachingAssignments, workloadAllocations: before.workloadAllocations, generatedRuns: before.generatedRuns }
 }
 
@@ -167,7 +168,7 @@ export async function eraseGeneratedTimetables(): Promise<number> {
       for (const t of ['unscheduled', 'conflicts', 'assignments', 'generation_runs']) await client.query(`DELETE FROM ${t}`)
       await client.query('COMMIT')
     } catch (err) { await client.query('ROLLBACK'); throw err } finally { client.release() }
-  } catch { /* memory mode or DB offline */ }
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr; /* memory mode or DB offline */ }
   return n
 }
 
@@ -213,7 +214,7 @@ export async function clearAllData(): Promise<void> {
     } finally {
       client.release()
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // operating in memory mode or DB offline
   }
 }
@@ -247,7 +248,7 @@ export async function listFaculty(): Promise<Faculty[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM faculty ORDER BY name')
     return rows.map(toFaculty)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.faculty
   }
 }
@@ -256,7 +257,7 @@ export async function getFaculty(id: string): Promise<Faculty | undefined> {
   try {
     const { rows } = await pool.query('SELECT * FROM faculty WHERE id = $1', [id])
     return rows[0] ? toFaculty(rows[0]) : undefined
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.faculty.find(f => f.id === id)
   }
 }
@@ -293,7 +294,7 @@ export async function upsertFaculty(f: Faculty): Promise<void> {
         f.maxWeeklyPeriods ?? 24,
       ]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const idx = mem.faculty.findIndex(x => x.id === f.id)
     if (idx >= 0) mem.faculty[idx] = f
     else mem.faculty.push(f)
@@ -313,7 +314,7 @@ export async function listFacultyResults(facultyId?: string): Promise<FacultyRes
       sectionsHandled: r.sections_handled, studentsAppeared: r.students_appeared,
       passPercent: Number(r.pass_percent), createdAt: new Date(r.created_at).toISOString(),
     }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const all = mem.facultyResults ?? []
     return (facultyId ? all.filter(x => x.facultyId === facultyId) : all).slice().sort((a, b) => b.academicYear.localeCompare(a.academicYear) || b.id - a.id)
   }
@@ -327,7 +328,7 @@ export async function addFacultyResult(r: Omit<FacultyResult, 'id' | 'createdAt'
       [r.facultyId, r.academicYear, r.semester, r.subjectId ?? null, r.subjectCode ?? null, r.subjectName, r.sectionsHandled ?? null, r.studentsAppeared ?? null, r.passPercent]
     )
     return { ...r, id: rows[0].id, createdAt: new Date(rows[0].created_at).toISOString() }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.facultyResults = mem.facultyResults ?? []
     const id = Math.max(0, mem.nextResultId ?? 1, ...mem.facultyResults.map(x => x.id + 1))
     mem.nextResultId = id + 1
@@ -342,7 +343,7 @@ export async function deleteFacultyResult(id: number): Promise<boolean> {
   try {
     const { rowCount } = await pool.query('DELETE FROM faculty_results WHERE id = $1', [id])
     return (rowCount ?? 0) > 0
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const before = (mem.facultyResults ?? []).length
     mem.facultyResults = (mem.facultyResults ?? []).filter(x => x.id !== id)
     saveLocalDb()
@@ -356,7 +357,7 @@ export async function listMailLog(facultyId?: string): Promise<MailLogEntry[]> {
       ? await pool.query('SELECT * FROM mail_log WHERE faculty_id = $1 ORDER BY id DESC LIMIT 50', [facultyId])
       : await pool.query('SELECT * FROM mail_log ORDER BY id DESC LIMIT 200')
     return rows.map(r => ({ id: r.id, facultyId: r.faculty_id, to: r.to_email, subject: r.subject, credentials: r.credentials, sentBy: r.sent_by, sentAt: new Date(r.sent_at).toISOString() }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const all = (mem.mailLog ?? []).slice().sort((a, b) => b.id - a.id)
     return (facultyId ? all.filter(x => x.facultyId === facultyId) : all).slice(0, 200)
   }
@@ -365,7 +366,7 @@ export async function listMailLog(facultyId?: string): Promise<MailLogEntry[]> {
 export async function addMailLog(e: Omit<MailLogEntry, 'id' | 'sentAt'>): Promise<void> {
   try {
     await pool.query('INSERT INTO mail_log (faculty_id, to_email, subject, credentials, sent_by) VALUES ($1,$2,$3,$4,$5)', [e.facultyId, e.to, e.subject, e.credentials, e.sentBy])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.mailLog = mem.mailLog ?? []
     const id = Math.max(0, mem.nextMailId ?? 1, ...mem.mailLog.map(x => x.id + 1))
     mem.nextMailId = id + 1
@@ -381,7 +382,7 @@ export const MESSAGE_TTL_DAYS = 30
 export async function pruneMessages(now = Date.now()): Promise<void> {
   const cutoff = new Date(now - MESSAGE_TTL_DAYS * 86_400_000).toISOString()
   try { await pool.query('DELETE FROM chat_messages WHERE sent_at < $1', [cutoff]) }
-  catch {
+  catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const before = (mem.messages ?? []).length
     mem.messages = (mem.messages ?? []).filter(m => m.sentAt >= cutoff)
     if (mem.messages.length !== before) saveLocalDb()
@@ -396,7 +397,7 @@ export async function listMessagesFor(userId: string): Promise<ChatMessage[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM chat_messages WHERE from_id = $1 OR to_id = $1 ORDER BY id', [userId])
     return rows.map(toMsg)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return (mem.messages ?? []).filter(m => m.fromId === userId || m.toId === userId).sort((a, b) => a.id - b.id)
   }
 }
@@ -406,7 +407,7 @@ export async function addMessage(fromId: string, toId: string, text: string): Pr
   try {
     const { rows } = await pool.query('INSERT INTO chat_messages (from_id, to_id, text) VALUES ($1,$2,$3) RETURNING *', [fromId, toId, text])
     return toMsg(rows[0])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.messages = mem.messages ?? []
     const id = Math.max(1, mem.nextMessageId ?? 1, ...mem.messages.map(x => x.id + 1))
     mem.nextMessageId = id + 1
@@ -420,7 +421,7 @@ export async function addMessage(fromId: string, toId: string, text: string): Pr
 /** Mark everything `fromId` sent to `toId` as read. */
 export async function markMessagesRead(fromId: string, toId: string): Promise<void> {
   try { await pool.query('UPDATE chat_messages SET read_at = now() WHERE from_id = $1 AND to_id = $2 AND read_at IS NULL', [fromId, toId]) }
-  catch {
+  catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     let changed = false
     for (const m of mem.messages ?? []) if (m.fromId === fromId && m.toId === toId && !m.readAt) { m.readAt = new Date().toISOString(); changed = true }
     if (changed) saveLocalDb()
@@ -440,9 +441,10 @@ export async function deleteFacultyCascade(id: string): Promise<void> {
   mem.sessions = mem.sessions.filter(x => x.facultyId !== id)
   if (mem.facultyPasswords) delete mem.facultyPasswords[id]
   if (mem.facultyPhotos) delete mem.facultyPhotos[id]
+  if (storageMode === 'postgres') await sql().query('DELETE FROM faculty_photos WHERE faculty_id = $1', [id])
   try {
     await pool.query('DELETE FROM faculty WHERE id = $1', [id])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // local mode
   }
   mem.faculty = mem.faculty.filter(f => f.id !== id)
@@ -452,7 +454,7 @@ export async function deleteFacultyCascade(id: string): Promise<void> {
 export async function deleteFaculty(id: string): Promise<void> {
   try {
     await pool.query('DELETE FROM faculty WHERE id = $1', [id])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.faculty = mem.faculty.filter(f => f.id !== id)
   }
 }
@@ -463,7 +465,7 @@ export async function listFacultyUnavailability(facultyId?: string): Promise<Fac
       ? await pool.query('SELECT * FROM faculty_unavailability WHERE faculty_id = $1', [facultyId])
       : await pool.query('SELECT * FROM faculty_unavailability')
     return rows.map(r => ({ facultyId: r.faculty_id, day: r.day, period: r.period }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return facultyId ? mem.facultyUnavailability.filter(u => u.facultyId === facultyId) : mem.facultyUnavailability
   }
 }
@@ -475,7 +477,7 @@ export async function addFacultyUnavailability(u: FacultyUnavailability): Promis
       u.day,
       u.period,
     ])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.facultyUnavailability.push(u)
   }
 }
@@ -483,7 +485,7 @@ export async function addFacultyUnavailability(u: FacultyUnavailability): Promis
 export async function clearFacultyUnavailability(facultyId: string): Promise<void> {
   try {
     await pool.query('DELETE FROM faculty_unavailability WHERE faculty_id = $1', [facultyId])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.facultyUnavailability = mem.facultyUnavailability.filter(u => u.facultyId !== facultyId)
   }
 }
@@ -509,7 +511,7 @@ export async function getFacultyPasswordHash(facultyId: string): Promise<string 
   try {
     const { rows } = await pool.query('SELECT password_hash FROM faculty WHERE id = $1', [facultyId])
     return rows[0]?.password_hash ?? null
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.facultyPasswords?.[facultyId] ?? null
   }
 }
@@ -517,39 +519,42 @@ export async function getFacultyPasswordHash(facultyId: string): Promise<string 
 export async function upsertFacultyPasswordHash(facultyId: string, passwordHash: string): Promise<void> {
   try {
     await pool.query('UPDATE faculty SET password_hash = $1 WHERE id = $2', [passwordHash, facultyId])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.facultyPasswords = { ...(mem.facultyPasswords ?? {}), [facultyId]: passwordHash }
     saveLocalDb()
   }
 }
 
 // ── profile pictures ──
+// Kept out of the main document (they are large): their own table in PostgreSQL mode, the document in file mode.
 export async function getFacultyPhoto(id: string): Promise<{ data: string; at: string } | null> {
-  try {
-    const { rows } = await pool.query('SELECT data, updated_at FROM faculty_photos WHERE faculty_id = $1', [id])
+  if (storageMode === 'postgres') {
+    const { rows } = await sql().query('SELECT data, updated_at FROM faculty_photos WHERE faculty_id = $1', [id])
     return rows[0] ? { data: rows[0].data, at: new Date(rows[0].updated_at).toISOString() } : null
-  } catch { return mem.facultyPhotos?.[id] ?? null }
+  }
+  return mem.facultyPhotos?.[id] ?? null
 }
 export async function setFacultyPhoto(id: string, data: string): Promise<string> {
   const at = new Date().toISOString()
-  try {
-    await pool.query('INSERT INTO faculty_photos (faculty_id, data, updated_at) VALUES ($1,$2,$3) ON CONFLICT (faculty_id) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at', [id, data, at])
-  } catch {
+  if (storageMode === 'postgres') {
+    await sql().query('INSERT INTO faculty_photos (faculty_id, data, updated_at) VALUES ($1,$2,$3) ON CONFLICT (faculty_id) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at', [id, data, at])
+  } else {
     mem.facultyPhotos = { ...(mem.facultyPhotos ?? {}), [id]: { data, at } }
     saveLocalDb()
   }
   return at
 }
 export async function deleteFacultyPhoto(id: string): Promise<void> {
-  try { await pool.query('DELETE FROM faculty_photos WHERE faculty_id = $1', [id]) }
-  catch { if (mem.facultyPhotos) { delete mem.facultyPhotos[id]; saveLocalDb() } }
+  if (storageMode === 'postgres') { await sql().query('DELETE FROM faculty_photos WHERE faculty_id = $1', [id]); return }
+  if (mem.facultyPhotos) { delete mem.facultyPhotos[id]; saveLocalDb() }
 }
 /** When each teacher's picture was last set (no image data), for cache-busting and "has a picture". */
 export async function listPhotoTimes(): Promise<Record<string, string>> {
-  try {
-    const { rows } = await pool.query('SELECT faculty_id, updated_at FROM faculty_photos')
+  if (storageMode === 'postgres') {
+    const { rows } = await sql().query('SELECT faculty_id, updated_at FROM faculty_photos')
     return Object.fromEntries(rows.map(r => [r.faculty_id, new Date(r.updated_at).toISOString()]))
-  } catch { return Object.fromEntries(Object.entries(mem.facultyPhotos ?? {}).map(([k, v]) => [k, v.at])) }
+  }
+  return Object.fromEntries(Object.entries(mem.facultyPhotos ?? {}).map(([k, v]) => [k, v.at]))
 }
 
 // ---------- Sections ----------
@@ -567,7 +572,7 @@ export async function listSections(): Promise<Section[]> {
       active: r.active ?? true,
       classIncharge: r.class_incharge ?? null,
     }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.sections
   }
 }
@@ -587,7 +592,7 @@ export async function upsertSection(s: Section): Promise<void> {
          class_incharge = EXCLUDED.class_incharge`,
       [s.id, s.name, s.year, s.semester, s.department ?? 'AI & DS', s.studentCount ?? null, s.active ?? true, s.classIncharge ?? null]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const idx = mem.sections.findIndex(x => x.id === s.id)
     if (idx >= 0) mem.sections[idx] = s
     else mem.sections.push(s)
@@ -621,7 +626,7 @@ async function deriveSectionSubjectsForSection(
       [year, semester],
     )
     semesterSubjects = rows.map(toSubject)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     semesterSubjects = mem.subjects.filter(s => s.year === year && s.semester === semester)
   }
   if (semesterSubjects.length === 0) return
@@ -634,7 +639,7 @@ async function deriveSectionSubjectsForSection(
       [sectionId],
     )
     existingSS = rows.map(toSectionSubject)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     existingSS = mem.sectionSubjects.filter(ss => ss.sectionId === sectionId)
   }
   const existingSubjectIds = new Set(existingSS.map(ss => ss.subjectId))
@@ -669,7 +674,7 @@ export async function deleteSection(id: string): Promise<void> {
       [id],
     )
     ssIds = rows.map((r: any) => r.id as number)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     ssIds = mem.sectionSubjects.filter(ss => ss.sectionId === id).map(ss => ss.id)
   }
 
@@ -680,7 +685,7 @@ export async function deleteSection(id: string): Promise<void> {
         'DELETE FROM teaching_assignments WHERE section_subject_id = ANY($1::int[])',
         [ssIds],
       )
-    } catch {
+    } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
       mem.teachingAssignments = mem.teachingAssignments.filter(
         ta => !ssIds.includes(ta.sectionSubjectId),
       )
@@ -692,7 +697,7 @@ export async function deleteSection(id: string): Promise<void> {
         'DELETE FROM section_subjects WHERE section_id = $1',
         [id],
       )
-    } catch {
+    } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
       mem.sectionSubjects = mem.sectionSubjects.filter(ss => ss.sectionId !== id)
     }
   }
@@ -700,14 +705,14 @@ export async function deleteSection(id: string): Promise<void> {
   // 4. Delete lab mappings for this section
   try {
     await pool.query('DELETE FROM lab_mapping WHERE section_id = $1', [id])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.labMappings = mem.labMappings.filter(lm => lm.sectionId !== id)
   }
 
   // 5. Delete the section itself
   try {
     await pool.query('DELETE FROM sections WHERE id = $1', [id])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.sections = mem.sections.filter(s => s.id !== id)
   }
 }
@@ -718,7 +723,7 @@ export async function listSubjects(): Promise<Subject[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM subjects ORDER BY name')
     return rows.map(toSubject)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.subjects
   }
 }
@@ -727,7 +732,7 @@ export async function getSubject(id: string): Promise<Subject | undefined> {
   try {
     const { rows } = await pool.query('SELECT * FROM subjects WHERE id = $1', [id])
     return rows[0] ? toSubject(rows[0]) : undefined
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.subjects.find(s => s.id === id)
   }
 }
@@ -744,7 +749,7 @@ export async function upsertSubject(s: Subject): Promise<void> {
          ltp = EXCLUDED.ltp, print_as = EXCLUDED.print_as`,
       [s.id, s.code, s.name, s.deliveryType, s.category, s.credits ?? 0, s.year ?? null, s.semester ?? null, s.theoryPeriods ?? 3, s.labPeriods ?? 0, s.vertical ?? null, s.shortName ?? null, s.ltp ? JSON.stringify(s.ltp) : null, s.printAs ?? null]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const idx = mem.subjects.findIndex(x => x.id === s.id)
     if (idx >= 0) mem.subjects[idx] = s
     else mem.subjects.push(s)
@@ -763,7 +768,7 @@ export async function deleteSubjectCascade(id: string): Promise<void> {
   if (code) mem.courses = mem.courses.filter(c => c.code.replace(/_LAB$/, '') !== code)
   try {
     await pool.query('DELETE FROM subjects WHERE id = $1', [id])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // local mode: the mem clean-up above is the delete
   }
   mem.subjects = mem.subjects.filter(s => s.id !== id)
@@ -779,7 +784,7 @@ export async function removeSectionSubjectOfferings(subjectId: string, sectionId
   mem.labMappings = mem.labMappings.filter(m => !(m.subjectId === subjectId && m.sectionId && sectionIds.includes(m.sectionId)))
   try {
     await pool.query('DELETE FROM section_subjects WHERE subject_id = $1 AND section_id = ANY($2::text[])', [subjectId, sectionIds])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // local mode
   }
   saveLocalDb()
@@ -789,7 +794,7 @@ export async function removeSectionSubjectOfferings(subjectId: string, sectionId
 export async function deleteSubject(id: string): Promise<void> {
   try {
     await pool.query('DELETE FROM subjects WHERE id = $1', [id])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.subjects = mem.subjects.filter(s => s.id !== id)
   }
 }
@@ -817,7 +822,7 @@ export async function listSectionSubjects(): Promise<SectionSubject[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM section_subjects ORDER BY section_id, subject_id')
     return rows.map(toSectionSubject)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.sectionSubjects
   }
 }
@@ -836,7 +841,7 @@ export async function upsertSectionSubject(s: Omit<SectionSubject, 'id'>): Promi
       [s.sectionId, s.subjectId, s.theoryPeriods, s.labPeriods, s.labBlockLength ?? null]
     )
     return rows[0].id as number
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const existing = mem.sectionSubjects.find(x => x.sectionId === s.sectionId && x.subjectId === s.subjectId)
     if (existing) {
       existing.theoryPeriods = s.theoryPeriods
@@ -867,7 +872,7 @@ export async function listTeachingAssignments(): Promise<TeachingAssignment[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM teaching_assignments ORDER BY section_subject_id, component, batch NULLS FIRST, faculty_id')
     return rows.map(toTeachingAssignment)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.teachingAssignments
   }
 }
@@ -890,7 +895,7 @@ export async function addTeachingAssignment(a: Omit<TeachingAssignment, 'id'>): 
       [a.facultyId, a.sectionSubjectId, a.component, a.batch ?? '']
     )
     return existing.rows[0].id as number
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // Mirror the Postgres UNIQUE(faculty, section_subject, component, batch) behaviour, and never
     // reuse an id: removals leave gaps, so `length + 1` could collide and a later delete would
     // remove several rows.
@@ -908,7 +913,7 @@ export async function addTeachingAssignment(a: Omit<TeachingAssignment, 'id'>): 
 export async function removeTeachingAssignment(id: number): Promise<void> {
   try {
     await pool.query('DELETE FROM teaching_assignments WHERE id = $1', [id])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.teachingAssignments = mem.teachingAssignments.filter(x => x.id !== id)
   }
 }
@@ -927,7 +932,7 @@ export async function bulkReplaceTeachingAssignments(
       createdIds.push(id)
     }
     return createdIds
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.teachingAssignments = mem.teachingAssignments.filter(x => !sectionSubjectIds.includes(x.sectionSubjectId))
     const createdIds: number[] = []
     for (const a of assignments) {
@@ -963,7 +968,7 @@ export async function listLabsForSubject(subjectId: string, sectionId?: string |
       [subjectId]
     )
     return global.rows.map(r => r.lab_id)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     if (sectionId) {
       const specific = mem.labMappings.filter(m => m.subjectId === subjectId && m.sectionId === sectionId)
       if (specific.length > 0) return specific.map(m => m.labId)
@@ -981,7 +986,7 @@ export async function getAllLabsBySubject(): Promise<Map<string, string[]>> {
       map.get(r.subject_id)!.push(r.lab_id)
     }
     return map
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const map = new Map<string, string[]>()
     for (const m of mem.labMappings) {
       if (!m.sectionId) {
@@ -1011,7 +1016,7 @@ export async function getAllLabsBySectionSubject(): Promise<Map<string, string[]
       }
     }
     return map
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const map = new Map<string, string[]>()
     for (const m of mem.labMappings) {
       const key = m.sectionId ? `${m.sectionId}::${m.subjectId}` : `GLOBAL::${m.subjectId}`
@@ -1029,7 +1034,7 @@ export async function setLabSubjectMapping(labId: string, subjectId: string, sec
       'INSERT INTO lab_mapping (lab_id, subject_id, section_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
       [labId, subjectId, sectionId ?? null]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     if (!mem.labMappings.some(m => m.labId === labId && m.subjectId === subjectId && m.sectionId === (sectionId ?? null))) {
       mem.labMappings.push({ labId, subjectId, sectionId: sectionId ?? null })
     }
@@ -1043,7 +1048,7 @@ export async function deleteLabSubjectMapping(labId: string, subjectId: string, 
     } else {
       await pool.query('DELETE FROM lab_mapping WHERE lab_id = $1 AND subject_id = $2 AND section_id IS NULL', [labId, subjectId])
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.labMappings = mem.labMappings.filter(m => !(m.labId === labId && m.subjectId === subjectId && m.sectionId === (sectionId ?? null)))
   }
 }
@@ -1052,7 +1057,7 @@ export async function listLabSubjectMappings(): Promise<Array<{ labId: string; s
   try {
     const { rows } = await pool.query('SELECT lab_id, subject_id, section_id FROM lab_mapping ORDER BY lab_id, subject_id, section_id NULLS FIRST')
     return rows.map(r => ({ labId: r.lab_id, subjectId: r.subject_id, sectionId: r.section_id ?? null }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.labMappings
   }
 }
@@ -1174,7 +1179,7 @@ export async function listCourses(): Promise<Course[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM courses ORDER BY name')
     if (rows.length > 0) return rows.map(toCourse)
-  } catch {}
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;}
 
   const subjects = await listSubjects()
   return subjectsToCourses(subjects)
@@ -1184,7 +1189,7 @@ export async function getCourse(id: string): Promise<Course | undefined> {
   try {
     const { rows } = await pool.query('SELECT * FROM courses WHERE id = $1', [id])
     return rows[0] ? toCourse(rows[0]) : undefined
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return undefined
   }
 }
@@ -1198,13 +1203,13 @@ export async function upsertCourse(c: Course): Promise<void> {
          component_type = EXCLUDED.component_type, lab_block_length = EXCLUDED.lab_block_length`,
       [c.id, c.code, c.name, c.componentType, c.labBlockLength]
     )
-  } catch {}
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;}
 }
 
 export async function deleteCourse(id: string): Promise<void> {
   try {
     await pool.query('DELETE FROM courses WHERE id = $1', [id])
-  } catch {}
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;}
 }
 
 function toCourse(row: any): Course {
@@ -1232,7 +1237,7 @@ export async function listLabs(): Promise<Lab[]> {
       active: r.active ?? true,
       notes: r.notes ?? undefined,
     }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.labs
   }
 }
@@ -1252,7 +1257,7 @@ export async function upsertLab(l: Lab): Promise<void> {
          notes = EXCLUDED.notes`,
       [l.id, l.name, l.room ?? l.id, l.department ?? 'AI & DS', l.capacity ?? null, l.capacitySource ?? 'NOT_SPECIFIED', l.active ?? true, l.notes ?? null]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const idx = mem.labs.findIndex(x => x.id === l.id)
     if (idx >= 0) mem.labs[idx] = l
     else mem.labs.push(l)
@@ -1262,7 +1267,7 @@ export async function upsertLab(l: Lab): Promise<void> {
 export async function deleteLab(id: string): Promise<void> {
   try {
     await pool.query('DELETE FROM labs WHERE id = $1', [id])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.labs = mem.labs.filter(l => l.id !== id)
   }
 }
@@ -1271,7 +1276,7 @@ export async function listLabCourseMappings(): Promise<LabCourseMapping[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM lab_course_mapping')
     return rows.map(r => ({ labId: r.lab_id, courseId: r.course_id }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return []
   }
 }
@@ -1282,20 +1287,20 @@ export async function setLabCourseMapping(labId: string, courseId: string): Prom
       'INSERT INTO lab_course_mapping (lab_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [labId, courseId]
     )
-  } catch {}
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;}
 }
 
 export async function deleteLabCourseMapping(labId: string, courseId: string): Promise<void> {
   try {
     await pool.query('DELETE FROM lab_course_mapping WHERE lab_id = $1 AND course_id = $2', [labId, courseId])
-  } catch {}
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;}
 }
 
 export async function labsForCourse(courseId: string): Promise<string[]> {
   try {
     const { rows } = await pool.query('SELECT lab_id FROM lab_course_mapping WHERE course_id = $1', [courseId])
     return rows.map(r => r.lab_id)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return []
   }
 }
@@ -1309,7 +1314,7 @@ export async function getAllLabsByCourse(): Promise<Map<string, string[]>> {
       map.get(r.course_id)!.push(r.lab_id)
     }
     return map
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return new Map()
   }
 }
@@ -1320,7 +1325,7 @@ export async function listCourseRequirements(): Promise<CourseRequirement[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM course_requirements')
     return rows.map(toRequirement)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return []
   }
 }
@@ -1335,7 +1340,7 @@ export async function upsertCourseRequirement(r: Omit<CourseRequirement, 'id'>):
          weekly_lab_periods = EXCLUDED.weekly_lab_periods`,
       [r.courseId, r.sectionId, r.weeklyTheoryPeriods, r.weeklyLabPeriods]
     )
-  } catch {}
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;}
 }
 
 function toRequirement(row: any): CourseRequirement {
@@ -1354,7 +1359,7 @@ export async function listTeacherAssignments(): Promise<TeacherAssignment[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM teacher_assignments')
     return rows.map(toTeacherAssignment)
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return []
   }
 }
@@ -1367,7 +1372,7 @@ export async function upsertTeacherAssignment(a: Omit<TeacherAssignment, 'id'>):
        ON CONFLICT (course_id, section_id) DO UPDATE SET faculty_id = EXCLUDED.faculty_id`,
       [a.facultyId, a.courseId, a.sectionId]
     )
-  } catch {}
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;}
 }
 
 function toTeacherAssignment(row: any): TeacherAssignment {
@@ -1381,7 +1386,7 @@ export async function getScheduleConfig(): Promise<ScheduleConfig> {
     const { rows } = await pool.query('SELECT * FROM schedule_config WHERE id = 1')
     const row = rows[0]
     return { workingDays: JSON.parse(row.working_days), periods: JSON.parse(row.periods) }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.scheduleConfig
   }
 }
@@ -1393,7 +1398,7 @@ export async function setScheduleConfig(cfg: ScheduleConfig): Promise<void> {
        ON CONFLICT (id) DO UPDATE SET working_days = EXCLUDED.working_days, periods = EXCLUDED.periods`,
       [JSON.stringify(cfg.workingDays), JSON.stringify(cfg.periods)]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.scheduleConfig = cfg
   }
 }
@@ -1407,7 +1412,7 @@ export async function createRun(status: TimetableStatus, warnings: string[]): Pr
       [status, new Date().toISOString(), JSON.stringify(warnings)]
     )
     return rows[0].id as number
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const id = mem.nextRunId++
     mem.generationRuns.push({ id, status, generatedAt: new Date().toISOString(), warnings })
     // Local mode keeps the latest few runs only (each holds hundreds of placements).
@@ -1450,7 +1455,7 @@ export async function saveAssignments(runId: number, assignments: Assignment[]):
     } finally {
       client.release()
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     for (const a of assignments) mem.assignments.push({ ...a, runId })
     saveLocalDb()
   }
@@ -1475,7 +1480,7 @@ export async function saveConflicts(runId: number, conflicts: Conflict[]): Promi
     } finally {
       client.release()
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     for (const c of conflicts) mem.conflicts.push({ ...c, runId })
     saveLocalDb()
   }
@@ -1508,7 +1513,7 @@ export async function saveUnscheduled(runId: number, units: SchedulableUnit[]): 
     } finally {
       client.release()
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     for (const u of units) mem.unscheduled.push({ ...u, runId })
     saveLocalDb()
   }
@@ -1521,7 +1526,7 @@ export async function getLatestValidRun(): Promise<{ id: number; status: Timetab
        WHERE status IN ('GREEN','YELLOW') ORDER BY id DESC LIMIT 1`
     )
     return rows[0]
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const r = [...mem.generationRuns].reverse().find(x => x.status === 'GREEN' || x.status === 'YELLOW')
     return r ? { id: r.id, status: r.status, generatedAt: r.generatedAt } : undefined
   }
@@ -1531,7 +1536,7 @@ export async function getRun(runId: number): Promise<any> {
   try {
     const { rows } = await pool.query('SELECT * FROM generation_runs WHERE id = $1', [runId])
     return rows[0]
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const r = mem.generationRuns.find(x => x.id === runId)
     return r ? { id: r.id, status: r.status, generated_at: r.generatedAt, warnings: JSON.stringify(r.warnings) } : undefined
   }
@@ -1553,7 +1558,7 @@ export async function getAssignmentsForRun(runId: number): Promise<Assignment[]>
       batch: r.batch ?? null,
       labId: r.lab_id ?? undefined,
     }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.assignments.filter(a => a.runId === runId)
   }
 }
@@ -1570,7 +1575,7 @@ export async function getConflictsForRun(runId: number): Promise<Conflict[]> {
       day: r.day ?? undefined,
       period: r.period ?? undefined,
     }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.conflicts.filter(c => c.runId === runId)
   }
 }
@@ -1589,7 +1594,7 @@ export async function getUnscheduledForRun(runId: number): Promise<SchedulableUn
       batch: r.batch ?? null,
       length: r.length,
     }))
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.unscheduled.filter(u => u.runId === runId).map((r, i) => ({
       unitId: `${r.sectionId}:${r.subjectId ?? r.courseId}:${i + 1}`,
       sectionId: r.sectionId,
@@ -1614,7 +1619,7 @@ export async function getAllocationSettings(): Promise<AllocationConfig> {
     if (rows.length > 0 && rows[0].config_json) {
       return JSON.parse(rows[0].config_json)
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // fallback
   }
   return mem.allocationSettings
@@ -1627,7 +1632,7 @@ export async function saveAllocationSettings(config: AllocationConfig): Promise<
       'INSERT INTO allocation_settings (id, config_json) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET config_json = EXCLUDED.config_json',
       [jsonStr]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // fallback
   }
   mem.allocationSettings = config
@@ -1648,7 +1653,7 @@ export async function getCurrentAcademicCycle(): Promise<AcademicCycle> {
     if (rows.length > 0 && rows[0].current_cycle) {
       return normalizeCycle(rows[0].current_cycle)
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // fallback to local DB state
   }
   return normalizeCycle(getLocalDb().currentAcademicCycle, DEFAULT_CURRENT_CYCLE)
@@ -1661,7 +1666,7 @@ export async function setCurrentAcademicCycle(cycle: AcademicCycle): Promise<Aca
       'INSERT INTO academic_cycle_config (id, current_cycle) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET current_cycle = EXCLUDED.current_cycle',
       [normalized]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // fallback to local DB state
   }
   const db = getLocalDb()
@@ -1699,7 +1704,7 @@ export async function getFacultyPreferences(facultyId?: string): Promise<Faculty
         updatedAt: r.updated_at,
       }))
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // fallback
   }
 
@@ -1774,7 +1779,7 @@ export async function saveFacultyPreferences(
           status === 'SUBMITTED' ? now : null,
         ]
       )
-    } catch {
+    } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
       // fallback to memory
     }
   }
@@ -1810,7 +1815,7 @@ export async function reviewFacultyPreference(
        WHERE id = $5 AND status != 'APPROVED'`,
       [status, comment ?? null, reviewerId ?? null, now, preferenceId]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // fallback
   }
 
@@ -1868,7 +1873,7 @@ export async function editFacultyPreference(
         preferenceId,
       ]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // local/in-memory mode
   }
 
@@ -1894,7 +1899,7 @@ export async function hodChangePreferenceSubject(
       `UPDATE faculty_subject_preferences SET subject_id = $1, academic_year = $2, semester = $3, updated_at = $4 WHERE id = $5`,
       [subjectId, academicYear, semester, pref.updatedAt, preferenceId]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // local/in-memory mode
   }
   saveLocalDb()
@@ -1907,7 +1912,7 @@ export async function hodDeletePreference(preferenceId: number): Promise<boolean
   mem.facultyPreferences = mem.facultyPreferences.filter(p => p.id !== preferenceId)
   try {
     await pool.query('DELETE FROM faculty_subject_preferences WHERE id = $1', [preferenceId])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // local/in-memory mode
   }
   saveLocalDb()
@@ -1927,7 +1932,7 @@ export async function updateFacultyExperience(
       allocationExperience,
       facultyId,
     ])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // fallback
   }
 }
@@ -1969,7 +1974,7 @@ export async function updateFacultyExperienceFields(
       params.push(facultyId)
       await pool.query(`UPDATE faculty SET ${sets.join(', ')} WHERE id = $${i}`, params)
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // local/in-memory mode
   }
 
@@ -1989,7 +1994,7 @@ export async function clearAllFacultyAllocationExperience(): Promise<void> {
   }
   try {
     await pool.query('UPDATE faculty SET allocation_experience = NULL')
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // local/in-memory mode
   }
   saveLocalDb()
@@ -2012,7 +2017,7 @@ export async function getFacultySubjectHistory(facultyId: string): Promise<Facul
         sectionsHandled: r.sections_handled,
       }))
     }
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     // fallback
   }
 
@@ -2244,7 +2249,7 @@ export async function createSessionRecord(facultyId: string): Promise<SessionRec
       'INSERT INTO sessions (token, faculty_id, created_at) VALUES ($1, $2, $3)',
       [record.token, record.facultyId, record.createdAt]
     )
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     mem.sessions.push(record)
     saveLocalDb()
   }
@@ -2256,7 +2261,7 @@ export async function getSessionFacultyId(token?: string | null): Promise<string
   try {
     const { rows } = await pool.query('SELECT faculty_id FROM sessions WHERE token = $1', [token])
     return rows.length ? (rows[0].faculty_id as string) : null
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     return mem.sessions.find(s => s.token === token)?.facultyId ?? null
   }
 }
@@ -2265,7 +2270,7 @@ export async function destroySessionRecord(token?: string | null): Promise<void>
   if (!token) return
   try {
     await pool.query('DELETE FROM sessions WHERE token = $1', [token])
-  } catch {
+  } catch (dbErr) { if (!isLocalDbMode) throw dbErr;
     const before = mem.sessions.length
     mem.sessions = mem.sessions.filter(s => s.token !== token)
     if (mem.sessions.length !== before) saveLocalDb()

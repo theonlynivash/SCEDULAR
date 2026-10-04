@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { storageMode } from './storage.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defaultScheduleConfig } from '../utils/grid.js'
@@ -249,6 +250,22 @@ export function createBlankDbState(): LocalDbState {
 }
 
 let dbState: LocalDbState | null = null
+
+/**
+ * Persistence hooks. In file mode the JSON file is written here; in postgres mode (see sync.ts) a driver takes over and
+ * `saveLocalDb()` only marks the document as changed - it is written to the database before the response is sent.
+ */
+let driver: { markDirty(): void } | null = null
+export function useStorageDriver(d: { markDirty(): void } | null) { driver = d }
+
+/** Replace the contents of the live state IN PLACE (other modules hold a reference to the same object). */
+export function installState(next: LocalDbState): LocalDbState {
+  if (!dbState) { dbState = next; return dbState }
+  for (const k of Object.keys(dbState)) delete (dbState as any)[k]
+  Object.assign(dbState, next)
+  return dbState
+}
+export const newDefaultState = (): LocalDbState => (process.env.SCEDULAR_START_BLANK === 'true' ? createBlankDbState() : createDefaultDbState())
 
 /** Replace the whole dataset with an empty one (keeps the HOD login, labs and period grid). */
 export function resetToBlankDb(): LocalDbState {
@@ -547,8 +564,9 @@ export function initLocalDb(): LocalDbState {
       console.log(`[LocalDB] Created new ${process.env.SCEDULAR_START_BLANK === 'true' ? 'blank' : 'sample'} local database at ${DB_FILE}`)
     }
   } catch (err) {
-    console.warn(`[LocalDB] Failed to read ${DB_FILE}, initializing default state in memory:`, err)
-    dbState = createDefaultDbState()
+    // Never fall back to the sample data here: the next save would overwrite the real (merely unreadable) file with it.
+    try { if (fs.existsSync(DB_FILE)) fs.copyFileSync(DB_FILE, `${DB_FILE}.unreadable-${Date.now()}`) } catch { /* best effort */ }
+    throw new Error(`The database file ${DB_FILE} could not be read (${(err as Error).message}). A copy was kept next to it. Fix or restore the file, then start again.`)
   }
 
   return dbState!
@@ -574,6 +592,8 @@ export function resetWorkflowState(): LocalDbState {
 
 export function getLocalDb(): LocalDbState {
   if (!dbState) {
+    // postgres mode: a placeholder that sync.ts replaces (in place) with the stored data before any request is served
+    if (storageMode === 'postgres') { dbState = createBlankDbState(); return dbState }
     return initLocalDb()
   }
   return dbState
@@ -582,6 +602,7 @@ export function getLocalDb(): LocalDbState {
 let saveTimeout: NodeJS.Timeout | null = null
 
 export function saveLocalDb(): void {
+  if (driver) return driver.markDirty()
   if (saveTimeout) clearTimeout(saveTimeout)
   saveTimeout = setTimeout(() => {
     saveLocalDbSync()
@@ -590,6 +611,7 @@ export function saveLocalDb(): void {
 
 export function saveLocalDbSync(): void {
   if (!dbState) return
+  if (driver) return driver.markDirty()
   try {
     if (!fs.existsSync(DB_DIR)) {
       fs.mkdirSync(DB_DIR, { recursive: true })

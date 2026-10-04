@@ -1,6 +1,7 @@
+import './utils/asyncErrors.js'
 import express from 'express'
 import cors from 'cors'
-import { ensureInitialized } from './db/client.js'
+import { storeMiddleware } from './db/sync.js'
 import { facultyRouter } from './routes/faculty.js'
 import { sectionsRouter } from './routes/sections.js'
 import { coursesRouter } from './routes/courses.js'
@@ -70,18 +71,8 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 app.use('/api', securityHeaders)
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'scedular-backend' }))
 
-// Postgres schema init (idempotent) runs lazily on first request requiring DB access.
-app.use(async (req, res, next) => {
-  if (req.path === '/api/health' || req.path === '/api/import/master/preview') {
-    return next()
-  }
-  try {
-    await ensureInitialized()
-    next()
-  } catch (err) {
-    next(err)
-  }
-})
+// loads the data (and, in PostgreSQL mode, syncs it with other instances and saves before the response is sent)
+app.use(storeMiddleware)
 
 // nothing below this line is reachable without signing in (login / forgot / reset / health excepted)
 app.use('/api', apiGuard)

@@ -304,8 +304,10 @@ facultyAllocationRouter.post('/auth/login', async (req: Request, res: Response) 
       f => f.id.toLowerCase() === idInput.toLowerCase() ||
            (f.email && String(f.email).toLowerCase() === idInput.toLowerCase())
     ) as any
-  } catch {
-    found = undefined
+  } catch (err) {
+    // the database is unreachable: say so, never fall back to a weaker check
+    console.error('[login] database error', err)
+    return res.status(503).json({ error: 'SERVICE_UNAVAILABLE', message: 'The database is not reachable right now. Please try again in a moment.' })
   }
 
   // 2. Failsafe: compiled roster (critical for first Vercel cold start)

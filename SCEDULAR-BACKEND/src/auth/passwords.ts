@@ -14,14 +14,13 @@ export const MASTER_PASSWORD = resolveMasterPassword()
  * bootstrap for accounts that have not been given a login yet (e.g. the first HOD login).
  */
 export async function verifyFacultyPassword(facultyId: string, plain: string): Promise<boolean> {
-  let stored: string | null = null
-  try { stored = await getFacultyPasswordHash(facultyId) } catch { stored = null }
+  const stored = await getFacultyPasswordHash(facultyId)   // a database error must surface (503/500), never read as "no password"
   if (stored) return bcrypt.compare(plain, stored)
   return plain === MASTER_PASSWORD
 }
 
 export async function hasPersonalPassword(facultyId: string): Promise<boolean> {
-  try { return Boolean(await getFacultyPasswordHash(facultyId)) } catch { return false }
+  return Boolean(await getFacultyPasswordHash(facultyId))
 }
 
 /** Readable one-time password, e.g. "kemu-4827" (no look-alike characters). */
