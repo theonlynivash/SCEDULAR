@@ -72,7 +72,7 @@ export default function HodAssignBoard() {
       <div className="liquid px-5 py-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="font-display font-800 text-lg text-[#0F4C81]">Assign Teachers to Subjects</h1>
+            <h1 className="font-display font-800 text-lg text-[#1f6a63]">Assign Teachers to Subjects</h1>
             <p className="text-[11px] text-slate-500">Review preferences, give sections to teachers, or apply templates in bulk. Theory and lab always go together.</p>
           </div>
           <PillTabs value={semester} onChange={setSemester}
@@ -84,8 +84,8 @@ export default function HodAssignBoard() {
               <span><b>{totals.done}</b> of <b>{totals.sections}</b> sections have a teacher</span>
               <span>{totals.openSubjects === 0 ? 'Ready for timetable ✓' : `${totals.openSubjects} subject${totals.openSubjects === 1 ? '' : 's'} still open`}</span>
             </div>
-            <div className="h-1.5 bg-[#0e254f]/8 rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-[#2f6fc4]/60 to-[#16367a]/70 transition-all" style={{ width: `${(100 * totals.done) / totals.sections}%` }} />
+            <div className="h-1.5 bg-[#17403d]/8 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-[#3a8a80]/60 to-[#1b5550]/70 transition-all" style={{ width: `${(100 * totals.done) / totals.sections}%` }} />
             </div>
           </div>
         )}
@@ -95,7 +95,7 @@ export default function HodAssignBoard() {
       <StaffingCard refreshKey={boards} />
 
       {notice && (
-        <div className={`text-xs font-600 rounded-xl px-4 py-3 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+        <div className={`slide-down text-xs font-600 rounded-xl px-4 py-3 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
           {notice.ok ? '✓' : '⚠'} {notice.text}
         </div>
       )}

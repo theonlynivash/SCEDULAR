@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode, SelectHTMLAttributes, InputHTMLAttributes } from 'react'
 
 export function PageHeader({ title, children }: { title: string; desc?: string; children?: ReactNode }) {
@@ -26,9 +27,9 @@ export function Btn({
 }) {
   const styles: Record<string, string> = {
     primary:
-      'text-white bg-gradient-to-br from-[#0e254f] to-[#081a38] ring-1 ring-[#f3c326]/60 border border-white/40 shadow-[0_4px_16px_rgba(14,37,79,0.4)] hover:brightness-110',
+      'text-white bg-gradient-to-br from-[#17403d] to-[#0f2f2d] ring-1 ring-[#c9a24a]/60 border border-white/40 shadow-[0_4px_16px_rgba(23,64,61,0.4)] hover:brightness-110',
     secondary: 'glass-pill text-slate-700 hover:bg-white/60',
-    outline: 'bg-transparent border border-[#0e254f]/50 text-[#0e254f] hover:bg-[#0e254f]/10',
+    outline: 'bg-transparent border border-[#17403d]/50 text-[#17403d] hover:bg-[#17403d]/10',
     danger: 'text-white bg-gradient-to-br from-[#fb7185] to-[#f43f5e] border border-white/40 hover:brightness-110',
   }
   return (
@@ -121,7 +122,7 @@ export function Chip({
     success: 'text-emerald-700 bg-emerald-400/20 border-emerald-300/50',
     warning: 'text-amber-700 bg-amber-400/20 border-amber-300/50',
     danger: 'text-rose-700 bg-rose-400/20 border-rose-300/50',
-    accent: 'text-[#0e254f] bg-[#0e254f]/10 border-[#0e254f]/30',
+    accent: 'text-[#17403d] bg-[#17403d]/10 border-[#17403d]/30',
   }
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-600 border backdrop-blur-md ${tones[tone]}`}>
@@ -142,8 +143,8 @@ export function StatCard({
   tone?: 'accent' | 'success' | 'warning'
 }) {
   const glow: Record<string, string> = {
-    accent: 'from-[#0e254f]/25 to-[#f3c326]/20 text-[#0e254f]',
-    success: 'from-[#34d399]/25 to-[#f3c326]/15 text-emerald-600',
+    accent: 'from-[#17403d]/25 to-[#c9a24a]/20 text-[#17403d]',
+    success: 'from-[#34d399]/25 to-[#c9a24a]/15 text-emerald-600',
     warning: 'from-[#fbbf24]/25 to-[#fb7185]/15 text-amber-600',
   }
   return (
@@ -173,8 +174,22 @@ export function IconBtn({ children, onClick, title, tone = 'neutral' }: { childr
 
 /** Segmented liquid tabs. `value` is the active id. */
 export function PillTabs<T extends string>({ tabs, value, onChange, className = '' }: { tabs: { id: T; label: ReactNode; disabled?: boolean; title?: string }[]; value: T; onChange: (id: T) => void; className?: string }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [ind, setInd] = useState<{ x: number; w: number } | null>(null)
+  // a highlight that slides to the selected tab instead of jumping
+  useLayoutEffect(() => {
+    const place = () => {
+      const el = box.current?.querySelector<HTMLElement>('button[data-active="true"]')
+      setInd(el ? { x: el.offsetLeft, w: el.offsetWidth } : null)
+    }
+    place()
+    const ro = new ResizeObserver(place)
+    if (box.current) ro.observe(box.current)
+    return () => ro.disconnect()
+  }, [value, tabs.length])
   return (
-    <div className={`tabs-liquid ${className}`} role="tablist">
+    <div ref={box} className={`tabs-liquid ${className}`} role="tablist" style={{ position: 'relative' }}>
+      {ind && <span aria-hidden className="tabs-indicator" style={{ transform: `translateX(${ind.x}px)`, width: ind.w }} />}
       {tabs.map(t => (
         <button key={t.id} role="tab" aria-selected={value === t.id} data-active={value === t.id} disabled={t.disabled} title={t.title} onClick={() => onChange(t.id)} className="disabled:opacity-40 disabled:cursor-not-allowed">
           {t.label}

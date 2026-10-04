@@ -17,7 +17,7 @@ export function TeacherInfo({ t, subjectId, semester, extra }: { t: BoardTeacher
         <p className="text-[10.5px] text-slate-500 truncate">
           {t.prefs.length === 0
             ? 'Free · no preference submitted'
-            : <>Free · prefers {t.prefs.map((p, i) => <span key={p.subjectId}>{i > 0 && ', '}<span className={p.semester === semester ? 'font-700 text-[#16367a]' : ''}>{p.code}</span> <span className="text-slate-400">({p.semester})</span></span>)}</>}
+            : <>Free · prefers {t.prefs.map((p, i) => <span key={p.subjectId}>{i > 0 && ', '}<span className={p.semester === semester ? 'font-700 text-[#1b5550]' : ''}>{p.code}</span> <span className="text-slate-400">({p.semester})</span></span>)}</>}
         </p>
       ) : (
         <p className="text-[10.5px] text-slate-500 truncate" title={t.assigned.map(a => `${a.code} ${a.name} · Sem ${a.semester} · ${a.sections} section${a.sections === 1 ? '' : 's'} (${a.periods} periods)`).join('\n')}>
@@ -62,13 +62,13 @@ export default function TeacherPicker({ teachers, subjectId, semester, exclude, 
     <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
       <div className="p-2 border-b border-slate-100 relative">
         <Search className="w-3.5 h-3.5 absolute left-4 top-[18px] text-slate-400" />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a teacher or subject code…" className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#0F4C81]" />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a teacher or subject code…" className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#1f6a63]" />
       </div>
       <div className="overflow-y-auto" style={{ maxHeight }}>
         <p className="px-3 py-1.5 text-[10px] font-800 uppercase tracking-wider text-emerald-700 bg-emerald-50/60 sticky top-0">Free teachers · {g.free.length} <span className="font-500 normal-case tracking-normal text-slate-400">(nothing assigned yet; their submitted preferences are shown)</span></p>
         <div className="divide-y divide-slate-50">{g.free.map(t => <Row key={t.facultyId} t={t} />)}</div>
         {g.free.length === 0 && <p className="px-3 py-3 text-[11px] text-slate-400">No free teachers.</p>}
-        <button onClick={() => setShowAssigned(v => !v)} className="w-full text-left px-3 py-1.5 text-[10px] font-800 uppercase tracking-wider text-[#16367a] bg-blue-50/60 sticky top-0 border-y border-blue-100/60">
+        <button onClick={() => setShowAssigned(v => !v)} className="w-full text-left px-3 py-1.5 text-[10px] font-800 uppercase tracking-wider text-[#1b5550] bg-blue-50/60 sticky top-0 border-y border-blue-100/60">
           Assigned teachers · {g.assigned.length} <span className="font-500 normal-case tracking-normal text-slate-400">(remaining workload and current subjects) {showAssigned ? '▾' : '▸'}</span>
         </button>
         {showAssigned && <div className="divide-y divide-slate-50">{g.assigned.map(t => <Row key={t.facultyId} t={t} />)}</div>}

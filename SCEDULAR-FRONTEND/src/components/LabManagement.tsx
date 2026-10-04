@@ -170,8 +170,8 @@ export default function LabManagement({ navigate }: { navigate: (p: Page) => voi
                         const mapped = lab.courseIds.includes(c.id)
                         const busy = mappingBusy === `${lab.id}:${c.id}`
                         return (
-                          <label key={c.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm cursor-pointer transition ${mapped ? 'bg-[#0e254f]/10 text-[#0e254f] font-500' : 'bg-white/40 text-slate-600 hover:bg-white/60'} ${busy ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <input type="checkbox" checked={mapped} onChange={() => toggleMapping(lab, c.id, mapped)} className="accent-[#0e254f]" />
+                          <label key={c.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm cursor-pointer transition ${mapped ? 'bg-[#17403d]/10 text-[#17403d] font-500' : 'bg-white/40 text-slate-600 hover:bg-white/60'} ${busy ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <input type="checkbox" checked={mapped} onChange={() => toggleMapping(lab, c.id, mapped)} className="accent-[#17403d]" />
                             {c.name}
                           </label>
                         )

@@ -309,7 +309,7 @@ is: confirm the cycle → add new sections → approve preferences → assign �
 * `api.ts` is the only place that talks to the backend; it wraps `fetch`, attaches the token, and exposes typed functions.
 * `session.ts` stores the signed-in user and token in the browser.
 * Pages are in `src/components/`; shared UI pieces (`PillTabs`, `GlassPanel`, buttons) are in `ui.tsx`.
-* Visual style: navy `#0e254f` and gold `#f3c326` accents, translucent "liquid glass" panels, rounded corners, light font weights.
+* Visual style: a calm **pine green and warm brass** palette on warm paper-grey, translucent "liquid glass" panels, rounded corners and light type weights. Report cards each use their own muted hue (teal, brass, terracotta, sage, slate-blue, plum). Motion is small and purposeful: cards rise in one after another, bars and columns grow, rings draw in, numbers count up, the tab highlight slides, panels have a soft sheen on hover, and loading shows shimmering placeholders. All motion is switched off for people whose system asks for reduced motion.
 
 ## 7. Repository layout
 

@@ -39,11 +39,11 @@ export default function PhotoUploader({ facultyId, name, photoAt, size = 64, onC
     <div className="flex items-center gap-3">
       <div className="relative">
         <Avatar id={facultyId} name={name} photoAt={photoAt} size={size} />
-        <button type="button" disabled={busy} onClick={() => input.current?.click()} title="Change photo" className="absolute -bottom-1 -right-1 grid place-items-center w-6 h-6 rounded-full bg-white border border-slate-200 shadow text-slate-600 hover:text-[#0F4C81] disabled:opacity-50"><Camera className="w-3.5 h-3.5" /></button>
+        <button type="button" disabled={busy} onClick={() => input.current?.click()} title="Change photo" className="absolute -bottom-1 -right-1 grid place-items-center w-6 h-6 rounded-full bg-white border border-slate-200 shadow text-slate-600 hover:text-[#1f6a63] disabled:opacity-50"><Camera className="w-3.5 h-3.5" /></button>
       </div>
       <input ref={input} type="file" accept="image/*" className="hidden" onChange={e => choose(e.target.files?.[0])} />
       <div className="text-xs">
-        <button type="button" disabled={busy} onClick={() => input.current?.click()} className="font-700 text-[#0F4C81] hover:underline disabled:opacity-50">{busy ? 'Saving…' : photoAt ? 'Change photo' : 'Add a photo'}</button>
+        <button type="button" disabled={busy} onClick={() => input.current?.click()} className="font-700 text-[#1f6a63] hover:underline disabled:opacity-50">{busy ? 'Saving…' : photoAt ? 'Change photo' : 'Add a photo'}</button>
         {photoAt && <button type="button" disabled={busy} onClick={remove} className="ml-3 text-slate-500 hover:text-rose-600 inline-flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</button>}
         {msg && <p className={`mt-0.5 ${msg.ok ? 'text-emerald-700' : 'text-rose-600'}`}>{msg.text}</p>}
       </div>

@@ -98,7 +98,7 @@ export default function HodPreferencesTab({ semester, board, say, onChanged }: {
       <div key={p.id} className="px-4 py-2 flex items-center gap-3 text-xs hover:bg-slate-50/60">
         <div className="min-w-0 flex-1">
           {showSubject ? (
-            <p className="font-600 text-slate-800 truncate"><span className="font-mono text-[10px] text-[#0F4C81] mr-1.5">{p.subjectCode}</span>{p.subjectName}</p>
+            <p className="font-600 text-slate-800 truncate"><span className="font-mono text-[10px] text-[#1f6a63] mr-1.5">{p.subjectCode}</span>{p.subjectName}</p>
           ) : (
             <p className="font-600 text-slate-800 truncate">{p.facultyName} <span className="font-mono text-[10px] text-slate-400">{p.facultyId}</span></p>
           )}
@@ -113,7 +113,7 @@ export default function HodPreferencesTab({ semester, board, say, onChanged }: {
             <select value={changing!.subjectId} onChange={e => setChanging({ id: p.id, subjectId: e.target.value })} className="text-xs border border-slate-200 rounded-lg px-2 py-1 max-w-[230px]">
               {(board?.subjects ?? []).map(s => <option key={s.subjectId} value={s.subjectId}>{s.code} · {s.name}</option>)}
             </select>
-            <button disabled={busy || changing!.subjectId === p.subjectId} onClick={applyChange} className="px-2.5 py-1 rounded-md bg-[#0F4C81] text-white font-700 disabled:opacity-40">Save</button>
+            <button disabled={busy || changing!.subjectId === p.subjectId} onClick={applyChange} className="px-2.5 py-1 rounded-md bg-[#1f6a63] text-white font-700 disabled:opacity-40">Save</button>
             <button onClick={() => setChanging(null)} className="text-slate-500 hover:underline">Cancel</button>
           </div>
         ) : (
@@ -160,7 +160,7 @@ export default function HodPreferencesTab({ semester, board, say, onChanged }: {
           <button className={seg(show === 'pending')} onClick={() => setShow('pending')}>Not approved {pendingCount}</button>
           <button className={seg(show === 'approved')} onClick={() => setShow('approved')}>Approved {prefs.length - pendingCount}</button>
         </div>
-        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search teacher or subject…" className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 w-56 focus:outline-none focus:border-[#0F4C81]" />
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search teacher or subject…" className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 w-56 focus:outline-none focus:border-[#1f6a63]" />
         {pendingCount > 0 && <button disabled={busy} onClick={approveAll} className="ml-auto px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-700 disabled:opacity-40">Approve remaining ({pendingCount})</button>}
       </div>
 
@@ -175,7 +175,7 @@ export default function HodPreferencesTab({ semester, board, say, onChanged }: {
             return (
               <div key={sid} className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-[11px] text-[#0F4C81] font-700">{list[0].subjectCode}</span>
+                  <span className="font-mono text-[11px] text-[#1f6a63] font-700">{list[0].subjectCode}</span>
                   <span className="text-sm font-600 text-slate-800">{list[0].subjectName}</span>
                   <span className="ml-auto flex gap-1.5 text-[10px] font-600 text-slate-600">
                     {info && <span className="px-2 py-0.5 rounded-full bg-white border border-slate-200">{tl(info.perSection.theory, info.perSection.lab)} / section</span>}

@@ -103,7 +103,7 @@ export function UploadCurriculum({ navigate }: { navigate: (p: Page) => void }) 
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">Required: SECTIONS, SUBJECTS, SECTION_SUBJECTS, FACULTY, TEACHING_ASSIGNMENTS, LABS and LAB_MAPPING. Optional: FACULTY_UNAVAILABILITY and SETTINGS.</p>
             </div>
             <div className="flex items-center gap-2">
-              <a href="/scedular_master_template.xlsx" download className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-700 text-[#0e254f] bg-white/70 border border-white/80 hover:bg-white transition">
+              <a href="/scedular_master_template.xlsx" download className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-700 text-[#17403d] bg-white/70 border border-white/80 hover:bg-white transition">
                 Download Master Template
               </a>
             </div>
@@ -116,8 +116,8 @@ export function UploadCurriculum({ navigate }: { navigate: (p: Page) => void }) 
           onClick={() => inputRef.current?.click()}
           className="glass rounded-3xl p-14 text-center cursor-pointer hover:bg-white/55 transition-all group border-2 border-dashed border-white/60"
         >
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-gradient-to-br from-[#0e254f]/20 to-[#f3c326]/20 group-hover:from-[#0e254f]/30 group-hover:to-[#f3c326]/30 transition">
-            <svg className="w-8 h-8 text-[#0e254f]" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-gradient-to-br from-[#17403d]/20 to-[#c9a24a]/20 group-hover:from-[#17403d]/30 group-hover:to-[#c9a24a]/30 transition">
+            <svg className="w-8 h-8 text-[#17403d]" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
           </div>
           <p className="font-display font-700 text-lg text-slate-800">{file?.name ?? 'Upload Master Excel workbook'}</p>
           <p className="text-slate-500 text-sm mt-1">Upload first → SCEDULAR validates it before changing any database state.</p>
@@ -236,7 +236,7 @@ export function ConstraintManagement({ navigate }: { navigate: (p: Page) => void
                 <div className="flex flex-wrap gap-2 mt-1">
                   {ALL_DAYS.map(d => (
                     <label key={d} className="flex items-center gap-1.5 cursor-pointer glass-pill rounded-full px-2.5 py-1">
-                      <input type="checkbox" checked={workingDays.includes(d)} onChange={() => toggleDay(d)} className="accent-[#0e254f]" />
+                      <input type="checkbox" checked={workingDays.includes(d)} onChange={() => toggleDay(d)} className="accent-[#17403d]" />
                       <span className="text-sm text-slate-600">{d}</span>
                     </label>
                   ))}

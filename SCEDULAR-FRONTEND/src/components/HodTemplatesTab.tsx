@@ -43,7 +43,7 @@ export default function HodTemplatesTab({ semester, board, say, onChanged }: {
             return (
               <div key={s.subjectId} className="border border-slate-100 rounded-lg px-3 py-2 flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-600 text-slate-800 truncate"><span className="font-mono text-[10px] text-[#0F4C81] mr-1.5">{s.code}</span>{s.name}</p>
+                  <p className="text-xs font-600 text-slate-800 truncate"><span className="font-mono text-[10px] text-[#1f6a63] mr-1.5">{s.code}</span>{s.name}</p>
                   <p className="text-[11px] text-slate-500">per section <b>{tl(s.perSection.theory, s.perSection.lab)}</b> · {s.sectionCount} sections</p>
                 </div>
                 <div className="flex items-center border border-slate-200 rounded-md overflow-hidden text-xs">
@@ -69,7 +69,7 @@ export default function HodTemplatesTab({ semester, board, say, onChanged }: {
               <div key={t.facultyId} className="text-xs">
                 <div className="flex items-center gap-2">
                   <span className="font-600 text-slate-800 w-56 truncate">{t.name}</span>
-                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#2f6fc4]/60 to-[#16367a]/70" style={{ width: `${pct}%` }} /></div>
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#3a8a80]/60 to-[#1b5550]/70" style={{ width: `${pct}%` }} /></div>
                   <span className={`w-16 text-right font-700 text-slate-600`}>{t.load}/{t.max}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 ml-0.5 mt-0.5">{t.items.map(i => `${i.code}: ${i.n} × (${tl(i.t, i.l)})`).join('  ·  ')}</p>

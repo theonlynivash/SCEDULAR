@@ -2,32 +2,45 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-primary: #0e254f;
-  --color-primary-dark: #081a38;
-  --color-primary-light: #2f6fc4;
-  --color-accent: #f3c326;
-  --color-accent-dark: #c98f00;
-  --color-accent-light: #fff4cf;
+  --color-primary: #17403d;
+  --color-primary-dark: #0f2f2d;
+  --color-primary-light: #3a8a80;
+  --color-accent: #c9a24a;
+  --color-accent-dark: #8c6a1f;
+  --color-accent-light: #f5ecd3;
   --color-success: #16a34a;
   --color-warning: #d97706;
   --color-danger: #dc2626;
-  --color-surface: #eef2f9;
+  --color-surface: #f2efe8;
   --color-card: #ffffff;
-  --color-border: #dbe2ee;
-  --color-muted: #55607a;
+  --color-border: #ddd8cc;
+  --color-muted: #5f6b65;
   --color-text: #0f172a;
   --font-sans: 'Inter', sans-serif;
   --font-display: 'DM Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Softer ink for text: less stark than near-black. */
-  --color-slate-100: #f5f8fb;
-  --color-slate-200: #ebeef4;
-  --color-slate-300: #dbe2ea;
-  --color-slate-900: #26324a;
-  --color-slate-800: #34415a;
-  --color-slate-700: #4a5873;
-  --color-slate-600: #5d6b86;
+  /* Warm, slightly green greys instead of Tailwind's cold blue-greys. */
+  --color-slate-50: #f8f6f1;
+  --color-slate-100: #f3f0e9;
+  --color-slate-200: #e7e3d9;
+  --color-slate-300: #d6d1c4;
+  --color-slate-400: #929a92;
+  --color-slate-500: #6b756e;
+  --color-slate-600: #55605a;
+  --color-slate-700: #424b46;
+  --color-slate-800: #313a35;
+  --color-slate-900: #232a26;
+
+  /* "blue", "cyan" and "sky" are used all over the screens; they now mean a calm pine green. */
+  --color-blue-50: #eef5f3;  --color-blue-100: #d9e9e5; --color-blue-200: #b7d3cc; --color-blue-300: #8dbab0; --color-blue-400: #5a9c90;
+  --color-blue-500: #3a8a80; --color-blue-600: #2c746b; --color-blue-700: #235e57; --color-blue-800: #1c4d47; --color-blue-900: #17403d;
+  --color-cyan-50: #eef5f3;  --color-cyan-100: #d9e9e5; --color-cyan-200: #b7d3cc; --color-cyan-300: #9cc7bd; --color-cyan-400: #6faea3; --color-cyan-500: #3a8a80; --color-cyan-600: #2c746b;
+  --color-sky-50: #eef5f3;   --color-sky-100: #d9e9e5;  --color-sky-500: #3a8a80;  --color-sky-600: #2c746b;
+  /* indigo / violet / purple are muted so nothing glows. */
+  --color-indigo-50: #eef0f5; --color-indigo-100: #dde2ec; --color-indigo-500: #5a6b8c; --color-indigo-800: #3b4863;
+  --color-violet-50: #f3eef4; --color-violet-100: #e6dbe8; --color-violet-700: #6b4d70; --color-violet-800: #573d5b;
+  --color-purple-50: #f3eef4; --color-purple-100: #e6dbe8; --color-purple-700: #6b4d70; --color-purple-800: #573d5b;
 
   /* Soft geometry: generous, consistent rounding on every rounded-* utility. */
   --radius-sm: 0.375rem;
@@ -63,24 +76,24 @@ body {
   font-family: 'Inter', sans-serif;
   font-feature-settings: 'cv11', 'ss01', 'tnum';
   line-height: 1.45;
-  color: #2a3650;
-  background: #071433;
+  color: #2c342f;
+  background: #0f2b2a;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 h1, h2, h3, .font-display { letter-spacing: -0.012em; }
 button { cursor: pointer; }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #2f6fc4; outline-offset: 1px; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #3a8a80; outline-offset: 1px; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(14, 37, 79,0.35); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(14, 37, 79,0.55); }
+::-webkit-scrollbar-thumb { background: rgba(23, 64, 61,0.35); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(23, 64, 61,0.55); }
 
 /* ---------------------------------------------------------------------
    Liquid Glass design system -- Panimalar Engineering College colours
-   (deep navy blue + institutional gold), tuned for clarity: crisper
+   (deep pine green + warm brass on warm paper), tuned for clarity: crisper
    edges and less blur than a purely decorative glass UI, so tabs, type
    and data stay sharp and professional while keeping the translucent
    iOS-26 "Liquid Glass" material language. Chrome (sidebar, top bar,
@@ -93,7 +106,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background: #071433;
+  background: #0f2b2a;
 }
 .app-wallpaper::before,
 .app-wallpaper::after,
@@ -101,8 +114,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   content: '';
   position: absolute;
   border-radius: 50%;
-  filter: blur(95px);
-  opacity: 0.55;
+  filter: blur(110px);
+  opacity: 0.42;
   will-change: transform;
 }
 .app-wallpaper::before {
@@ -110,7 +123,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   height: 60vw;
   left: -10vw;
   top: -15vw;
-  background: radial-gradient(circle at 30% 30%, #1c5fc4, transparent 70%);
+  background: radial-gradient(circle at 30% 30%, #2a6f67, transparent 70%);
   animation: drift-a 26s ease-in-out infinite alternate;
 }
 .app-wallpaper::after {
@@ -118,8 +131,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   height: 55vw;
   right: -15vw;
   bottom: -10vw;
-  background: radial-gradient(circle at 60% 60%, #f3c326, transparent 72%);
-  opacity: 0.28;
+  background: radial-gradient(circle at 60% 60%, #c9a24a, transparent 72%);
+  opacity: 0.14;
   animation: drift-b 32s ease-in-out infinite alternate;
 }
 .app-wallpaper .blob {
@@ -127,7 +140,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   height: 45vw;
   left: 30vw;
   top: 20vh;
-  background: radial-gradient(circle at 50% 50%, #0a2a63, transparent 70%);
+  background: radial-gradient(circle at 50% 50%, #123d3a, transparent 70%);
   animation: drift-c 22s ease-in-out infinite alternate;
 }
 @keyframes drift-a {
@@ -150,16 +163,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: rgba(255, 255, 255, 0.93);
   backdrop-filter: blur(8px) saturate(140%);
   -webkit-backdrop-filter: blur(8px) saturate(140%);
-  border: 1px solid rgba(14, 37, 79, 0.08);
-  box-shadow: 0 1px 2px rgba(7, 20, 51, 0.06), 0 4px 14px rgba(7, 20, 51, 0.08);
+  border: 1px solid rgba(23, 64, 61, 0.08);
+  box-shadow: 0 1px 2px rgba(15, 43, 42, 0.06), 0 4px 14px rgba(15, 43, 42, 0.08);
 }
 
 .glass-main {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(240, 245, 255, 0.74));
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(247, 244, 237, 0.74));
   backdrop-filter: blur(22px) saturate(170%);
   -webkit-backdrop-filter: blur(22px) saturate(170%);
   border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 8px 28px rgba(4, 12, 30, 0.28);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 8px 28px rgba(8, 24, 23, 0.28);
 }
 
 /* Liquid tile: translucent, softly lit from above, floats over the page. */
@@ -169,10 +182,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   -webkit-backdrop-filter: blur(16px) saturate(165%);
   border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: 1.25rem;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 1) inset, 0 0 0 1px rgba(14, 37, 79, 0.035), 0 4px 14px rgba(14, 37, 79, 0.08);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 1) inset, 0 0 0 1px rgba(23, 64, 61, 0.035), 0 4px 14px rgba(23, 64, 61, 0.08);
 }
 .liquid-hover { transition: transform 0.18s ease, box-shadow 0.18s ease; }
-.liquid-hover:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255, 255, 255, 1) inset, 0 0 0 1px rgba(14, 37, 79, 0.10), 0 12px 28px rgba(14, 37, 79, 0.16); }
+.liquid-hover:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255, 255, 255, 1) inset, 0 0 0 1px rgba(23, 64, 61, 0.10), 0 12px 28px rgba(23, 64, 61, 0.16); }
 
 /* Segmented "liquid" tabs. */
 .tabs-liquid {
@@ -180,39 +193,41 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   gap: 2px;
   padding: 3px;
   border-radius: 9999px;
-  background: rgba(14, 37, 79, 0.06);
-  border: 1px solid rgba(14, 37, 79, 0.05);
-  box-shadow: inset 0 1px 2px rgba(14, 37, 79, 0.10);
+  background: rgba(23, 64, 61, 0.06);
+  border: 1px solid rgba(23, 64, 61, 0.05);
+  box-shadow: inset 0 1px 2px rgba(23, 64, 61, 0.10);
 }
 .tabs-liquid > button {
   padding: 0.38rem 0.95rem;
   border-radius: 9999px;
   font-size: 0.8rem;
   font-weight: 430;
-  color: #5d6b86;
+  color: #5f6b65;
   transition: all 0.18s ease;
   white-space: nowrap;
 }
-.tabs-liquid > button:hover { color: #0e254f; }
-.tabs-liquid > button[data-active='true'] {
-  color: #0e254f;
-  font-weight: 520;
-  background: linear-gradient(180deg, #ffffff, #f1f5fc);
-  box-shadow: 0 1px 3px rgba(14, 37, 79, 0.22), 0 0 0 1px rgba(14, 37, 79, 0.06);
+.tabs-liquid > button:hover { color: #17403d; }
+.tabs-liquid > button { position: relative; z-index: 1; }
+.tabs-liquid > button[data-active='true'] { color: #17403d; font-weight: 520; }
+.tabs-indicator {
+  position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 9999px; z-index: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(243, 240, 232, 0.85));
+  box-shadow: 0 1px 3px rgba(23, 64, 61, 0.22), 0 0 0 1px rgba(23, 64, 61, 0.06);
+  transition: transform .32s cubic-bezier(.3, .8, .25, 1), width .32s cubic-bezier(.3, .8, .25, 1);
 }
 
 .glass-chrome {
-  background: linear-gradient(180deg, rgba(14, 37, 79, 0.92), rgba(6, 22, 54, 0.92));
+  background: linear-gradient(180deg, rgba(23, 64, 61, 0.92), rgba(14, 40, 38, 0.92));
   backdrop-filter: blur(12px) saturate(150%);
   -webkit-backdrop-filter: blur(12px) saturate(150%);
-  border: 1px solid rgba(243, 195, 38, 0.22);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 4px 16px rgba(4, 12, 30, 0.40);
+  border: 1px solid rgba(201, 162, 74, 0.22);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 4px 16px rgba(8, 24, 23, 0.40);
 }
 
 .glass-strong {
   background: rgba(255, 255, 255, 0.97);
-  border: 1px solid rgba(14, 37, 79, 0.10);
-  box-shadow: 0 1px 2px rgba(7, 20, 51, 0.06), 0 4px 14px rgba(7, 20, 51, 0.08);
+  border: 1px solid rgba(23, 64, 61, 0.10);
+  box-shadow: 0 1px 2px rgba(15, 43, 42, 0.06), 0 4px 14px rgba(15, 43, 42, 0.08);
 }
 
 .login-panel {
@@ -223,28 +238,28 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(10px) saturate(140%);
   -webkit-backdrop-filter: blur(10px) saturate(140%);
-  border: 1px solid rgba(14, 37, 79, 0.22);
+  border: 1px solid rgba(23, 64, 61, 0.22);
 }
 .glass-input:focus {
   outline: none;
-  border-color: rgba(14, 37, 79, 0.55);
-  box-shadow: 0 0 0 3px rgba(14, 37, 79, 0.14);
+  border-color: rgba(23, 64, 61, 0.55);
+  box-shadow: 0 0 0 3px rgba(23, 64, 61, 0.14);
 }
 
 .glass-pill {
   background: rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(10px) saturate(140%);
   -webkit-backdrop-filter: blur(10px) saturate(140%);
-  border: 1px solid rgba(14, 37, 79, 0.22);
+  border: 1px solid rgba(23, 64, 61, 0.22);
 }
 
 /* The "sharp tab" state: solid institutional gold, dark navy text --
    no blur on the active state itself, so the current tab reads
    instantly rather than blending into the glass behind it. */
 .glass-pill-active {
-  background: #f3c326;
+  background: #c9a24a;
   border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 2px 6px rgba(243, 195, 38, 0.35);
+  box-shadow: 0 2px 6px rgba(201, 162, 74, 0.35);
 }
 
 .glass-scrollarea {
@@ -263,10 +278,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .tbl th:last-child, .tbl td:last-child { border-right-width: 0; }
 .tbl tr:first-child th { border-top-width: 0; }
 .tbl th, .tbl td {
-  border: 1px solid rgba(15, 23, 42, 0.07);
+  border: 1px solid rgba(35, 42, 38, 0.07);
   padding: 0.35rem 0.55rem;
 }
-.tbl th { background: rgba(14, 37, 79, 0.05); font-weight: 600; font-size: 0.78rem; text-align: left; }
+.tbl th { background: rgba(23, 64, 61, 0.05); font-weight: 600; font-size: 0.78rem; text-align: left; }
 
 /* About page hero: a slow-drifting conic glow behind the SCEDULAR
    wordmark, purely decorative so it's guarded by reduced-motion. */
@@ -274,7 +289,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   position: absolute;
   inset: -40%;
   z-index: 0;
-  background: conic-gradient(from 0deg, rgba(14, 37, 79, 0.16), rgba(243, 195, 38, 0.16), rgba(14, 37, 79, 0.16));
+  background: conic-gradient(from 0deg, rgba(23, 64, 61, 0.16), rgba(201, 162, 74, 0.16), rgba(23, 64, 61, 0.16));
   filter: blur(40px);
   animation: about-glow-spin 18s linear infinite;
   pointer-events: none;
@@ -319,3 +334,95 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* Serif display face for editorial headings (system fonts, no download) */
 .font-editorial { font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif; }
+
+/* =====================================================================
+   Colour tones for report cards (one hue per card) + calmer glass
+   ===================================================================== */
+.tone-teal  { --t: 47, 127, 116;  --tc: #2f7f74; --td: #1f5851; }
+.tone-brass { --t: 194, 154, 61;  --tc: #c29a3d; --td: #8c6a1f; }
+.tone-terra { --t: 176, 98, 58;   --tc: #b0623a; --td: #7e4325; }
+.tone-sage  { --t: 111, 143, 78;  --tc: #6f8f4e; --td: #4b6a30; }
+.tone-slate { --t: 79, 111, 143;  --tc: #4f6f8f; --td: #34506b; }
+.tone-plum  { --t: 138, 90, 120;  --tc: #8a5a78; --td: #613c52; }
+
+/* A tinted, translucent tile: lit from the top-left in its own hue, almost no white. */
+.liquid-tint {
+  background:
+    radial-gradient(120% 95% at 0% 0%, rgba(var(--t), 0.26), transparent 62%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.52));
+  backdrop-filter: blur(18px) saturate(165%);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  border: 1px solid rgba(var(--t), 0.30);
+  border-radius: 1.25rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(var(--t), 0.10), 0 8px 24px rgba(var(--t), 0.14);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-tint::after {      /* a soft sheen that glides across on hover */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%);
+  transform: translateX(-120%);
+  transition: transform 0.9s cubic-bezier(.2, .7, .2, 1);
+  pointer-events: none;
+}
+.liquid-tint:hover::after { transform: translateX(120%); }
+.liquid-tint { transition: transform .25s ease, box-shadow .25s ease; }
+.liquid-tint:hover { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 14px 32px rgba(var(--t), 0.22); }
+
+/* The page surface lets the green wallpaper show through; cards inside it turn into glass instead of flat white. */
+.glass-main {
+  background: linear-gradient(160deg, rgba(247, 249, 246, 0.80), rgba(226, 236, 231, 0.68));
+}
+.glass-main .bg-white:not(input):not(select):not(textarea):not(button):not(img) {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.58));
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 6px 20px rgba(23, 64, 61, 0.08);
+}
+.glass-main input.bg-white, .glass-main select.bg-white, .glass-main textarea.bg-white { background: rgba(255, 255, 255, 0.86); }
+.glass-main .bg-slate-50 { background-color: rgba(255, 255, 255, 0.5); }
+
+/* =====================================================================
+   Motion: small, smooth, purposeful. Everything respects reduced motion.
+   ===================================================================== */
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes ring-in { from { opacity: 0; transform: rotate(-120deg) scale(.92); } to { opacity: 1; transform: rotate(0) scale(1); } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+@keyframes slide-down { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+.bar-grow   { transform-origin: left center;  animation: grow-x .9s cubic-bezier(.2, .7, .2, 1) both; animation-delay: var(--d, 0ms); }
+.col-grow   { transform-origin: center bottom; animation: grow-y .9s cubic-bezier(.2, .7, .2, 1) both; animation-delay: var(--d, 0ms); }
+.ring-in    { animation: ring-in 1s cubic-bezier(.2, .7, .2, 1) both; }
+.rise-in    { animation: rise-in .6s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.pop-in     { animation: pop-in .28s cubic-bezier(.2, .7, .2, 1) both; }
+.slide-down { animation: slide-down .3s ease-out both; }
+.skeleton {
+  border-radius: .75rem;
+  background: linear-gradient(90deg, rgba(23, 64, 61, .06) 25%, rgba(255, 255, 255, .55) 50%, rgba(23, 64, 61, .06) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* micro-interactions */
+button:not(:disabled):active { transform: scale(.985); }
+button, a, input, select, textarea { transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, color .18s ease, transform .12s ease, opacity .18s ease; }
+.tbl tbody tr { transition: background-color .15s ease; }
+.tbl tbody tr:hover { background: rgba(var(--t, 47, 127, 116), 0.07); }
+aside nav button { transition: transform .18s ease, background-color .18s ease, color .18s ease; }
+aside nav button:hover { transform: translateX(3px); }
+
+/* the active sidebar item breathes very slightly */
+@keyframes soft-glow { 0%, 100% { box-shadow: 0 2px 6px rgba(201, 162, 74, .30); } 50% { box-shadow: 0 4px 14px rgba(201, 162, 74, .50); } }
+.glass-pill-active { animation: soft-glow 3.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-grow, .col-grow, .ring-in, .rise-in, .pop-in, .slide-down, .skeleton, .glass-pill-active { animation: none; }
+  .liquid-tint::after { display: none; }
+  aside nav button:hover, .liquid-tint:hover { transform: none; }
+}

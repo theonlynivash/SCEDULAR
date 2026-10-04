@@ -51,7 +51,7 @@ export default function SetupInchargeTab({ say }: { say: (ok: boolean, text: str
               <label key={sec.id} className="flex flex-col gap-1">
                 <span className="text-[10.5px] font-700 uppercase tracking-wider text-slate-500">Section {sec.id.replace(/^Y\d(S\d)?-/, '')}</span>
                 <select value={sec.classIncharge ?? ''} disabled={saving === sec.id} onChange={e => change(sec, e.target.value)}
-                  className="border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-[#0F4C81]">
+                  className="border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-[#1f6a63]">
                   <option value="">Not assigned</option>
                   {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>

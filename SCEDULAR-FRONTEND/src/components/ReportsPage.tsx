@@ -1,35 +1,73 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ChevronRight, Download } from 'lucide-react'
 import type { Page } from '../types'
 import { api, type TeacherWorkload, type AssignBoard, type Assignment, type Faculty, type Lab, type ScheduleConfig, type SetupOverview, type FacultyResultRow, type ResultSummary } from '../api'
 import { PillTabs } from './ui'
 
 type Tab = 'overview' | 'needs' | 'workload' | 'results' | 'timetable'
-const NAVY = '#16367a', BLUE = '#2f6fc4', GOLD = '#f3c326', GREEN = '#16a34a', MUTED = 'rgba(14,37,79,0.10)'
+const NAVY = '#1b5550', BLUE = '#3a8a80', GOLD = '#c9a24a', GREEN = '#16a34a', MUTED = 'rgba(23,64,61,0.10)'
 const tl = (t: number, l: number) => (l > 0 ? `${t}T+${l}L` : `${t}T`)
 
 // ───────── small chart primitives (pure SVG / CSS, no chart library) ─────────
-function Card({ title, sub, right, children, className = '' }: { title?: string; sub?: string; right?: ReactNode; children: ReactNode; className?: string }) {
+// Every card has its own hue ("tone"); bars, columns and rings inside it pick that hue up unless told otherwise.
+type Tone = 'teal' | 'brass' | 'terra' | 'sage' | 'slate' | 'plum'
+const TONES: Tone[] = ['teal', 'brass', 'terra', 'sage', 'slate', 'plum']
+const TONE_HEX: Record<Tone, [string, string]> = { teal: ['#2f7f74', '#1f5851'], brass: ['#c29a3d', '#8c6a1f'], terra: ['#b0623a', '#7e4325'], sage: ['#6f8f4e', '#4b6a30'], slate: ['#4f6f8f', '#34506b'], plum: ['#8a5a78', '#613c52'] }
+const ToneCtx = createContext<Tone>('teal')
+const TITLE_TONE: Record<string, Tone> = {
+  'Staffing by semester': 'sage', 'How loaded are teachers': 'teal', 'Experience mix': 'plum', "Teachers' choices": 'slate', 'Busiest teachers': 'terra',
+  'Weekly teaching load': 'teal', 'Distribution': 'brass', 'Capacity': 'sage',
+  'When the department teaches': 'slate', 'Classes per day': 'brass', 'Lab room use': 'terra',
+}
+const toneOf = (key: string): Tone => { if (TITLE_TONE[key]) return TITLE_TONE[key]; let h = 0; for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0; return TONES[h % TONES.length] }
+let cardCounter = 0
+
+function useCountUp(target: number, ms = 900): number {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setN(target); return }
+    let raf = 0; const t0 = performance.now()
+    const tick = (t: number) => { const p = Math.min(1, (t - t0) / ms); setN(Math.round(target * (1 - Math.pow(1 - p, 3)))); if (p < 1) raf = requestAnimationFrame(tick) }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, ms])
+  return n
+}
+/** "59%" or 66 or "12 / 20" count up from zero; anything else is shown as is. */
+function Counting({ value }: { value: ReactNode }) {
+  const m = typeof value === 'number' ? { n: value, rest: '' } : typeof value === 'string' ? (/^(\d+)(\D*)$/.exec(value) ? { n: Number(/^(\d+)/.exec(value)![1]), rest: value.replace(/^\d+/, '') } : null) : null
+  const n = useCountUp(m?.n ?? 0)
+  return <>{m ? `${n}${m.rest}` : value}</>
+}
+
+function Card({ title, sub, right, children, className = '', tone }: { title?: string; sub?: string; right?: ReactNode; children: ReactNode; className?: string; tone?: Tone }) {
+  const t = tone ?? toneOf(title ?? 'card')
+  const idx = useMemo(() => cardCounter++ % 8, [])
   return (
-    <div className={`liquid flex flex-col min-h-0 ${className}`}>
-      {title && (
-        <div className="px-4 pt-3 pb-2 flex items-baseline gap-2 flex-shrink-0">
-          <h3 className="text-[13px] font-700 text-slate-800">{title}</h3>
-          {sub && <span className="text-[11px] text-slate-400">{sub}</span>}
-          <span className="ml-auto">{right}</span>
-        </div>
-      )}
-      <div className="px-4 pb-3 flex-1 min-h-0">{children}</div>
-    </div>
+    <ToneCtx.Provider value={t}>
+      <div className={`liquid-tint tone-${t} rise-in flex flex-col min-h-0 ${className}`} style={{ ['--i' as any]: idx }}>
+        {title && (
+          <div className="px-4 pt-3 pb-2 flex items-baseline gap-2 flex-shrink-0">
+            <span className="w-1.5 h-4 rounded-full self-center" style={{ background: TONE_HEX[t][0] }} />
+            <h3 className="text-[13px] font-700 text-slate-800">{title}</h3>
+            {sub && <span className="text-[11px] text-slate-500">{sub}</span>}
+            <span className="ml-auto">{right}</span>
+          </div>
+        )}
+        <div className="px-4 pb-3 flex-1 min-h-0">{children}</div>
+      </div>
+    </ToneCtx.Provider>
   )
 }
 
-function Kpi({ label, value, sub, accent }: { label: string; value: ReactNode; sub?: string; accent?: string }) {
+function Kpi({ label, value, sub, accent, tone }: { label: string; value: ReactNode; sub?: string; accent?: string; tone?: Tone }) {
+  const t = tone ?? toneOf(label)
+  const idx = useMemo(() => cardCounter++ % 8, [])
   return (
-    <div className="liquid px-4 py-3">
-      <p className="text-[10.5px] font-600 uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="font-display font-700 text-[24px] leading-tight mt-0.5" style={{ color: accent ?? '#26324a' }}>{value}</p>
-      {sub && <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>}
+    <div className={`liquid-tint tone-${t} rise-in px-4 py-3`} style={{ ['--i' as any]: idx }}>
+      <p className="text-[10.5px] font-600 uppercase tracking-[0.12em] text-slate-600">{label}</p>
+      <p className="font-display font-700 text-[26px] leading-tight mt-0.5" style={{ color: accent ?? TONE_HEX[t][1] }}><Counting value={value} /></p>
+      {sub && <p className="text-[11px] text-slate-600 mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -41,7 +79,7 @@ function Donut({ parts, size = 120, center }: { parts: { label: string; value: n
   return (
     <div className="flex items-center gap-4">
       <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
+        <svg width={size} height={size} className="-rotate-90 ring-in">
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={MUTED} strokeWidth={14} />
           {parts.filter(p => p.value > 0).map(p => {
             const len = (p.value / total) * c, off = c * 0 - acc
@@ -64,23 +102,27 @@ function Donut({ parts, size = 120, center }: { parts: { label: string; value: n
   )
 }
 
-function Bar({ pct, color = BLUE, h = 8, marker }: { pct: number; color?: string; h?: number; marker?: number }) {
+function Bar({ pct, color, h = 8, marker }: { pct: number; color?: string; h?: number; marker?: number }) {
+  const tone = useContext(ToneCtx)
+  const fill = color ?? TONE_HEX[tone][0]
   return (
-    <div className="relative rounded-full overflow-hidden" style={{ height: h, background: MUTED }}>
-      <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color, transition: 'width .6s ease' }} />
+    <div className="relative rounded-full overflow-hidden" style={{ height: h, background: 'rgba(23,64,61,0.10)' }}>
+      <div className="h-full rounded-full bar-grow" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: `linear-gradient(90deg, ${fill}, ${color ? fill : TONE_HEX[tone][1]})` }} />
       {marker !== undefined && <div className="absolute inset-y-0 w-px bg-slate-700/50" style={{ left: `${Math.min(100, marker)}%` }} />}
     </div>
   )
 }
 
-function Columns({ data, height = 120, color = BLUE }: { data: { label: string; value: number; hint?: string }[]; height?: number; color?: string }) {
+function Columns({ data, height = 120, color }: { data: { label: string; value: number; hint?: string }[]; height?: number; color?: string }) {
+  const tone = useContext(ToneCtx)
+  const [c1, c2] = color ? [color, color] : TONE_HEX[tone]
   const max = Math.max(1, ...data.map(d => d.value))
   return (
     <div className="flex items-end gap-2" style={{ height: height + 34 }}>
-      {data.map(d => (
+      {data.map((d, i) => (
         <div key={d.label} className="flex-1 flex flex-col items-center justify-end gap-1 min-w-0" title={d.hint}>
           <span className="text-[11px] font-600 text-slate-700">{d.value}</span>
-          <div className="w-full rounded-t-md" style={{ height: Math.max(3, (d.value / max) * height), background: `linear-gradient(180deg, ${color}, ${NAVY})`, transition: 'height .6s ease' }} />
+          <div className="w-full rounded-t-md col-grow" style={{ height: Math.max(3, (d.value / max) * height), background: `linear-gradient(180deg, ${c1}, ${c2})`, ['--d' as any]: `${i * 70}ms` }} />
           <span className="text-[10.5px] text-slate-500 truncate max-w-full">{d.label}</span>
         </div>
       ))}
@@ -173,13 +215,19 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
   }, [placements, labs])
   const slotsPerWeek = days.length * periods.length
 
-  if (loading) return <p className="text-sm text-slate-500 py-16 text-center">Building the report…</p>
+  if (loading) return (
+    <div className="space-y-3" aria-busy="true">
+      <div className="skeleton h-9 w-56" />
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-2">{[0, 1, 2, 3, 4].map(i => <div key={i} className="skeleton h-24" />)}</div>
+      <div className="grid gap-2 xl:grid-cols-3">{[0, 1, 2].map(i => <div key={i} className="skeleton h-52" />)}</div>
+    </div>
+  )
   if (err) return <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-4">{err}</p>
 
   const buckets = [['0', 0, 0], ['1–6', 1, 6], ['7–12', 7, 12], ['13–18', 13, 18], ['19–24', 19, 24], ['25+', 25, 99]] as const
   const loadHist = buckets.map(([label, lo, hi]) => ({ label, value: teachers.filter(t => t.load >= lo && t.load <= hi).length, hint: `${label} periods per week` }))
   const band = (e?: number) => (e == null ? 'Not set' : e < 10 ? 'Under 10 yrs' : e < 13 ? '10–13 yrs' : '13+ yrs')
-  const bandParts = ['Under 10 yrs', '10–13 yrs', '13+ yrs', 'Not set'].map((label, i) => ({ label, color: [BLUE, NAVY, GOLD, 'rgba(14,37,79,0.25)'][i], value: faculty.filter(f => f.role !== 'HOD' && band(f.allocationExperience) === label).length }))
+  const bandParts = ['Under 10 yrs', '10–13 yrs', '13+ yrs', 'Not set'].map((label, i) => ({ label, color: ['#2f7f74', '#4f6f8f', '#c29a3d', 'rgba(23,64,61,0.22)'][i], value: faculty.filter(f => f.role !== 'HOD' && band(f.allocationExperience) === label).length }))
 
   return (
     <div className="space-y-2">
@@ -195,7 +243,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
             : tab === 'workload'
             ? download('teacher-workload.csv', [['Teacher', 'Designation', 'Load', 'Weekly limit', 'Subjects'], ...teachers.map(t => [t.name, t.designation, t.load, t.max, t.subjects.map(s => `${s.code}x${s.n}`).join(' ')])])
             : download('subject-needs.csv', [['Semester', 'Subject', 'Code', 'Sections', 'Staffed', 'Periods/week needed', 'Teachers', 'Chose it'], ...rows.map(r => [r.sem, r.name, r.code, r.sections, r.assigned, r.periods, r.teachers, r.chose])])}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full liquid text-[12px] font-600 text-[#0e254f]"><Download size={13} /> Export CSV</button>
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full liquid text-[12px] font-600 text-[#17403d]"><Download size={13} /> Export CSV</button>
         </div>
       </div>
 
@@ -203,11 +251,11 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
       {tab === 'overview' && (
         <>
           <div className="grid grid-cols-2 xl:grid-cols-5 gap-2">
-            <Kpi label="Staffing" value={`${staffPct}%`} sub={`${totalStaffed}/${totalOfferings} section-subjects`} accent={staffPct === 100 ? GREEN : undefined} />
-            <Kpi label="Teachers teaching" value={active.length} sub={`of ${teachers.length} in the department`} />
-            <Kpi label="Average load" value={`${totalCap ? Math.round((100 * totalLoad) / totalCap) : 0}%`} sub={`${totalLoad} of ${totalCap} periods/week`} />
-            <Kpi label="Timetable" value={run ? (run.status === 'GREEN' ? 'No clashes' : run.status) : 'None'} sub={run ? `${placements.length} placements · run #${run.runId}` : 'Not generated yet'} accent={run?.status === 'GREEN' ? GREEN : undefined} />
-            <Kpi label="Lab rooms in use" value={`${labUse.filter(l => l.used > 0).length}/${labs.length}`} sub={`${labUse.reduce((n, l) => n + l.used, 0)} lab periods/week`} />
+            <Kpi label="Staffing" tone="sage" value={`${staffPct}%`} sub={`${totalStaffed}/${totalOfferings} section-subjects`} accent={staffPct === 100 ? '#4b6a30' : undefined} />
+            <Kpi label="Teachers teaching" tone="teal" value={active.length} sub={`of ${teachers.length} in the department`} />
+            <Kpi label="Average load" tone="brass" value={`${totalCap ? Math.round((100 * totalLoad) / totalCap) : 0}%`} sub={`${totalLoad} of ${totalCap} periods/week`} />
+            <Kpi label="Timetable" tone="slate" value={run ? (run.status === 'GREEN' ? 'No clashes' : run.status) : 'None'} sub={run ? `${placements.length} placements · run #${run.runId}` : 'Not generated yet'} accent={run?.status === 'GREEN' ? GREEN : undefined} />
+            <Kpi label="Lab rooms in use" tone="terra" value={`${labUse.filter(l => l.used > 0).length}/${labs.length}`} sub={`${labUse.reduce((n, l) => n + l.used, 0)} lab periods/week`} />
           </div>
           <div className="grid gap-2 xl:grid-cols-12">
             <Card className="xl:col-span-4" title="Staffing by semester" sub="sections with a teacher">
@@ -241,7 +289,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                 <p className="text-[11px] text-slate-400 flex gap-3 pt-1"><span><i className="inline-block w-2 h-2 rounded-sm mr-1" style={{ background: BLUE }} />approved</span><span><i className="inline-block w-2 h-2 rounded-sm mr-1" style={{ background: GOLD }} />waiting</span></p>
               </div>
             </Card>
-            <Card className="xl:col-span-6" title="Busiest teachers" sub="periods per week out of their limit" right={<button onClick={() => setTab('workload')} className="text-[11px] font-600 text-[#2f6fc4] hover:underline">All teachers →</button>}>
+            <Card className="xl:col-span-6" title="Busiest teachers" sub="periods per week out of their limit" right={<button onClick={() => setTab('workload')} className="text-[11px] font-600 text-[#3a8a80] hover:underline">All teachers →</button>}>
               <div className="space-y-2 pt-1">
                 {[...active].sort((a, b) => b.load / b.max - a.load / a.max).slice(0, 6).map(t => (
                   <div key={t.facultyId} className="text-[12px]"><div className="flex justify-between"><span className="text-slate-700 truncate pr-2">{t.name}</span><span className="font-600 text-slate-600">{t.load}/{t.max}</span></div><Bar pct={(100 * t.load) / t.max} /></div>
@@ -267,8 +315,8 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                   const pct = (100 * r.assigned) / Math.max(1, r.sections)
                   const note = r.assigned < r.sections ? (r.chose === 0 ? 'Nobody chose it' : `${r.sections - r.assigned} open`) : r.chose === 0 ? 'Assigned directly' : r.chose < r.teachers ? 'Some assigned without choosing' : 'Covered'
                   return (
-                    <tr key={r.sem + r.code} className="border-t border-[#0e254f]/6">
-                      <td className="py-2 pr-2"><span className="font-mono text-[10.5px] text-[#2f6fc4] mr-1.5">{r.code}</span><span className="text-slate-800">{r.name}</span> <span className="text-slate-400 text-[10.5px]">Sem {r.sem}</span></td>
+                    <tr key={r.sem + r.code} className="border-t border-[#17403d]/6">
+                      <td className="py-2 pr-2"><span className="font-mono text-[10.5px] text-[#3a8a80] mr-1.5">{r.code}</span><span className="text-slate-800">{r.name}</span> <span className="text-slate-400 text-[10.5px]">Sem {r.sem}</span></td>
                       <td className="text-slate-500 whitespace-nowrap">{tl(r.per.theory, r.per.lab)}</td>
                       <td className="pr-4"><div className="flex items-center gap-2"><div className="flex-1"><Bar pct={pct} color={pct >= 100 ? BLUE : GOLD} /></div><span className="text-slate-600 w-9 text-right">{r.assigned}/{r.sections}</span></div></td>
                       <td className="text-center text-slate-700">{r.periods}</td>
@@ -294,7 +342,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
               ))}
               {teachers.some(t => t.load === 0) && (
                 <div className="pt-2 border-t border-slate-200/60">
-                  <button onClick={() => setShowIdle(v => !v)} className="text-[11.5px] font-700 text-[#16367a] hover:underline">{showIdle ? 'Hide' : 'Show'} {teachers.filter(t => t.load === 0).length} teachers who are not teaching yet</button>
+                  <button onClick={() => setShowIdle(v => !v)} className="text-[11.5px] font-700 text-[#1b5550] hover:underline">{showIdle ? 'Hide' : 'Show'} {teachers.filter(t => t.load === 0).length} teachers who are not teaching yet</button>
                   {showIdle && <div className="mt-2 space-y-2.5">{teachers.filter(t => t.load === 0).map(t => <WorkloadRow key={t.facultyId} t={t} d={tw.get(t.facultyId)} open={openW === t.facultyId} onToggle={() => setOpenW(openW === t.facultyId ? null : t.facultyId)} />)}</div>}
                 </div>
               )}
@@ -333,10 +381,10 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
         return (
           <>
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
-              <Kpi label="Department average pass" value={deptAvg != null ? `${deptAvg}%` : '–'} sub="mean of the teachers' averages" accent={NAVY} />
-              <Kpi label="Teachers with results" value={`${teachersR.length}/${rt?.totalTeachers ?? 0}`} sub={`${entries.length} subject entries`} />
-              <Kpi label="Highest average" value={teachersR[0]?.summary.average != null ? `${teachersR[0].summary.average}%` : '–'} sub={teachersR[0]?.name} />
-              <Kpi label="Lowest average" value={teachersR.length ? `${teachersR[teachersR.length - 1].summary.average}%` : '–'} sub={teachersR[teachersR.length - 1]?.name} />
+              <Kpi label="Department average pass" tone="plum" value={deptAvg != null ? `${deptAvg}%` : '–'} sub="mean of the teachers' averages" />
+              <Kpi label="Teachers with results" tone="teal" value={`${teachersR.length}/${rt?.totalTeachers ?? 0}`} sub={`${entries.length} subject entries`} />
+              <Kpi label="Highest average" tone="sage" value={teachersR[0]?.summary.average != null ? `${teachersR[0].summary.average}%` : '–'} sub={teachersR[0]?.name} />
+              <Kpi label="Lowest average" tone="terra" value={teachersR.length ? `${teachersR[teachersR.length - 1].summary.average}%` : '–'} sub={teachersR[teachersR.length - 1]?.name} />
             </div>
             <div className="flex items-center gap-2">
               <PillTabs value={rview} onChange={setRview} tabs={[{ id: 'teacher', label: 'By teacher' }, { id: 'subject', label: 'By subject' }]} />
@@ -344,7 +392,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
             </div>
             {rview === 'teacher' ? (
               <Card>
-                <div className="divide-y divide-[#0e254f]/8">
+                <div className="divide-y divide-[#17403d]/8">
                   {teachersR.map(t => {
                     const open = openT === t.facultyId
                     return (
@@ -360,7 +408,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                             {t.results.map(r => (
                               <div key={r.id} className="flex items-center gap-3 text-[12px]">
                                 <span className="w-24 text-slate-400">{r.academicYear} · {r.semester}</span>
-                                <span className="flex-1 text-slate-700 truncate">{r.subjectCode && <span className="font-mono text-[10.5px] text-[#2f6fc4] mr-1.5">{r.subjectCode}</span>}{r.subjectName}</span>
+                                <span className="flex-1 text-slate-700 truncate">{r.subjectCode && <span className="font-mono text-[10.5px] text-[#3a8a80] mr-1.5">{r.subjectCode}</span>}{r.subjectName}</span>
                                 {r.studentsAppeared ? <span className="text-slate-400">{r.studentsAppeared} students</span> : null}
                                 <div className="w-32"><Bar pct={r.passPercent} color={tone(r.passPercent)} h={6} /></div>
                                 <span className="w-12 text-right font-600 text-slate-700">{r.passPercent}%</span>
@@ -379,8 +427,8 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                   <thead><tr className="text-left text-[10.5px] uppercase tracking-wider text-slate-400"><th className="py-1.5 font-600">Subject</th><th className="font-600 w-[34%]">Average pass</th><th className="font-600 text-center">Entries</th><th className="font-600">Taught by</th></tr></thead>
                   <tbody>
                     {subj.map(g => (
-                      <tr key={g.name} className="border-t border-[#0e254f]/6">
-                        <td className="py-2 pr-2">{g.code && <span className="font-mono text-[10.5px] text-[#2f6fc4] mr-1.5">{g.code}</span>}<span className="text-slate-800">{g.name}</span></td>
+                      <tr key={g.name} className="border-t border-[#17403d]/6">
+                        <td className="py-2 pr-2">{g.code && <span className="font-mono text-[10.5px] text-[#3a8a80] mr-1.5">{g.code}</span>}<span className="text-slate-800">{g.name}</span></td>
                         <td className="pr-4"><div className="flex items-center gap-2"><div className="flex-1"><Bar pct={g.avg} color={tone(g.avg)} /></div><span className="w-12 text-right font-600 text-slate-700">{g.avg}%</span></div></td>
                         <td className="text-center text-slate-700">{g.marks.length}</td>
                         <td className="text-slate-500 truncate max-w-[260px]">{[...g.teachers].join(', ')}</td>
@@ -397,7 +445,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
       {/* ───────── TIMETABLE ANALYSIS ───────── */}
       {tab === 'timetable' && (
         !run ? (
-          <Card><p className="text-sm text-slate-500 py-8 text-center">No timetable has been generated yet. <button onClick={() => navigate('generate')} className="text-[#2f6fc4] font-600 hover:underline">Generate one</button> to see its analysis.</p></Card>
+          <Card><p className="text-sm text-slate-500 py-8 text-center">No timetable has been generated yet. <button onClick={() => navigate('generate')} className="text-[#3a8a80] font-600 hover:underline">Generate one</button> to see its analysis.</p></Card>
         ) : (
           <div className="grid gap-2 xl:grid-cols-12">
             <Card className="xl:col-span-8" title="When the department teaches" sub={`classes running at the same time, run #${run.runId}`}>
@@ -410,7 +458,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                         <td className="text-[10.5px] font-600 text-slate-500 pr-1">{d}</td>
                         {periods.map(p => {
                           const n = grid.get(`${d}|${p.index}`) ?? 0, a = n / gridMax
-                          return <td key={p.index} title={`${d} P${p.index}: ${n} classes`} className="h-9 text-center text-[11px] font-600 rounded-md" style={{ background: n ? `rgba(22,54,122,${0.10 + a * 0.80})` : 'rgba(14,37,79,0.04)', color: a > 0.5 ? '#fff' : '#26324a' }}>{n || ''}</td>
+                          return <td key={p.index} title={`${d} P${p.index}: ${n} classes`} className="h-9 text-center text-[11px] font-600 rounded-md" style={{ background: n ? `rgba(22,54,122,${0.10 + a * 0.80})` : 'rgba(23,64,61,0.04)', color: a > 0.5 ? '#fff' : '#2c332f' }}>{n || ''}</td>
                         })}
                       </tr>
                     ))}
@@ -418,7 +466,7 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
                 </table>
               </div>
               <p className="text-[11px] text-slate-400 mt-1">Each cell counts the classes in session at that moment. The maximum is {new Set(placements.map(a => a.sectionId)).size} (every section has a class), so a full grid means no section has a free period, and paler cells are slots where some sections are free.</p>
-              <div className="grid gap-2 md:grid-cols-2 mt-3 pt-3 border-t border-[#0e254f]/8">
+              <div className="grid gap-2 md:grid-cols-2 mt-3 pt-3 border-t border-[#17403d]/8">
                 <div>
                   <p className="text-[12px] font-700 text-slate-700 mb-2">Theory vs lab periods</p>
                   <Donut size={104} parts={[
@@ -482,7 +530,7 @@ function WorkloadRow({ t, d, open, onToggle }: {
           <span className="text-[10.5px] text-slate-400 truncate">{t.designation}</span>
           <span className="ml-auto font-600 text-slate-700 whitespace-nowrap">{t.load}<span className="font-400 text-slate-400"> / {t.max}</span></span>
         </div>
-        <div className="pl-5"><Bar pct={(100 * t.load) / Math.max(t.max, t.load, 1)} color={BLUE} h={7} /></div>
+        <div className="pl-5"><Bar pct={(100 * t.load) / Math.max(t.max, t.load, 1)} h={7} /></div>
         <p className="pl-5 text-[10.5px] text-slate-400 mt-0.5 truncate">{t.subjects.length ? t.subjects.map(s => `${s.code} ×${s.n} (${s.l > 0 ? `${s.t}T+${s.l}L` : `${s.t}T`})`).join('  ·  ') : 'Nothing assigned yet'}</p>
       </button>
 
@@ -508,9 +556,9 @@ function WorkloadRow({ t, d, open, onToggle }: {
                     <tbody>
                       {d.subjects.map(s => (
                         <tr key={s.subjectId} className="border-t border-slate-100 align-top">
-                          <td className="py-1.5 pr-3"><span className="font-mono text-[10.5px] text-[#16367a] font-700">{s.code}</span> <span className="text-slate-700">{s.name}</span></td>
+                          <td className="py-1.5 pr-3"><span className="font-mono text-[10.5px] text-[#1b5550] font-700">{s.code}</span> <span className="text-slate-700">{s.name}</span></td>
                           <td className="pr-3 text-slate-500">{s.semester}</td>
-                          <td className="pr-3"><span className="inline-flex flex-wrap gap-1">{s.sections.map(x => <span key={x} className="px-1.5 py-0.5 rounded bg-[#2f6fc4]/10 text-[#16367a] font-600 text-[10.5px]">{x.replace(/^Y\d(S\d)?-/, '')}</span>)}</span> <span className="text-slate-400">· {s.sections.length}</span></td>
+                          <td className="pr-3"><span className="inline-flex flex-wrap gap-1">{s.sections.map(x => <span key={x} className="px-1.5 py-0.5 rounded bg-[#3a8a80]/10 text-[#1b5550] font-600 text-[10.5px]">{x.replace(/^Y\d(S\d)?-/, '')}</span>)}</span> <span className="text-slate-400">· {s.sections.length}</span></td>
                           <td className="pr-3 text-slate-600 whitespace-nowrap">{s.perSection.l > 0 ? (s.perSection.t > 0 ? `${s.perSection.t}T + ${s.perSection.l}L` : `${s.perSection.l}L`) : `${s.perSection.t}T`}</td>
                           <td className="text-right font-700 text-slate-700">{s.periods}</td>
                         </tr>
@@ -527,7 +575,7 @@ function WorkloadRow({ t, d, open, onToggle }: {
                     {days.map(([day, n]) => (
                       <div key={day} className="flex-1 flex flex-col items-center justify-end gap-0.5">
                         <span className="text-[10px] font-700 text-slate-600">{n}</span>
-                        <div className="w-full rounded-t bg-[#2f6fc4]/70" style={{ height: `${(100 * n) / maxDay * 0.32}px`, minHeight: n ? 3 : 1 }} />
+                        <div className="w-full rounded-t bg-[#3a8a80]/70" style={{ height: `${(100 * n) / maxDay * 0.32}px`, minHeight: n ? 3 : 1 }} />
                         <span className="text-[9.5px] text-slate-400">{DAY_LABEL[day] ?? day}</span>
                       </div>
                     ))}

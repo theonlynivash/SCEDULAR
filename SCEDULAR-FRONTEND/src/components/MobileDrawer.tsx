@@ -32,7 +32,7 @@ export default function MobileDrawer({ open, onClose, page, navigate, role = 'FA
         <nav className="flex-1 overflow-y-auto glass-scrollarea p-2.5 space-y-1">
           {items.map(item => (
             <button key={item.page + item.label} onClick={() => { navigate(item.page); onClose() }}
-              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-[14px] text-left transition ${page === item.page ? 'glass-pill-active text-[#0e254f] font-700' : 'text-white/80 hover:bg-white/10'}`}>
+              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-[14px] text-left transition ${page === item.page ? 'glass-pill-active text-[#17403d] font-700' : 'text-white/80 hover:bg-white/10'}`}>
               <item.icon size={18} strokeWidth={1.9} className="shrink-0" />
               {item.label}
             </button>

@@ -13,7 +13,7 @@ const TYPE_LABEL = { THEORY: 'Theory', INTEGRATED: 'Theory + Lab', LAB: 'Lab', P
 type Draft = SetupSubjectInput & { id?: string }
 const blank = (semester: string): Draft => ({ code: '', name: '', semester, deliveryType: 'THEORY', theoryPeriods: 4, labPeriods: 0, credits: 3, category: 'CORE', sectionIds: undefined, labIds: [], shortName: '', ltp: null, printAs: null })
 
-const inputCls = 'w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#0F4C81] bg-white'
+const inputCls = 'w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#1f6a63] bg-white'
 const labelCls = 'block text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1'
 
 /** The syllabus for each running semester, plus the class sections that take it. */
@@ -118,20 +118,20 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus', onOpenLabs }:
             <p className="text-[11px] text-slate-500">New classes are added here each semester. Every subject below is offered to a new section automatically.</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <button onClick={() => setImporting('sections')} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#0F4C81]/40 text-[#0F4C81] text-xs font-700 hover:bg-blue-50"><FileSpreadsheet className="w-3.5 h-3.5" /> Import from Excel</button>
+            <button onClick={() => setImporting('sections')} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#1f6a63]/40 text-[#1f6a63] text-xs font-700 hover:bg-blue-50"><FileSpreadsheet className="w-3.5 h-3.5" /> Import from Excel</button>
             <input type="number" min={1} max={26} value={addCount} onChange={e => setAddCount(Math.max(1, Math.min(26, Number(e.target.value) || 1)))} className={`${inputCls} !w-16 text-center`} />
-            <button disabled={busy} onClick={addSections} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0F4C81] text-white text-xs font-700 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> Add sections</button>
+            <button disabled={busy} onClick={addSections} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1f6a63] text-white text-xs font-700 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> Add sections</button>
           </div>
         </div>
         {semSections.length > 0 && (
           <details className="mt-3">
-            <summary className="text-[11.5px] font-600 text-[#2f6fc4] cursor-pointer select-none">Class in-charge (printed on each timetable)</summary>
+            <summary className="text-[11.5px] font-600 text-[#3a8a80] cursor-pointer select-none">Class in-charge (printed on each timetable)</summary>
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {semSections.map(sec => (
                 <label key={sec.id} className="flex items-center gap-2 text-xs text-slate-600">
                   <span className="w-8 font-600 text-slate-700">{sec.id.replace(/^Y\d(S\d)?-/, '')}</span>
                   <select value={sec.classIncharge ?? ''} disabled={busy} onChange={e => act(() => api.setup.setClassIncharge(sec.id, e.target.value || null), 'Class in-charge saved.')}
-                    className="flex-1 border border-slate-200 rounded-md px-2 py-1 text-xs bg-white focus:outline-none focus:border-[#0F4C81]">
+                    className="flex-1 border border-slate-200 rounded-md px-2 py-1 text-xs bg-white focus:outline-none focus:border-[#1f6a63]">
                     <option value="">—</option>
                     {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
@@ -159,7 +159,7 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus', onOpenLabs }:
               <p className="text-xs font-800 text-amber-900">{semPairs.length} course{semPairs.length === 1 ? ' is' : 's are'} listed twice: once for theory, once for the lab</p>
               <p className="text-[11px] text-amber-900/80 mt-0.5">A course like AIES is one subject with theory and lab periods (xT + yL), and the teacher of a class handles both. Combine them so one teacher takes theory and lab of the same class.</p>
             </div>
-            <button disabled={busy} onClick={() => mergeAll(semPairs)} className="px-4 py-1.5 rounded-full bg-[#0F4C81] text-white text-xs font-700 disabled:opacity-40">Combine all {semPairs.length}</button>
+            <button disabled={busy} onClick={() => mergeAll(semPairs)} className="px-4 py-1.5 rounded-full bg-[#1f6a63] text-white text-xs font-700 disabled:opacity-40">Combine all {semPairs.length}</button>
           </div>
           <ul className="mt-2 space-y-1">
             {semPairs.map(p => (
@@ -182,9 +182,9 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus', onOpenLabs }:
             <h3 className="text-sm font-700 text-slate-800">Syllabus · Sem {semester}</h3>
             <p className="text-[11px] text-slate-500">{semSubjects.length} subject{semSubjects.length === 1 ? '' : 's'} · {semSubjects.reduce((n, x) => n + x.theoryPeriods + x.labPeriods, 0)} periods per section per week. Weekly periods are per section; teachers choose from this list.</p>
           </div>
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search code or name…" className="ml-auto border border-slate-200 rounded-full px-3 py-1.5 text-xs w-48 focus:outline-none focus:border-[#0F4C81]" />
-          <button onClick={() => setImporting('syllabus')} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#0F4C81]/40 text-[#0F4C81] text-xs font-700 hover:bg-blue-50"><FileSpreadsheet className="w-3.5 h-3.5" /> Import from Excel</button>
-          <button disabled={busy || semSections.length === 0} title={semSections.length === 0 ? 'Add sections first' : ''} onClick={() => setDraft(blank(semester))} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0F4C81] text-white text-xs font-700 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> Add subject</button>
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search code or name…" className="ml-auto border border-slate-200 rounded-full px-3 py-1.5 text-xs w-48 focus:outline-none focus:border-[#1f6a63]" />
+          <button onClick={() => setImporting('syllabus')} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#1f6a63]/40 text-[#1f6a63] text-xs font-700 hover:bg-blue-50"><FileSpreadsheet className="w-3.5 h-3.5" /> Import from Excel</button>
+          <button disabled={busy || semSections.length === 0} title={semSections.length === 0 ? 'Add sections first' : ''} onClick={() => setDraft(blank(semester))} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1f6a63] text-white text-xs font-700 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> Add subject</button>
         </div>
         {semSubjects.length === 0 ? (
           <p className="text-xs text-slate-400 text-center py-8">No subjects yet for Sem {semester}.</p>
@@ -194,7 +194,7 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus', onOpenLabs }:
             <tbody>
               {shownSubjects(semSubjects).map(s => (
                 <tr key={s.id} className="hover:bg-slate-50/70">
-                  <td className="font-mono text-[11px] text-[#0F4C81] font-700">{s.code}</td>
+                  <td className="font-mono text-[11px] text-[#1f6a63] font-700">{s.code}</td>
                   <td className="font-600 text-slate-800">{s.name}{s.shortName && <span className="ml-1.5 text-[10px] font-700 text-slate-400">{s.shortName}</span>}</td>
                   <td className="text-slate-600">{TYPE_LABEL[s.deliveryType]}</td>
                   <td className="text-center">{s.theoryPeriods || '–'}</td>
@@ -262,7 +262,7 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus', onOpenLabs }:
                 <div className="flex flex-wrap gap-1.5">
                   {semSections.map(s => {
                     const on = (draft.sectionIds ?? defaultSectionIds).includes(s.id)
-                    return <button type="button" key={s.id} onClick={() => toggle('sectionIds', s.id, defaultSectionIds)} className={`px-2.5 py-1 rounded-md text-xs font-600 border ${on ? 'bg-[#0F4C81] text-white border-[#0F4C81]' : 'bg-white text-slate-500 border-slate-200'}`}>{s.id.replace(/^Y\d(S\d)?-/, '')}</button>
+                    return <button type="button" key={s.id} onClick={() => toggle('sectionIds', s.id, defaultSectionIds)} className={`px-2.5 py-1 rounded-md text-xs font-600 border ${on ? 'bg-[#1f6a63] text-white border-[#1f6a63]' : 'bg-white text-slate-500 border-slate-200'}`}>{s.id.replace(/^Y\d(S\d)?-/, '')}</button>
                   })}
                 </div>
               </div>
@@ -272,7 +272,7 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus', onOpenLabs }:
                   <div className="flex flex-wrap gap-1.5">
                     {labs.map(l => {
                       const on = (draft.labIds ?? []).includes(l.id)
-                      return <button type="button" key={l.id} onClick={() => toggle('labIds', l.id, [])} className={`px-2.5 py-1 rounded-md text-xs font-600 border ${on ? 'bg-[#0F4C81] text-white border-[#0F4C81]' : 'bg-white text-slate-500 border-slate-200'}`}>{l.id}</button>
+                      return <button type="button" key={l.id} onClick={() => toggle('labIds', l.id, [])} className={`px-2.5 py-1 rounded-md text-xs font-600 border ${on ? 'bg-[#1f6a63] text-white border-[#1f6a63]' : 'bg-white text-slate-500 border-slate-200'}`}>{l.id}</button>
                     })}
                   </div>
                   {(draft.labIds ?? []).length === 0 && !subjects.find(x => x.id === draft.id)?.labRooms?.length && <p className="text-[11px] text-amber-700 mt-1">Pick at least one room, or the timetable cannot place the lab.</p>}
@@ -282,7 +282,7 @@ export default function SetupSyllabusTab({ say, mode = 'syllabus', onOpenLabs }:
             </div>
             <div className="px-5 py-3 border-t border-slate-100 flex justify-end gap-2">
               <button onClick={() => setDraft(null)} className="px-4 py-1.5 rounded-lg border border-slate-200 text-xs font-600 text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button disabled={busy || !draft.code.trim() || !draft.name.trim()} onClick={save} className="px-4 py-1.5 rounded-lg bg-[#0F4C81] text-white text-xs font-700 disabled:opacity-40">{busy ? 'Saving…' : 'Save subject'}</button>
+              <button disabled={busy || !draft.code.trim() || !draft.name.trim()} onClick={save} className="px-4 py-1.5 rounded-lg bg-[#1f6a63] text-white text-xs font-700 disabled:opacity-40">{busy ? 'Saving…' : 'Save subject'}</button>
             </div>
           </div>
         </div>

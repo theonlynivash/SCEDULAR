@@ -19,8 +19,8 @@ function Ring({ pct, size = 44, title }: { pct: number; size?: number; title?: s
   return (
     <span className="relative flex-shrink-0" style={{ width: size, height: size }} title={title}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(14,37,79,0.10)" strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={pct >= 100 ? '#2f6fc4' : pct > 0 ? '#f3c326' : 'transparent'} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(23,64,61,0.10)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={pct >= 100 ? '#3a8a80' : pct > 0 ? '#c9a24a' : 'transparent'} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
       </svg>
       <span className="absolute inset-0 grid place-items-center text-[9px] font-600 text-slate-700 tracking-tight">{pct}%</span>
     </span>
@@ -70,7 +70,7 @@ export default function HodAssignWorkspace({ board, semester, onChanged, say }: 
       {/* LEFT: subjects */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden sticky top-0">
         <div className="p-2.5 border-b border-slate-100 space-y-2">
-          <div className="relative"><Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-400" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Find subject…" className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:border-[#0F4C81]" /></div>
+          <div className="relative"><Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-400" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Find subject…" className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:border-[#1f6a63]" /></div>
           <div className="flex border border-slate-200 rounded-md overflow-hidden text-[11px] font-700">
             {([['open', `Open ${nOpen}`], ['all', `All ${board.subjects.length}`], ['done', `Done ${board.subjects.length - nOpen}`]] as [Filter, string][]).map(([f, label]) => (
               <button key={f} onClick={() => setFilter(f)} className={`flex-1 py-1.5 ${filter === f ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>{label}</button>
@@ -83,10 +83,10 @@ export default function HodAssignWorkspace({ board, semester, onChanged, say }: 
             const on = s.subjectId === selected
             const pct = Math.round((100 * s.assignedCount) / Math.max(1, s.sectionCount))
             return (
-              <button key={s.subjectId} onClick={() => setSelected(s.subjectId)} className={`w-full text-left px-3 py-2 flex items-center gap-3 border-l-[3px] transition ${on ? 'bg-blue-50/70 border-[#0F4C81]' : 'border-transparent hover:bg-slate-50'}`}>
+              <button key={s.subjectId} onClick={() => setSelected(s.subjectId)} className={`w-full text-left px-3 py-2 flex items-center gap-3 border-l-[3px] transition ${on ? 'bg-blue-50/70 border-[#1f6a63]' : 'border-transparent hover:bg-slate-50'}`}>
                 <Ring pct={pct} title={`${s.assignedCount} of ${s.sectionCount} sections have a teacher`} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2"><span className="font-mono text-[10px] text-[#0F4C81] font-700">{s.code}</span><span className="text-[10px] text-slate-400">{tl(s.perSection.theory, s.perSection.lab)}</span></div>
+                  <div className="flex items-center gap-2"><span className="font-mono text-[10px] text-[#1f6a63] font-700">{s.code}</span><span className="text-[10px] text-slate-400">{tl(s.perSection.theory, s.perSection.lab)}</span></div>
                   <p className="text-xs font-600 text-slate-800 truncate leading-snug">{s.name}</p>
                 </div>
               </button>
@@ -154,7 +154,7 @@ function Detail({ sub, board, semester, counts, setCounts, busy, setBusy, onChan
           <span className="w-12 text-center font-700">{n} sec</span>
           <button disabled={remaining < 1} onClick={() => setCounts({ ...counts, [t.facultyId]: Math.min(remaining, n + 1) })} className="px-2 py-1 hover:bg-slate-50">+</button>
         </div>
-        <button disabled={busy || remaining < 1} onClick={() => assign(t.facultyId, t.name)} className="px-3 py-1.5 rounded-md bg-[#0F4C81] text-white text-xs font-700 hover:bg-[#0a3860] disabled:opacity-40">Assign</button>
+        <button disabled={busy || remaining < 1} onClick={() => assign(t.facultyId, t.name)} className="px-3 py-1.5 rounded-md bg-[#1f6a63] text-white text-xs font-700 hover:bg-[#17504b] disabled:opacity-40">Assign</button>
       </>
     )
   }
@@ -165,19 +165,19 @@ function Detail({ sub, board, semester, counts, setCounts, busy, setBusy, onChan
       <div className="bg-white border border-slate-200 rounded-xl p-4">
         <div className="flex items-start gap-3 flex-wrap">
           <div className="min-w-0">
-            <p className="font-mono text-[11px] text-[#0F4C81] font-700">{sub.code} · {sub.year}</p>
+            <p className="font-mono text-[11px] text-[#1f6a63] font-700">{sub.code} · {sub.year}</p>
             <h2 className="font-display font-800 text-base text-slate-900 leading-snug">{sub.name}</h2>
           </div>
           <div className="ml-auto flex gap-2">
             <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-center"><p className="text-[9px] uppercase tracking-wider text-slate-400 font-700">Template</p><p className="text-sm font-800 text-slate-800">{tl(sub.perSection.theory, sub.perSection.lab)}</p><p className="text-[9px] text-slate-400">per section</p></div>
             <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-center"><p className="text-[9px] uppercase tracking-wider text-slate-400 font-700">Need</p><p className="text-sm font-800 text-slate-800">{sub.sectionCount} sections</p><p className="text-[9px] text-slate-400">{sub.sectionCount * per} periods / wk{sub.teachersWanted ? ` · ${sub.teachersWanted} teachers` : ''}</p></div>
-            <div className={`px-3 py-1.5 rounded-lg border text-center ${remaining === 0 ? 'bg-[#2f6fc4]/6 border-[#2f6fc4]/15' : 'bg-amber-50 border-amber-200'}`}><p className="text-[9px] uppercase tracking-wider text-slate-500 font-700">Still open</p><p className="text-sm font-800 text-slate-800">{remaining} section{remaining === 1 ? '' : 's'}</p><p className="text-[9px] text-slate-400">{remaining * per} periods</p></div>
+            <div className={`px-3 py-1.5 rounded-lg border text-center ${remaining === 0 ? 'bg-[#3a8a80]/6 border-[#3a8a80]/15' : 'bg-amber-50 border-amber-200'}`}><p className="text-[9px] uppercase tracking-wider text-slate-500 font-700">Still open</p><p className="text-sm font-800 text-slate-800">{remaining} section{remaining === 1 ? '' : 's'}</p><p className="text-[9px] text-slate-400">{remaining * per} periods</p></div>
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {sub.sections.map(sec => (
             <span key={sec.sectionId} title={sec.facultyName ? `${sec.sectionName} · ${sec.facultyName}` : `${sec.sectionName} · no teacher`}
-              className={`px-2 py-1 rounded-md text-[11px] font-700 border ${sec.complete ? 'bg-[#2f6fc4]/8 border-[#2f6fc4]/20 text-[#16367a]' : 'bg-white/60 border-dashed border-amber-400 text-amber-700'}`}>
+              className={`px-2 py-1 rounded-md text-[11px] font-700 border ${sec.complete ? 'bg-[#3a8a80]/8 border-[#3a8a80]/20 text-[#1b5550]' : 'bg-white/60 border-dashed border-amber-400 text-amber-700'}`}>
               {letter(sec.sectionId)}{sec.facultyName && <span className="ml-1.5 font-500 text-slate-500">· {surname(sec.facultyName)}</span>}
             </span>
           ))}
@@ -196,7 +196,7 @@ function Detail({ sub, board, semester, counts, setCounts, busy, setBusy, onChan
                   <span className="text-slate-500">{t.sectionIds.length} × ({tl(sub.perSection.theory, sub.perSection.lab)}) = <b className="text-slate-700">{tl(t.theory, t.lab)}</b></span>
                   <span className="text-slate-400">sections {t.sectionIds.map(letter).join(', ')}</span>
                   <span className="ml-auto flex items-center gap-3">
-                    <button disabled={busy} onClick={() => setChanging(changing === t.facultyId ? null : t.facultyId)} className="text-[#16367a] font-600 hover:underline disabled:opacity-40">{changing === t.facultyId ? 'Cancel' : 'Change teacher'}</button>
+                    <button disabled={busy} onClick={() => setChanging(changing === t.facultyId ? null : t.facultyId)} className="text-[#1b5550] font-600 hover:underline disabled:opacity-40">{changing === t.facultyId ? 'Cancel' : 'Change teacher'}</button>
                     <button disabled={busy} onClick={() => remove(t.facultyId)} className="text-rose-600 font-600 hover:underline disabled:opacity-40">Remove</button>
                   </span>
                 </div>
@@ -207,7 +207,7 @@ function Detail({ sub, board, semester, counts, setCounts, busy, setBusy, onChan
                       action={c => (
                         <>
                           <span className={`text-[10.5px] w-24 text-right ${c.load + t.theory + t.lab > c.max ? 'text-amber-700 font-700' : 'text-slate-500'}`}>{c.load} → <b>{c.load + t.theory + t.lab}</b>/{c.max}</span>
-                          <button disabled={busy} onClick={() => move(t.facultyId, c.facultyId, c.name)} className="px-3 py-1.5 rounded-md bg-[#0F4C81] text-white text-xs font-700 hover:bg-[#0a3860] disabled:opacity-40">Move here</button>
+                          <button disabled={busy} onClick={() => move(t.facultyId, c.facultyId, c.name)} className="px-3 py-1.5 rounded-md bg-[#1f6a63] text-white text-xs font-700 hover:bg-[#17504b] disabled:opacity-40">Move here</button>
                         </>
                       )} />
                   </div>
@@ -225,7 +225,7 @@ function Detail({ sub, board, semester, counts, setCounts, busy, setBusy, onChan
           <TeacherPicker teachers={board.teachers} subjectId={sub.subjectId} semester={semester} action={assignControl} />
         </div>
       ) : (
-        <p className="text-xs font-600 text-[#16367a] bg-[#2f6fc4]/6 border border-[#2f6fc4]/15 rounded-xl px-4 py-3">✓ Every section has a teacher.</p>
+        <p className="text-xs font-600 text-[#1b5550] bg-[#3a8a80]/6 border border-[#3a8a80]/15 rounded-xl px-4 py-3">✓ Every section has a teacher.</p>
       )}
     </div>
   )

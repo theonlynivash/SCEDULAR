@@ -50,7 +50,7 @@ export default function Sidebar({
             onClick={() => navigate(item.page)}
             className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-xl transition-all text-left ${
               page === item.page
-                ? 'glass-pill-active text-[#0e254f] font-700'
+                ? 'glass-pill-active text-[#17403d] font-700'
                 : 'text-white/70 hover:bg-white/10 hover:text-white font-500'
             }`}
           >

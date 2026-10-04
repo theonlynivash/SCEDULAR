@@ -100,8 +100,6 @@ export default function App() {
     <ScopeProvider>
       <div className="app-wallpaper">
         <div className="blob" />
-        <div className="fx-grid" aria-hidden="true" />
-        <div className="fx-particles" aria-hidden="true" />
       </div>
       <div className="relative z-10 flex h-screen overflow-hidden p-2.5 gap-2.5">
         <Sidebar

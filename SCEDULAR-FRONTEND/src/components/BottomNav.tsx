@@ -17,16 +17,16 @@ export default function BottomNav({ page, navigate, role = 'FACULTY', onMore }: 
               onClick={() => navigate(item.page)}
               className="flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-2xl transition-all active:scale-95"
             >
-              <item.icon size={22} strokeWidth={1.8} className={active ? 'text-[#f3c326]' : 'text-white/70'} />
-              <span className={`text-[10px] font-600 whitespace-nowrap ${active ? 'text-[#f3c326]' : 'text-white/70'}`}>{item.shortLabel}</span>
-              <span className={`w-1 h-1 rounded-full transition-all ${active ? 'bg-[#f3c326]' : 'bg-transparent'}`} />
+              <item.icon size={22} strokeWidth={1.8} className={active ? 'text-[#c9a24a]' : 'text-white/70'} />
+              <span className={`text-[10px] font-600 whitespace-nowrap ${active ? 'text-[#c9a24a]' : 'text-white/70'}`}>{item.shortLabel}</span>
+              <span className={`w-1 h-1 rounded-full transition-all ${active ? 'bg-[#c9a24a]' : 'bg-transparent'}`} />
             </button>
           )
         })}
         <button onClick={onMore} className="flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-2xl transition-all active:scale-95">
-          <Menu size={22} strokeWidth={1.8} className={moreActive ? 'text-[#f3c326]' : 'text-white/70'} />
-          <span className={`text-[10px] font-600 ${moreActive ? 'text-[#f3c326]' : 'text-white/70'}`}>More</span>
-          <span className={`w-1 h-1 rounded-full ${moreActive ? 'bg-[#f3c326]' : 'bg-transparent'}`} />
+          <Menu size={22} strokeWidth={1.8} className={moreActive ? 'text-[#c9a24a]' : 'text-white/70'} />
+          <span className={`text-[10px] font-600 ${moreActive ? 'text-[#c9a24a]' : 'text-white/70'}`}>More</span>
+          <span className={`w-1 h-1 rounded-full ${moreActive ? 'bg-[#c9a24a]' : 'bg-transparent'}`} />
         </button>
       </div>
     </nav>
