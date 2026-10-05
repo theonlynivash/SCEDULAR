@@ -1,0 +1,37 @@
+# ═══════════════════════════════════════════════════════════════════════
+# LINE ENDINGS — force LF (Unix) on EVERY text file, regardless of contributor OS.
+# Vercel build containers are Linux (LF). Without this rule, Windows users
+# pushing CRLF line endings cause:
+#   • git warnings: "LF will be replaced by CRLF"
+#   • sporadic hashbang/JSON parse failures when the serverless function is
+#     invoked (the Node runtime on Linux occasionally rejects a stray \r).
+# ═══════════════════════════════════════════════════════════════════════
+* text=auto eol=lf
+
+# ═══════════════════════════════════════════════════════════════════════
+# BINARIES — never diffed or line-ending-mangled
+# ═══════════════════════════════════════════════════════════════════════
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.otf binary
+*.ttf binary
+*.xlsx binary
+*.zip binary
+*.pdf binary
+
+# VCS file-type hints
+*.ts   text diff=typescript
+*.tsx  text diff=typescript
+*.js   text diff=javascript
+*.jsx  text diff=javascript
+*.json text diff=json
+*.md   text diff=markdown
+*.html text diff=html
+*.css  text diff=css

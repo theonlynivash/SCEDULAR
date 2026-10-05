@@ -1,0 +1,43 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+
+  "installCommand": "node -e \" const fs=require('fs'),cp=require('child_process'); const root = fs.existsSync('SCEDULAR-BACKEND/package.json') ? process.cwd() : require('path').resolve(process.cwd(),'..'); console.error('[install] repo root detected:', root); process.chdir(root); cp.execSync('npm --prefix SCEDULAR-BACKEND install --no-audit --no-fund',{stdio:'inherit'}); cp.execSync('npm --prefix SCEDULAR-FRONTEND install --no-audit --no-fund',{stdio:'inherit'}); \"",
+
+  "buildCommand": "node -e \" const fs=require('fs'),cp=require('child_process'); const root = fs.existsSync('SCEDULAR-BACKEND/package.json') ? process.cwd() : require('path').resolve(process.cwd(),'..'); console.error('[build] repo root detected:', root); process.chdir(root); cp.execSync('npm --prefix SCEDULAR-BACKEND run build 2>/dev/null || echo \"backend build skipped\"',{stdio:'inherit'}); cp.execSync('npm --prefix SCEDULAR-FRONTEND run build',{stdio:'inherit'}); \"",
+
+  "outputDirectory": "SCEDULAR-FRONTEND/dist",
+
+  "functions": {
+    "api/index.ts": {
+      "memory": 1024,
+      "maxDuration": 60,
+      "includeFiles": "{SCEDULAR-BACKEND/src/**,SCEDULAR-BACKEND/assets/**,SCEDULAR-BACKEND/node_modules/pdfkit/js/data/**}"
+    }
+  },
+
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/((?!api/|assets/|.*\\.(?:png|jpe?g|svg|ico|webp|xlsx|woff2?|ttf|otf|json|txt|map)$).*)", "destination": "/index.html" }
+  ],
+
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    }
+  ]
+}

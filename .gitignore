@@ -1,0 +1,104 @@
+# ── dependencies and build output ──
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+SCEDULAR-BACKEND/dist/
+SCEDULAR-FRONTEND/dist/
+build/
+**/build/
+coverage/
+**/coverage/
+.vite/
+SCEDULAR-FRONTEND/.vite/
+*.tsbuildinfo
+# TypeScript + Vite compilation cache
+.cache/
+.parcel-cache/
+.turbo/
+.next/
+
+# ── secrets: never commit these ──
+.env
+.env.*
+!.env.example
+# Neon CLI stores auth tokens and per-branch env files — NEVER commit
+.neon/
+.neonrc
+.neonrc.json
+.neonrc.*
+.neon-env*
+# PostgreSQL / Neon credentials dump (if someone exports them)
+.pgpass
+.pgsql_history
+psql_history
+
+# ── local data: real teacher emails, password hashes, messages, photos ──
+SCEDULAR-BACKEND/data/scedular_local_db.json
+SCEDULAR-BACKEND/data/scedular_local_db.json.*
+SCEDULAR-BACKEND/data/*.backup-*
+SCEDULAR-BACKEND/data/*.unreadable-*
+SCEDULAR-BACKEND/data/pdf_source/
+SCEDULAR-BACKEND/data/*.tmp
+# Database exports / dumps (SQL, CSV, JSONB snapshots — may contain PII)
+SCEDULAR-BACKEND/data/*.sql
+SCEDULAR-BACKEND/data/*.dump
+SCEDULAR-BACKEND/data/*.csv
+SCEDULAR-BACKEND/data/snapshots/
+# Temp uploads / multer scratch space
+SCEDULAR-BACKEND/uploads/
+SCEDULAR-BACKEND/tmp/
+# (tests use the scrubbed sample in SCEDULAR-BACKEND/tests/fixtures/ - that one IS committed)
+
+# ── local PostgreSQL data directory (if someone spins up pg locally) ──
+pgsql/
+pgdata/
+postgres-data/
+# TLS / SSL certs generated for local DB testing
+*.crt
+*.key
+*.pem
+*.p12
+*.pfx
+
+# ── source documents and extracted text ──
+pdf24_converted/
+pdf24_converted.zip
+pdf_text/
+*.xlsx.bak
+
+# ── editor / assistant / OS files ──
+.claude/settings.local.json
+.trae/
+.kombai/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+# Windows-specific
+hiberfil.sys
+pagefile.sys
+$RECYCLE.BIN/
+System Volume Information/
+*.lnk
+# Test / coverage temp files
+.vitest/
+coverage-*/
+.tmp/
+tmp/
+
+# ── python helper scripts ──
+__pycache__/
+*.pyc
+
+# ── Vercel ──
+.vercel/
+
+# ── Neon deploy / MCP server cache ──
+.neon-cache/
+.neon-mcp/
+# Any exported connection strings someone accidentally dumps to a file
+database-url.txt
+connstring.txt

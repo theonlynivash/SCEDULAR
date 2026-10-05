@@ -1,0 +1,730 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300..800&family=DM+Sans:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --color-primary: var(--ink-800);
+  --color-primary-dark: var(--ink-900);
+  --color-primary-light: var(--c-500);
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-accent-light: var(--accent-light);
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-surface: var(--surface);
+  --color-card: #ffffff;
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-text: #0f172a;
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Greys and the "blue / cyan / sky / indigo / violet / purple" families all follow the chosen colour theme. */
+  --color-slate-50: var(--s-50);  --color-slate-100: var(--s-100); --color-slate-200: var(--s-200); --color-slate-300: var(--s-300); --color-slate-400: var(--s-400);
+  --color-slate-500: var(--s-500); --color-slate-600: var(--s-600); --color-slate-700: var(--s-700); --color-slate-800: var(--s-800); --color-slate-900: var(--s-900);
+  --color-blue-50: var(--b-50); --color-blue-100: var(--b-100); --color-blue-200: var(--b-200); --color-blue-300: var(--b-300); --color-blue-400: var(--b-400);
+  --color-blue-500: var(--b-500); --color-blue-600: var(--b-600); --color-blue-700: var(--b-700); --color-blue-800: var(--b-800); --color-blue-900: var(--b-900);
+  --color-cyan-50: var(--b-50); --color-cyan-100: var(--b-100); --color-cyan-200: var(--b-200); --color-cyan-300: var(--b-300); --color-cyan-400: var(--b-400);
+  --color-cyan-500: var(--b-500); --color-cyan-600: var(--b-600); --color-cyan-800: var(--b-800);
+  --color-sky-50: var(--b-50); --color-sky-100: var(--b-100); --color-sky-500: var(--b-500); --color-sky-600: var(--b-600);
+  --color-indigo-50: var(--x-50); --color-indigo-100: var(--x-100); --color-indigo-500: var(--x-500); --color-indigo-800: var(--x-800);
+  --color-violet-50: var(--p-50); --color-violet-100: var(--p-100); --color-violet-700: var(--p-700); --color-violet-800: var(--p-800);
+  --color-purple-50: var(--p-50); --color-purple-100: var(--p-100); --color-purple-700: var(--p-700); --color-purple-800: var(--p-800);
+
+  /* Soft geometry: generous, consistent rounding on every rounded-* utility. */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+}
+
+/* =====================================================================
+   COLOUR THEMES. Everything in the app takes its colours from these variables, so a theme can be swapped (or a new one added)
+   without touching a single screen. The default is "orchid"; the choice is remembered per browser (palette button, top bar).
+   ===================================================================== */
+:root, :root[data-theme='orchid'] {
+  /* deep aubergine (backgrounds, sidebar) -> royal orchid purple (main) -> lavender (tints) */
+  --ink-950: #1d0f33; --ink-900: #25143f; --ink-850: #2d1a4c; --ink-800: #3a2266; --ink-750: #31205a;
+  --c-700: #4b2e85; --c-650: #432878; --c-600: #5b3a9a; --c-550: #6d4ab0; --c-500: #8a63c9; --c-450: #7b55bd;
+  /* sandalwood */
+  --accent: #d4b98c; --accent-dark: #8f6f3f; --accent-light: #f6ecda; --accent-mid: #b8996a; --amber: #d9a03a;
+  --text: #2d2540; --muted: #6a6178;
+  --surface: #f6f1e8; --surface-2: #f1ebdf; --surface-3: #f8f4ec; --border: #e1d6c4;
+  --ink-rgb: 58, 34, 102; --chrome-a-rgb: 45, 26, 76; --chrome-b-rgb: 29, 15, 51; --shadow-rgb: 37, 20, 63; --shadow-dark-rgb: 22, 10, 40;
+  --paper-rgb: 250, 245, 237; --accent-rgb: 212, 185, 140; --glass-a-rgb: 252, 250, 246; --glass-b-rgb: 238, 230, 247; --surface-2-rgb: 241, 235, 223;
+  --wall-1: #6d3fb8; --wall-2: #e3c9a0; --wall-3: #c2527a; --wall-4: #3a2266;
+  /* report / chart hues: purple, sandal, coral, teal, indigo, rose */
+  --t1: #6a46b5; --t1d: #4a2e85; --t1-rgb: 106, 70, 181;
+  --t2: #c9a56e; --t2d: #8f6d37; --t2-rgb: 201, 165, 110;
+  --t3: #d9694f; --t3d: #9c3f2b; --t3-rgb: 217, 105, 79;
+  --t4: #36978f; --t4d: #22645f; --t4-rgb: 54, 151, 143;
+  --t5: #4a52a8; --t5d: #323a7a; --t5-rgb: 74, 82, 168;
+  --t6: #c2527a; --t6d: #8a2f55; --t6-rgb: 194, 82, 122;
+  --s-50: #faf7f2; --s-100: #f4efe7; --s-200: #e9e2d6; --s-300: #d9d0c1; --s-400: #9a93a8; --s-500: #6f6880; --s-600: #585169; --s-700: #443e55; --s-800: #332e43; --s-900: #251f33;
+  --b-50: #f4effb; --b-100: #e6dcf6; --b-200: #cdbbea; --b-300: #b09bdc; --b-400: #8f73c9; --b-500: #7455b6; --b-600: #5f3f9f; --b-700: #4b2e85; --b-800: #3a2266; --b-900: #2d1a4c;
+  --x-50: #eef0f8; --x-100: #dde1f1; --x-500: #4a52a8; --x-800: #323a7a;
+  --p-50: #f8eef3; --p-100: #f0dbe4; --p-700: #a33e68; --p-800: #7e2f52;
+}
+:root[data-theme='pine'] {
+  --ink-950: #0f2b2a; --ink-900: #0f2f2d; --ink-850: #123432; --ink-800: #17403d; --ink-750: #123d3a;
+  --c-700: #1b5550; --c-650: #17504b; --c-600: #1f6a63; --c-550: #2a6f67; --c-500: #3a8a80; --c-450: #2f7f74;
+  --accent: #c9a24a; --accent-dark: #8c6a1f; --accent-light: #f5ecd3; --accent-mid: #9a7a2a; --amber: #c58a2b;
+  --text: #2c332f; --muted: #5f6b65;
+  --surface: #f2efe8; --surface-2: #f3f0e8; --surface-3: #f6f4ef; --border: #ddd8cc;
+  --ink-rgb: 23, 64, 61; --chrome-a-rgb: 23, 64, 61; --chrome-b-rgb: 14, 40, 38; --shadow-rgb: 15, 43, 42; --shadow-dark-rgb: 8, 24, 23;
+  --paper-rgb: 247, 244, 237; --accent-rgb: 201, 162, 74; --glass-a-rgb: 247, 249, 246; --glass-b-rgb: 226, 236, 231; --surface-2-rgb: 243, 240, 232;
+  --wall-1: #2a6f67; --wall-2: #c9a24a; --wall-3: #6f8f4e; --wall-4: #123d3a;
+  --t1: #2f7f74; --t1d: #1f5851; --t1-rgb: 47, 127, 116;
+  --t2: #c29a3d; --t2d: #8c6a1f; --t2-rgb: 194, 154, 61;
+  --t3: #b0623a; --t3d: #7e4325; --t3-rgb: 176, 98, 58;
+  --t4: #6f8f4e; --t4d: #4b6a30; --t4-rgb: 111, 143, 78;
+  --t5: #4f6f8f; --t5d: #34506b; --t5-rgb: 79, 111, 143;
+  --t6: #8a5a78; --t6d: #613c52; --t6-rgb: 138, 90, 120;
+  --s-50: #f8f6f1; --s-100: #f3f0e9; --s-200: #e7e3d9; --s-300: #d6d1c4; --s-400: #929a92; --s-500: #6b756e; --s-600: #55605a; --s-700: #424b46; --s-800: #313a35; --s-900: #232a26;
+  --b-50: #eef5f3; --b-100: #d9e9e5; --b-200: #b7d3cc; --b-300: #8dbab0; --b-400: #5a9c90; --b-500: #3a8a80; --b-600: #2c746b; --b-700: #235e57; --b-800: #1c4d47; --b-900: #17403d;
+  --x-50: #eef0f5; --x-100: #dde2ec; --x-500: #5a6b8c; --x-800: #3b4863;
+  --p-50: #f3eef4; --p-100: #e6dbe8; --p-700: #6b4d70; --p-800: #573d5b;
+}
+
+:root[data-theme='slate'] {
+  --ink-950: #181c22;
+  --ink-900: #20262e;
+  --ink-850: #2d333b;
+  --ink-800: #2e3846;
+  --ink-750: #29323e;
+  --c-700: #323f4f;
+  --c-650: #394759;
+  --c-600: #3f4f63;
+  --c-550: #566476;
+  --c-500: #798492;
+  --c-450: #657282;
+  --accent: #d19a6e;
+  --accent-dark: #8c5a33;
+  --accent-light: #f5e9df;
+  --accent-mid: #b58056;
+  --amber: #d59d54;
+  --text: #1d2229;
+  --muted: #717a84;
+  --surface: #f3f0ec;
+  --surface-2: #ece9e5;
+  --surface-3: #f9f8f6;
+  --border: #d6d3d0;
+  --ink-rgb: 46, 56, 70; --chrome-a-rgb: 45, 51, 59; --chrome-b-rgb: 24, 28, 34; --shadow-rgb: 32, 38, 46; --shadow-dark-rgb: 18, 21, 25;
+  --paper-rgb: 250, 249, 247; --accent-rgb: 209, 154, 110; --glass-a-rgb: 252, 251, 250; --glass-b-rgb: 232, 234, 236; --surface-2-rgb: 236, 233, 229;
+  --wall-1: #566476; --wall-2: #d19a6e; --wall-3: #c25a4a; --wall-4: #2e3846;
+  --t1: #4a6a8f; --t1d: #30455d; --t1-rgb: 74, 106, 143;
+  --t2: #c98a5e; --t2d: #835a3d; --t2-rgb: 201, 138, 94;
+  --t3: #c25a4a; --t3d: #7e3a30; --t3-rgb: 194, 90, 74;
+  --t4: #4f8f86; --t4d: #335d57; --t4-rgb: 79, 143, 134;
+  --t5: #6b5fa8; --t5d: #463e6d; --t5-rgb: 107, 95, 168;
+  --t6: #a8566f; --t6d: #6d3848; --t6-rgb: 168, 86, 111;
+  --s-50: #f8f6f4; --s-100: #ece9e5; --s-200: #dddad7; --s-300: #cac7c4; --s-400: #949ba3; --s-500: #5a6572; --s-600: #4a535d; --s-700: #3d454e; --s-800: #31373e; --s-900: #262a30;
+  --b-50: #f2f3f4; --b-100: #e2e5e8; --b-200: #c5cad0; --b-300: #a3abb4; --b-400: #798492; --b-500: #526173; --b-600: #3f4f63; --b-700: #323f4f; --b-800: #293340; --b-900: #202832;
+  --x-50: #f3f2f8; --x-100: #e4e2ef; --x-500: #6b5fa8; --x-800: #463e6d;
+  --p-50: #f8f1f3; --p-100: #efe1e5; --p-700: #a8566f; --p-800: #763c4e;
+}
+:root[data-theme='rose'] {
+  --ink-950: #171a24;
+  --ink-900: #1f2230;
+  --ink-850: #2c2f3c;
+  --ink-800: #30364e;
+  --ink-750: #2a2f44;
+  --c-700: #373e5c;
+  --c-650: #3e4668;
+  --c-600: #454e73;
+  --c-550: #5b6384;
+  --c-500: #7d839d;
+  --c-450: #6a718f;
+  --accent: #e0aa9c;
+  --accent-dark: #9a5f52;
+  --accent-light: #f8ece9;
+  --accent-mid: #c48c7e;
+  --amber: #dca56b;
+  --text: #1c1f2b;
+  --muted: #7a7585;
+  --surface: #f6efec;
+  --surface-2: #efe8e5;
+  --surface-3: #faf7f6;
+  --border: #d8d2d0;
+  --ink-rgb: 48, 54, 78; --chrome-a-rgb: 44, 47, 60; --chrome-b-rgb: 23, 26, 36; --shadow-rgb: 31, 34, 48; --shadow-dark-rgb: 17, 19, 26;
+  --paper-rgb: 251, 249, 247; --accent-rgb: 224, 170, 156; --glass-a-rgb: 253, 251, 250; --glass-b-rgb: 233, 234, 238; --surface-2-rgb: 239, 232, 229;
+  --wall-1: #5b6384; --wall-2: #e0aa9c; --wall-3: #d0645a; --wall-4: #30364e;
+  --t1: #4f5a8a; --t1d: #333a5a; --t1-rgb: 79, 90, 138;
+  --t2: #d9a48f; --t2d: #8d6b5d; --t2-rgb: 217, 164, 143;
+  --t3: #d0645a; --t3d: #87413a; --t3-rgb: 208, 100, 90;
+  --t4: #4a9488; --t4d: #306058; --t4-rgb: 74, 148, 136;
+  --t5: #7a62b0; --t5d: #4f4072; --t5-rgb: 122, 98, 176;
+  --t6: #b0567a; --t6d: #72384f; --t6-rgb: 176, 86, 122;
+  --s-50: #faf5f4; --s-100: #efe8e5; --s-200: #e0d9d7; --s-300: #ccc6c4; --s-400: #9a97a4; --s-500: #645f73; --s-600: #524e5e; --s-700: #44414e; --s-800: #36333e; --s-900: #2a2830;
+  --b-50: #f2f3f5; --b-100: #e3e4ea; --b-200: #c7cad5; --b-300: #a6aabc; --b-400: #7d839d; --b-500: #586081; --b-600: #454e73; --b-700: #373e5c; --b-800: #2d334b; --b-900: #22273a;
+  --x-50: #f4f2f9; --x-100: #e7e3f1; --x-500: #7a62b0; --x-800: #4f4072;
+  --p-50: #f9f1f4; --p-100: #f1e1e7; --p-700: #b0567a; --p-800: #7b3c55;
+}
+
+:root[data-theme='terracotta'] {
+  --ink-950: #2c1812;
+  --ink-900: #3a2018;
+  --ink-850: #462d26;
+  --ink-800: #653322;
+  --ink-750: #572d1f;
+  --c-700: #7b3b25;
+  --c-650: #8b4329;
+  --c-600: #9a4a2e;
+  --c-550: #a66047;
+  --c-500: #b8806d;
+  --c-450: #ae6e58;
+  --accent: #e8d2b0;
+  --accent-dark: #8f6a35;
+  --accent-light: #faf5ee;
+  --accent-mid: #c4a87f;
+  --amber: #e0b975;
+  --text: #341d16;
+  --muted: #837068;
+  --surface: #f7f0e6;
+  --surface-2: #f0e9df;
+  --surface-3: #fbf8f2;
+  --border: #d9d3ca;
+  --ink-rgb: 101, 51, 34; --chrome-a-rgb: 70, 45, 38; --chrome-b-rgb: 44, 24, 18; --shadow-rgb: 58, 32, 24; --shadow-dark-rgb: 32, 18, 13;
+  --paper-rgb: 252, 249, 245; --accent-rgb: 232, 210, 176; --glass-a-rgb: 253, 251, 249; --glass-b-rgb: 243, 233, 230; --surface-2-rgb: 240, 233, 223;
+  --wall-1: #a66047; --wall-2: #e8d2b0; --wall-3: #c9604a; --wall-4: #653322;
+  --t1: #a8532f; --t1d: #6d361f; --t1-rgb: 168, 83, 47;
+  --t2: #c9a45e; --t2d: #836b3d; --t2-rgb: 201, 164, 94;
+  --t3: #c9604a; --t3d: #833e30; --t3-rgb: 201, 96, 74;
+  --t4: #5f8f6a; --t4d: #3e5d45; --t4-rgb: 95, 143, 106;
+  --t5: #5a5f9c; --t5d: #3a3e65; --t5-rgb: 90, 95, 156;
+  --t6: #a8567a; --t6d: #6d384f; --t6-rgb: 168, 86, 122;
+  --s-50: #faf6f0; --s-100: #f0e9df; --s-200: #e1dad1; --s-300: #cdc7bf; --s-400: #a1948f; --s-500: #6e5a52; --s-600: #5a4a43; --s-700: #4b3d38; --s-800: #3b312c; --s-900: #2e2622;
+  --b-50: #f8f2f0; --b-100: #f0e4e0; --b-200: #e1c9c0; --b-300: #cfa89b; --b-400: #b8806d; --b-500: #a45c43; --b-600: #9a4a2e; --b-700: #7b3b25; --b-800: #64301e; --b-900: #4d2517;
+  --x-50: #f2f2f7; --x-100: #e1e2ed; --x-500: #5a5f9c; --x-800: #3a3e65;
+  --p-50: #f8f1f4; --p-100: #efe1e7; --p-700: #a8567a; --p-800: #763c55;
+}
+
+:root[data-theme='mustard'] {
+  --ink-950: #1c1a15;
+  --ink-900: #26231c;
+  --ink-850: #33302a;
+  --ink-800: #534318;
+  --ink-750: #443819;
+  --c-700: #6e550e;
+  --c-650: #7c5f10;
+  --c-600: #8a6a12;
+  --c-550: #987c2e;
+  --c-500: #ad9759;
+  --c-450: #a18841;
+  --accent: #f0d27a;
+  --accent-dark: #8a6a12;
+  --accent-light: #fcf5e2;
+  --accent-mid: #c7a850;
+  --amber: #e4b95a;
+  --text: #222019;
+  --muted: #7f7966;
+  --surface: #f7f3e6;
+  --surface-2: #f0ecdf;
+  --surface-3: #fbf9f2;
+  --border: #d9d6ca;
+  --ink-rgb: 83, 67, 24; --chrome-a-rgb: 51, 48, 42; --chrome-b-rgb: 28, 26, 21; --shadow-rgb: 38, 35, 28; --shadow-dark-rgb: 21, 19, 15;
+  --paper-rgb: 252, 250, 245; --accent-rgb: 240, 210, 122; --glass-a-rgb: 253, 252, 249; --glass-b-rgb: 241, 237, 227; --surface-2-rgb: 240, 236, 223;
+  --wall-1: #987c2e; --wall-2: #f0d27a; --wall-3: #c9604a; --wall-4: #534318;
+  --t1: #9a7414; --t1d: #644b0d; --t1-rgb: 154, 116, 20;
+  --t2: #c9a45e; --t2d: #836b3d; --t2-rgb: 201, 164, 94;
+  --t3: #c9604a; --t3d: #833e30; --t3-rgb: 201, 96, 74;
+  --t4: #4a8f78; --t4d: #305d4e; --t4-rgb: 74, 143, 120;
+  --t5: #5a62a8; --t5d: #3a406d; --t5-rgb: 90, 98, 168;
+  --t6: #a8567a; --t6d: #6d384f; --t6-rgb: 168, 86, 122;
+  --s-50: #faf8f0; --s-100: #f0ecdf; --s-200: #e1ddd1; --s-300: #cdcabf; --s-400: #9e9a8d; --s-500: #6a6450; --s-600: #575242; --s-700: #484436; --s-800: #39362b; --s-900: #2d2a22;
+  --b-50: #f7f5ee; --b-100: #ede9db; --b-200: #dcd2b8; --b-300: #c7b78d; --b-400: #ad9759; --b-500: #96792a; --b-600: #8a6a12; --b-700: #6e550e; --b-800: #5a450c; --b-900: #453509;
+  --x-50: #f2f2f8; --x-100: #e1e3ef; --x-500: #5a62a8; --x-800: #3a406d;
+  --p-50: #f8f1f4; --p-100: #efe1e7; --p-700: #a8567a; --p-800: #763c55;
+}
+:root[data-theme='fuchsia'] {
+  --ink-950: #2c0c24;
+  --ink-900: #3a1030;
+  --ink-850: #461e3c;
+  --ink-800: #69194c;
+  --ink-750: #5a1643;
+  --c-700: #821e59;
+  --c-650: #932164;
+  --c-600: #a3256f;
+  --c-550: #ae3f80;
+  --c-500: #bf669a;
+  --c-450: #b5518c;
+  --accent: #f2c4d4;
+  --accent-dark: #9a3a62;
+  --accent-light: #fcf2f6;
+  --accent-mid: #cf8da6;
+  --amber: #e6b287;
+  --text: #340e2b;
+  --muted: #83707b;
+  --surface: #f8eff2;
+  --surface-2: #f1e8eb;
+  --surface-3: #fcf7f8;
+  --border: #dad2d5;
+  --ink-rgb: 105, 25, 76; --chrome-a-rgb: 70, 30, 60; --chrome-b-rgb: 44, 12, 36; --shadow-rgb: 58, 16, 48; --shadow-dark-rgb: 32, 9, 26;
+  --paper-rgb: 252, 249, 250; --accent-rgb: 242, 196, 212; --glass-a-rgb: 253, 251, 252; --glass-b-rgb: 244, 229, 238; --surface-2-rgb: 241, 232, 235;
+  --wall-1: #ae3f80; --wall-2: #f2c4d4; --wall-3: #d9694f; --wall-4: #69194c;
+  --t1: #b02e7a; --t1d: #721e4f; --t1-rgb: 176, 46, 122;
+  --t2: #d9a45e; --t2d: #8d6b3d; --t2-rgb: 217, 164, 94;
+  --t3: #d9694f; --t3d: #8d4433; --t3-rgb: 217, 105, 79;
+  --t4: #3f9488; --t4d: #296058; --t4-rgb: 63, 148, 136;
+  --t5: #6a58b8; --t5d: #453978; --t5-rgb: 106, 88, 184;
+  --t6: #c2527a; --t6d: #7e354f; --t6-rgb: 194, 82, 122;
+  --s-50: #fbf5f7; --s-100: #f1e8eb; --s-200: #e2d9dc; --s-300: #cec6c9; --s-400: #a1949c; --s-500: #6e5a66; --s-600: #5a4a54; --s-700: #4b3d45; --s-800: #3b3137; --s-900: #2e262b;
+  --b-50: #f9f0f5; --b-100: #f1dee9; --b-200: #e3bed4; --b-300: #d396ba; --b-400: #bf669a; --b-500: #ac3b7d; --b-600: #a3256f; --b-700: #821e59; --b-800: #6a1848; --b-900: #521238;
+  --x-50: #f3f2f9; --x-100: #e4e1f2; --x-500: #6a58b8; --x-800: #453978;
+  --p-50: #faf1f4; --p-100: #f4e0e7; --p-700: #c2527a; --p-800: #883955;
+}
+
+:root[data-theme='maroon'] {
+  --ink-950: #2c0b0e;
+  --ink-900: #3a0f12;
+  --ink-850: #461d20;
+  --ink-800: #57161a;
+  --ink-750: #4e1417;
+  --c-700: #62181d;
+  --c-650: #6f1b20;
+  --c-600: #7b1e24;
+  --c-550: #8b393e;
+  --c-500: #a36266;
+  --c-450: #954b50;
+  --accent: #dcb64a;
+  --accent-dark: #8a6a14;
+  --accent-light: #f7efd7;
+  --accent-mid: #bb9834;
+  --amber: #daab42;
+  --text: #340e10;
+  --muted: #83716f;
+  --surface: #f7f1e6;
+  --surface-2: #f0eadf;
+  --surface-3: #fbf8f2;
+  --border: #d9d4ca;
+  --ink-rgb: 87, 22, 26; --chrome-a-rgb: 70, 29, 32; --chrome-b-rgb: 44, 11, 14; --shadow-rgb: 58, 15, 18; --shadow-dark-rgb: 32, 8, 10;
+  --paper-rgb: 252, 249, 245; --accent-rgb: 220, 182, 74; --glass-a-rgb: 253, 252, 249; --glass-b-rgb: 239, 228, 229; --surface-2-rgb: 240, 234, 223;
+  --wall-1: #8b393e; --wall-2: #dcb64a; --wall-3: #d1694f; --wall-4: #57161a;
+  --t1: #8a2a30; --t1d: #5a1b1f; --t1-rgb: 138, 42, 48;
+  --t2: #c9a22e; --t2d: #83691e; --t2-rgb: 201, 162, 46;
+  --t3: #d1694f; --t3d: #884433; --t3-rgb: 209, 105, 79;
+  --t4: #4f8a76; --t4d: #335a4d; --t4-rgb: 79, 138, 118;
+  --t5: #4a5a9c; --t5d: #303a65; --t5-rgb: 74, 90, 156;
+  --t6: #a8567a; --t6d: #6d384f; --t6-rgb: 168, 86, 122;
+  --s-50: #faf7f0; --s-100: #f0eadf; --s-200: #e1dbd1; --s-300: #cdc8bf; --s-400: #a19494; --s-500: #6e5a5a; --s-600: #5a4a4a; --s-700: #4b3d3d; --s-800: #3b3131; --s-900: #2e2626;
+  --b-50: #f6eff0; --b-100: #ebddde; --b-200: #d7bcbd; --b-300: #c09396; --b-400: #a36266; --b-500: #88343a; --b-600: #7b1e24; --b-700: #62181d; --b-800: #501417; --b-900: #3e0f12;
+  --x-50: #f1f2f7; --x-100: #dee1ed; --x-500: #4a5a9c; --x-800: #303a65;
+  --p-50: #f8f1f4; --p-100: #efe1e7; --p-700: #a8567a; --p-800: #763c55;
+}
+:root[data-theme='ocean'] {
+  --ink-950: #0b1d30;
+  --ink-900: #0f2740;
+  --ink-850: #1d344b;
+  --ink-800: #163e64;
+  --ink-750: #143658;
+  --c-700: #194872;
+  --c-650: #1c5181;
+  --c-600: #1f5a8f;
+  --c-550: #3a6e9c;
+  --c-500: #628cb1;
+  --c-450: #4c7ba5;
+  --accent: #dcb64a;
+  --accent-dark: #8a6a14;
+  --accent-light: #f7efd7;
+  --accent-mid: #bb9834;
+  --amber: #daab42;
+  --text: #0e233a;
+  --muted: #6e7d89;
+  --surface: #f4f1ea;
+  --surface-2: #edeae3;
+  --surface-3: #faf8f4;
+  --border: #d7d4ce;
+  --ink-rgb: 22, 62, 100; --chrome-a-rgb: 29, 52, 75; --chrome-b-rgb: 11, 29, 48; --shadow-rgb: 15, 39, 64; --shadow-dark-rgb: 8, 21, 35;
+  --paper-rgb: 251, 249, 247; --accent-rgb: 220, 182, 74; --glass-a-rgb: 252, 252, 250; --glass-b-rgb: 228, 235, 242; --surface-2-rgb: 237, 234, 227;
+  --wall-1: #3a6e9c; --wall-2: #dcb64a; --wall-3: #d9694f; --wall-4: #163e64;
+  --t1: #2a6aa3; --t1d: #1b456a; --t1-rgb: 42, 106, 163;
+  --t2: #c9a22e; --t2d: #83691e; --t2-rgb: 201, 162, 46;
+  --t3: #d9694f; --t3d: #8d4433; --t3-rgb: 217, 105, 79;
+  --t4: #2f9a8f; --t4d: #1f645d; --t4-rgb: 47, 154, 143;
+  --t5: #5a5fb0; --t5d: #3a3e72; --t5-rgb: 90, 95, 176;
+  --t6: #b0587a; --t6d: #72394f; --t6-rgb: 176, 88, 122;
+  --s-50: #f8f7f2; --s-100: #edeae3; --s-200: #dedbd5; --s-300: #cbc8c2; --s-400: #919da7; --s-500: #566878; --s-600: #475562; --s-700: #3a4752; --s-800: #2e3841; --s-900: #242c32;
+  --b-50: #eff3f7; --b-100: #dde6ee; --b-200: #bccedd; --b-300: #93b0c9; --b-400: #628cb1; --b-500: #356a9a; --b-600: #1f5a8f; --b-700: #194872; --b-800: #143a5d; --b-900: #102d48;
+  --x-50: #f2f2f9; --x-100: #e1e2f1; --x-500: #5a5fb0; --x-800: #3a3e72;
+  --p-50: #f9f2f4; --p-100: #f1e1e7; --p-700: #b0587a; --p-800: #7b3e55;
+}
+
+/* The app's markup uses font-500 … font-800, which Tailwind does not generate: without these every heading
+   and label rendered at weight 400. */
+@utility font-300 { font-weight: 300; }
+@utility font-400 { font-weight: 400; }
+@utility font-500 { font-weight: 430; }
+@utility font-600 { font-weight: 450; }
+@utility font-700 { font-weight: 520; }
+@utility font-800 { font-weight: 560; }
+@utility font-900 { font-weight: 600; }
+
+/* Denser base: all rem-based sizes and spacing scale down ~12%. */
+html { font-size: 14px; }
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  line-height: 1.45;
+  color: #2c342f;
+  background: var(--ink-950);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, .font-display { letter-spacing: -0.012em; }
+button { cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--c-500); outline-offset: 1px; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(var(--ink-rgb),0.35); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--ink-rgb),0.55); }
+
+/* ---------------------------------------------------------------------
+   Liquid Glass design system -- Panimalar Engineering College colours
+   (deep pine green + warm brass on warm paper), tuned for clarity: crisper
+   edges and less blur than a purely decorative glass UI, so tabs, type
+   and data stay sharp and professional while keeping the translucent
+   iOS-26 "Liquid Glass" material language. Chrome (sidebar, top bar,
+   buttons, pills) carries the most colour; data-dense surfaces (tables,
+   forms) stay closer to opaque white so they read cleanly.
+--------------------------------------------------------------------- */
+
+.app-wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: var(--ink-950);
+}
+.app-wallpaper::before,
+.app-wallpaper::after,
+.app-wallpaper .blob {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(110px);
+  opacity: 0.42;
+  will-change: transform;
+}
+.app-wallpaper::before {
+  width: 60vw;
+  height: 60vw;
+  left: -10vw;
+  top: -15vw;
+  background: radial-gradient(circle at 30% 30%, var(--wall-1), transparent 70%);
+  animation: drift-a 26s ease-in-out infinite alternate;
+}
+.app-wallpaper::after {
+  width: 55vw;
+  height: 55vw;
+  right: -15vw;
+  bottom: -10vw;
+  background: radial-gradient(circle at 60% 60%, var(--wall-2), transparent 72%);
+  opacity: 0.30;
+  animation: drift-b 32s ease-in-out infinite alternate;
+}
+.app-wallpaper .blob {
+  width: 45vw;
+  height: 45vw;
+  left: 30vw;
+  top: 20vh;
+  background: radial-gradient(circle at 50% 50%, var(--wall-3), transparent 70%);
+  opacity: 0.22;
+  animation: drift-c 22s ease-in-out infinite alternate;
+}
+@keyframes drift-a {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(8vw, 6vh) scale(1.15); }
+}
+@keyframes drift-b {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(-6vw, -8vh) scale(1.1); }
+}
+@keyframes drift-c {
+  from { transform: translate(-4vw, 0) scale(0.9); }
+  to   { transform: translate(6vw, 5vh) scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-wallpaper::before, .app-wallpaper::after, .app-wallpaper .blob { animation: none; }
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.93);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
+  box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.06), 0 4px 14px rgba(var(--shadow-rgb), 0.08);
+}
+
+.glass-main {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(var(--paper-rgb), 0.74));
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 8px 28px rgba(var(--shadow-dark-rgb), 0.28);
+}
+
+/* Liquid tile: translucent, softly lit from above, floats over the page. */
+.liquid {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.66));
+  backdrop-filter: blur(16px) saturate(165%);
+  -webkit-backdrop-filter: blur(16px) saturate(165%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 1) inset, 0 0 0 1px rgba(var(--ink-rgb), 0.035), 0 4px 14px rgba(var(--ink-rgb), 0.08);
+}
+.liquid-hover { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.liquid-hover:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255, 255, 255, 1) inset, 0 0 0 1px rgba(var(--ink-rgb), 0.10), 0 12px 28px rgba(var(--ink-rgb), 0.16); }
+
+/* Segmented "liquid" tabs. */
+.tabs-liquid {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9999px;
+  background: rgba(var(--ink-rgb), 0.06);
+  border: 1px solid rgba(var(--ink-rgb), 0.05);
+  box-shadow: inset 0 1px 2px rgba(var(--ink-rgb), 0.10);
+}
+.tabs-liquid > button {
+  padding: 0.38rem 0.95rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 430;
+  color: var(--muted);
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+.tabs-liquid > button:hover { color: var(--ink-800); }
+.tabs-liquid > button { position: relative; z-index: 1; }
+.tabs-liquid > button[data-active='true'] { color: var(--ink-800); font-weight: 520; }
+.tabs-indicator {
+  position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 9999px; z-index: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(var(--surface-2-rgb), 0.85));
+  box-shadow: 0 1px 3px rgba(var(--ink-rgb), 0.22), 0 0 0 1px rgba(var(--ink-rgb), 0.06);
+  transition: transform .32s cubic-bezier(.3, .8, .25, 1), width .32s cubic-bezier(.3, .8, .25, 1);
+}
+
+.glass-chrome {
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.92), rgba(var(--chrome-b-rgb), 0.92));
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 4px 16px rgba(var(--shadow-dark-rgb), 0.40);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.06), 0 4px 14px rgba(var(--shadow-rgb), 0.08);
+}
+
+.login-panel {
+  background: #ffffff;
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(var(--ink-rgb), 0.22);
+}
+.glass-input:focus {
+  outline: none;
+  border-color: rgba(var(--ink-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--ink-rgb), 0.14);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(var(--ink-rgb), 0.22);
+}
+
+/* The "sharp tab" state: solid institutional gold, dark navy text --
+   no blur on the active state itself, so the current tab reads
+   instantly rather than blending into the glass behind it. */
+.glass-pill-active {
+  background: var(--accent);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 6px rgba(var(--accent-rgb), 0.35);
+}
+
+.glass-scrollarea {
+  scrollbar-gutter: stable;
+}
+
+/* Data tables: real grid lines on every row and column, not just a
+   bottom rule, so dense tabular data (rosters, workload, rejections)
+   reads like a real spreadsheet. */
+.tbl {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+.tbl th:first-child, .tbl td:first-child { border-left-width: 0; }
+.tbl th:last-child, .tbl td:last-child { border-right-width: 0; }
+.tbl tr:first-child th { border-top-width: 0; }
+.tbl th, .tbl td {
+  border: 1px solid rgba(35, 42, 38, 0.07);
+  padding: 0.35rem 0.55rem;
+}
+.tbl th { background: rgba(var(--ink-rgb), 0.05); font-weight: 600; font-size: 0.78rem; text-align: left; }
+
+/* About page hero: a slow-drifting conic glow behind the SCEDULAR
+   wordmark, purely decorative so it's guarded by reduced-motion. */
+.about-hero-glow {
+  position: absolute;
+  inset: -40%;
+  z-index: 0;
+  background: conic-gradient(from 0deg, rgba(var(--ink-rgb), 0.16), rgba(var(--accent-rgb), 0.16), rgba(var(--ink-rgb), 0.16));
+  filter: blur(40px);
+  animation: about-glow-spin 18s linear infinite;
+  pointer-events: none;
+}
+@keyframes about-glow-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .about-hero-glow { animation: none; }
+}
+
+/* ---------------------------------------------------------------------
+   General-purpose entrance/transition motion, used sparingly across the
+   app (dashboard cards, page switches) -- subtle and professional, not
+   decorative. Respects prefers-reduced-motion throughout.
+--------------------------------------------------------------------- */
+@keyframes fade-slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in {
+  animation: fade-slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--stagger, 0) * 45ms);
+}
+
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-transition {
+  animation: page-fade-in 0.3s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in, .page-transition { animation: none; }
+}
+
+/* Recipient rail + composer on the mail page: one column on narrow screens, two from 900px. */
+.mail-split { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 900px) { .mail-split { grid-template-columns: 300px minmax(0, 1fr); } }
+
+/* Serif display face for editorial headings (system fonts, no download) */
+.font-editorial { font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif; }
+
+/* =====================================================================
+   Colour tones for report cards (one hue per card) + calmer glass
+   ===================================================================== */
+.tone-teal  { --t: var(--t1-rgb); --tc: var(--t1); --td: var(--t1d); }
+.tone-brass { --t: var(--t2-rgb); --tc: var(--t2); --td: var(--t2d); }
+.tone-terra { --t: var(--t3-rgb); --tc: var(--t3); --td: var(--t3d); }
+.tone-sage  { --t: var(--t4-rgb); --tc: var(--t4); --td: var(--t4d); }
+.tone-slate { --t: var(--t5-rgb); --tc: var(--t5); --td: var(--t5d); }
+.tone-plum  { --t: var(--t6-rgb); --tc: var(--t6); --td: var(--t6d); }
+
+/* A tinted, translucent tile: lit from the top-left in its own hue, almost no white. */
+.liquid-tint {
+  background:
+    radial-gradient(120% 95% at 0% 0%, rgba(var(--t), 0.26), transparent 62%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.52));
+  backdrop-filter: blur(18px) saturate(165%);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  border: 1px solid rgba(var(--t), 0.30);
+  border-radius: 1.25rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(var(--t), 0.10), 0 8px 24px rgba(var(--t), 0.14);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-tint::after {      /* a soft sheen that glides across on hover */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%);
+  transform: translateX(-120%);
+  transition: transform 0.9s cubic-bezier(.2, .7, .2, 1);
+  pointer-events: none;
+}
+.liquid-tint:hover::after { transform: translateX(120%); }
+.liquid-tint { transition: transform .25s ease, box-shadow .25s ease; }
+.liquid-tint:hover { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 14px 32px rgba(var(--t), 0.22); }
+
+/* The page surface lets the green wallpaper show through; cards inside it turn into glass instead of flat white. */
+.glass-main {
+  background: linear-gradient(160deg, rgba(var(--glass-a-rgb), 0.80), rgba(var(--glass-b-rgb), 0.68));
+}
+.glass-main .bg-white:not(input):not(select):not(textarea):not(button):not(img) {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.58));
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 6px 20px rgba(var(--ink-rgb), 0.08);
+}
+.glass-main input.bg-white, .glass-main select.bg-white, .glass-main textarea.bg-white { background: rgba(255, 255, 255, 0.86); }
+.glass-main .bg-slate-50 { background-color: rgba(255, 255, 255, 0.5); }
+
+/* =====================================================================
+   Motion: small, smooth, purposeful. Everything respects reduced motion.
+   ===================================================================== */
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes ring-in { from { opacity: 0; transform: rotate(-120deg) scale(.92); } to { opacity: 1; transform: rotate(0) scale(1); } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+@keyframes slide-down { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+.bar-grow   { transform-origin: left center;  animation: grow-x .9s cubic-bezier(.2, .7, .2, 1) both; animation-delay: var(--d, 0ms); }
+.col-grow   { transform-origin: center bottom; animation: grow-y .9s cubic-bezier(.2, .7, .2, 1) both; animation-delay: var(--d, 0ms); }
+.ring-in    { animation: ring-in 1s cubic-bezier(.2, .7, .2, 1) both; }
+.rise-in    { animation: rise-in .6s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.pop-in     { animation: pop-in .28s cubic-bezier(.2, .7, .2, 1) both; }
+.slide-down { animation: slide-down .3s ease-out both; }
+.skeleton {
+  border-radius: .75rem;
+  background: linear-gradient(90deg, rgba(var(--ink-rgb), .06) 25%, rgba(255, 255, 255, .55) 50%, rgba(var(--ink-rgb), .06) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* micro-interactions */
+button:not(:disabled):active { transform: scale(.985); }
+button, a, input, select, textarea { transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, color .18s ease, transform .12s ease, opacity .18s ease; }
+.tbl tbody tr { transition: background-color .15s ease; }
+.tbl tbody tr:hover { background: rgba(var(--t, 47, 127, 116), 0.07); }
+aside nav button { transition: transform .18s ease, background-color .18s ease, color .18s ease; }
+aside nav button:hover { transform: translateX(3px); }
+
+/* the active sidebar item breathes very slightly */
+@keyframes soft-glow { 0%, 100% { box-shadow: 0 2px 6px rgba(var(--accent-rgb), .30); } 50% { box-shadow: 0 4px 14px rgba(var(--accent-rgb), .50); } }
+.glass-pill-active { animation: soft-glow 3.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-grow, .col-grow, .ring-in, .rise-in, .pop-in, .slide-down, .skeleton, .glass-pill-active { animation: none; }
+  .liquid-tint::after { display: none; }
+  aside nav button:hover, .liquid-tint:hover { transform: none; }
+}
