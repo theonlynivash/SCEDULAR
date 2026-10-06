@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Page } from '../types'
 import { api, type ReminderItem, type LeaveCalendar, type LeaveListItem, type LeaveSummary, type MasterDatasetStatus, type StaffingReport } from '../api'
 import type { SemesterReadiness } from '../types'
-import { fetchSessionQuote, getCachedQuote, type ScedularQuote } from '../quotes'
+import { fetchFreshQuote, fetchSessionQuote, getCachedQuote, type ScedularQuote } from '../quotes'
 import type { AcademicCycle } from '../academicCycle'
 import { Btn } from './ui'
 import { getSession } from '../session'
@@ -20,6 +20,7 @@ import {
   ClipboardList,
   Bot,
   CalendarOff,
+  RefreshCw,
 } from 'lucide-react'
 
 /* ---------- Count-up Animation Component ---------- */
@@ -65,6 +66,7 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
   const [reminders, setReminders] = useState<ReminderItem[]>([])
   const [addOn, setAddOn] = useState<{ date: string; n: number } | null>(null)
   const [quote, setQuote] = useState<ScedularQuote | null>(null)
+  const [quoteBusy, setQuoteBusy] = useState(false)
 
   const reloadData = () => {
     setLoading(true)
@@ -239,7 +241,6 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
         <div className="min-w-0">
           <h1 className="font-display font-700 text-xl md:text-2xl text-slate-900 tracking-tight">{getTimeGreeting()}{userName ? `, ${userName}` : ''}</h1>
           <p className="text-[12px] text-slate-600 mt-0.5">{isHod ? 'Panimalar AI & DS' : 'Faculty portal'} · {cycleLine}</p>
-          {quoteData && <p className="text-[12px] text-slate-500 italic mt-1 truncate" title={`${quoteData.text} — ${quoteData.author}`}>"{quoteData.text}" <span className="not-italic">— {quoteData.author}</span></p>}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {isHod ? (
@@ -256,6 +257,21 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
           )}
         </div>
       </div>
+
+      {/* the quote of the day, given a place of its own */}
+      {quoteData && (
+        <figure className="glass-white pop-in overflow-hidden px-5 py-4 md:px-7 flex items-center gap-4 relative" style={{ ['--tc' as any]: 'rgba(255,255,255,0.95)' }}>
+          <span aria-hidden className="relative font-display text-[64px] md:text-[78px] leading-[0.8] text-slate-400/70 select-none self-start -mb-4">“</span>
+          <div className="relative min-w-0 flex-1">
+            <blockquote className="font-display italic font-600 text-[17px] md:text-[21px] leading-snug text-slate-800">{quoteData.text}</blockquote>
+            <figcaption className="mt-1.5 flex items-center gap-2 text-[11.5px] font-700 uppercase tracking-[0.14em] text-slate-500"><span className="w-6 h-px bg-slate-400/70" />{quoteData.author}</figcaption>
+          </div>
+          <button onClick={() => { setQuoteBusy(true); fetchFreshQuote(quoteData.text).then(setQuote).finally(() => setQuoteBusy(false)) }} disabled={quoteBusy} title="Show another quote" aria-label="Show another quote"
+            className="relative flex-shrink-0 w-9 h-9 grid place-items-center rounded-full bg-white/70 ring-1 ring-white text-slate-500 hover:bg-white transition disabled:opacity-60">
+            <RefreshCw size={15} className={quoteBusy ? 'animate-spin' : ''} />
+          </button>
+        </figure>
+      )}
 
       {/* one strip of numbers */}
       <div className="glass-white tone-slate !py-2.5 grid grid-cols-2 md:grid-cols-4 md:divide-x divide-slate-300/60">

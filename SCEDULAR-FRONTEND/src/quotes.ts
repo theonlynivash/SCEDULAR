@@ -87,3 +87,21 @@ export function getCachedQuote(): ScedularQuote | null {
   } catch { /* ignore */ }
   return null
 }
+
+/** Another quote on request (the "new quote" button): never the same one again, and it replaces the session's quote. */
+export async function fetchFreshQuote(previous?: string): Promise<ScedularQuote> {
+  let next: ScedularQuote | null = null
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 4000)
+    const res = await fetch('https://dummyjson.com/quotes/random', { signal: controller.signal })
+    clearTimeout(timeout)
+    if (res.ok) { const d = await res.json(); if (d.quote && d.author) next = { text: d.quote, author: d.author } }
+  } catch { /* offline: use the local list */ }
+  if (!next || next.text === previous) {
+    const others = FALLBACK_QUOTES.filter(q => q.text !== previous)
+    next = others[Math.floor(Math.random() * others.length)]
+  }
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+  return next
+}

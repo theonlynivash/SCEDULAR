@@ -70,8 +70,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         name: user.name,
         designation: user.designation || 'Faculty',
       })
-    } catch {
-      setError('Invalid Faculty ID or password.')
+    } catch (err) {
+      // say what really went wrong: a wrong password is only one of the possible reasons
+      const e = err as { status?: number; code?: string; message?: string }
+      if (e.code === 'NETWORK' || e.code === 'WRONG_API' || e.status === 503 || (e.status ?? 0) >= 500) setError(e.message || 'The SCEDULAR server is not responding. Please try again in a moment.')
+      else if (e.status === 429) setError(e.message || 'Too many wrong attempts. Please wait a few minutes and try again.')
+      else setError('Invalid Faculty ID or password.')
     } finally {
       setSubmitting(false)
     }
