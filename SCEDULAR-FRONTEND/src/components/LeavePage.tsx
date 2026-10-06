@@ -20,7 +20,7 @@ const STATUS: Record<LeaveStatus, { label: string; cls: string }> = {
 }
 const Badge = ({ s }: { s: LeaveStatus }) => <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-700 ${STATUS[s].cls}`}>{STATUS[s].label}</span>
 
-const card = 'glass-main rounded-2xl p-4'
+const card = 'glass-white p-4'
 const input = 'rounded-xl bg-white/70 ring-1 ring-slate-300 px-3 py-2 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-[color:var(--c-500)]'
 
 /** classes of one day, grouped by section, so each section's classes sit together */
@@ -286,7 +286,7 @@ function Score({ tick }: { tick: number }) {
 }
 
 /* ───────────────────────── HOD: inbox with the assignment board ───────────────────────── */
-function Inbox({ tick, bump }: { tick: number; bump: () => void }) {
+function Inbox({ tick, bump, focusId }: { tick: number; bump: () => void; focusId?: number | null }) {
   const [rows, setRows] = useState<LeaveListItem[] | null>(null)
   const [sel, setSel] = useState<number | null>(null)
   const [d, setD] = useState<LeaveDetail | null>(null)
@@ -298,6 +298,7 @@ function Inbox({ tick, bump }: { tick: number; bump: () => void }) {
 
   const loadList = useCallback(() => api.leave.list().then(r => { setRows(r); setSel(cur => cur ?? r[0]?.id ?? null) }).catch(e => setErr(e.message)), [])
   useEffect(() => { loadList() }, [loadList, tick])
+  useEffect(() => { if (focusId) setSel(focusId) }, [focusId])
   useEffect(() => { setD(null); setNote(''); if (sel != null) api.leave.get(sel).then(setD).catch(e => setErr(e.message)) }, [sel, tick])
 
   const act = async (fn: () => Promise<LeaveDetail>) => {
@@ -424,15 +425,46 @@ function Board({ tick }: { tick: number }) {
   )
 }
 
+/* ───────────────────────── HOD: take her own leave and assign the substitutes herself ───────────────────────── */
+function TakeLeave({ onCreated }: { onCreated: (id: number) => void }) {
+  const [from, setFrom] = useState(today())
+  const [to, setTo] = useState(today())
+  const [reason, setReason] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { if (to < from) setTo(from) }, [from, to])
+  const go = async () => {
+    setErr('')
+    if (reason.trim().length < 3) { setErr('Write a short reason.'); return }
+    setBusy(true)
+    try { const r = await api.leave.create({ fromDate: from, toDate: to, reason: reason.trim() }); onCreated(r.id) }
+    catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
+  }
+  return (
+    <div className={`${card} space-y-3 max-w-3xl`}>
+      <h2 className="font-display font-700 text-[15px] text-[color:var(--c-600)] flex items-center gap-2"><CalendarOff size={16} /> Take leave</h2>
+      <p className="text-[12.5px] text-slate-600">Pick the dates. Your classes on those days are listed by section, and under each class you choose one of the teachers who are free in that exact period. No letter or approval is needed.</p>
+      <div className="flex flex-wrap gap-3 items-end">
+        <label className="text-[11px] font-700 text-slate-500 uppercase tracking-wide">From<input type="date" min={today()} value={from} onChange={e => setFrom(e.target.value)} className={`${input} block mt-1`} /></label>
+        <label className="text-[11px] font-700 text-slate-500 uppercase tracking-wide">To<input type="date" min={from} value={to} onChange={e => setTo(e.target.value)} className={`${input} block mt-1`} /></label>
+        <label className="text-[11px] font-700 text-slate-500 uppercase tracking-wide flex-1 min-w-[14rem]">Reason<input value={reason} onChange={e => setReason(e.target.value)} maxLength={300} placeholder="e.g. a conference, a family function" className={`${input} block mt-1 w-full`} /></label>
+        <Btn onClick={go} disabled={busy}>Take leave and assign substitutes</Btn>
+      </div>
+      {err && <p className="text-[12.5px] font-600 text-rose-700 bg-rose-50 ring-1 ring-rose-200 rounded-lg px-3 py-2">{err}</p>}
+    </div>
+  )
+}
+
 /* ───────────────────────── the page ───────────────────────── */
 export default function LeavePage({ role }: { role: 'FACULTY' | 'HOD'; navigate?: (p: Page) => void }) {
   const hod = role === 'HOD'
-  type Tab = 'inbox' | 'record' | 'board' | 'request' | 'mine' | 'score'
+  type Tab = 'inbox' | 'take' | 'record' | 'board' | 'request' | 'mine' | 'score'
   const [tab, setTab] = useState<Tab>(hod ? 'inbox' : 'request')
   const [tick, setTick] = useState(0)
+  const [focus, setFocus] = useState<number | null>(null)
   const bump = () => setTick(t => t + 1)
   const tabs: { id: Tab; label: string }[] = hod
-    ? [{ id: 'inbox', label: 'Leave requests' }, { id: 'record', label: 'Record a leave' }, { id: 'board', label: 'Leave & cover record' }, { id: 'mine', label: 'My leaves' }, { id: 'request', label: 'Request my leave' }, { id: 'score', label: 'My score' }]
+    ? [{ id: 'inbox', label: 'Leave requests' }, { id: 'take', label: 'Take leave' }, { id: 'record', label: 'Record a leave for a teacher' }, { id: 'board', label: 'Leave & cover record' }]
     : [{ id: 'request', label: 'Request leave' }, { id: 'mine', label: 'My leaves' }, { id: 'score', label: 'Score & duties' }]
   return (
     <div className="space-y-4">
@@ -440,7 +472,8 @@ export default function LeavePage({ role }: { role: 'FACULTY' | 'HOD'; navigate?
         <h1 className="font-display font-700 text-lg text-[color:var(--c-600)] flex items-center gap-2"><CalendarOff className="w-5 h-5" /> Leave &amp; substitution</h1>
         <PillTabs value={tab} onChange={setTab} tabs={tabs} />
       </div>
-      {tab === 'inbox' && <Inbox tick={tick} bump={bump} />}
+      {tab === 'inbox' && <Inbox tick={tick} bump={bump} focusId={focus} />}
+      {tab === 'take' && <TakeLeave onCreated={id => { setFocus(id); bump(); setTab('inbox') }} />}
       {tab === 'record' && <RequestForm asHod onSent={() => { bump(); setTab('inbox') }} />}
       {tab === 'board' && <Board tick={tick} />}
       {tab === 'request' && <RequestForm asHod={false} onSent={bump} />}

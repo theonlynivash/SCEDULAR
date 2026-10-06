@@ -28,7 +28,7 @@ export default function Sidebar({
       <div className="px-4 py-4 border-b border-white/10">
         <div className="flex items-center gap-3">
           <img
-            src="/PEC_ICON.jpeg"
+            src={`${import.meta.env.BASE_URL}PEC_ICON.jpeg`}
             alt="Panimalar Engineering College"
             className="w-9 h-9 flex-shrink-0 object-contain"
           />

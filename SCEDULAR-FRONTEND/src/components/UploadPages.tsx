@@ -103,7 +103,7 @@ export function UploadCurriculum({ navigate }: { navigate: (p: Page) => void }) 
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">Required: SECTIONS, SUBJECTS, SECTION_SUBJECTS, FACULTY, TEACHING_ASSIGNMENTS, LABS and LAB_MAPPING. Optional: FACULTY_UNAVAILABILITY and SETTINGS.</p>
             </div>
             <div className="flex items-center gap-2">
-              <a href="/scedular_master_template.xlsx" download className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-700 text-[color:var(--ink-800)] bg-white/70 border border-white/80 hover:bg-white transition">
+              <a href={`${import.meta.env.BASE_URL}scedular_master_template.xlsx`} download className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-700 text-[color:var(--ink-800)] bg-white/70 border border-white/80 hover:bg-white transition">
                 Download Master Template
               </a>
             </div>

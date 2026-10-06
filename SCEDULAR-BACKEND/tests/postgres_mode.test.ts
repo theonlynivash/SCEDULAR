@@ -9,6 +9,7 @@ import type { Server } from 'node:http'
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/scedular'
 delete process.env.USE_LOCAL_DB
+process.env.STORAGE = 'postgres'
 
 const store = vi.hoisted(() => ({ db: null as any }))
 vi.mock('pg', async () => {

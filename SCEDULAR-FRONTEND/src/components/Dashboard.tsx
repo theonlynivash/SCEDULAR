@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Page } from '../types'
-import { api, type LeaveCalendar, type LeaveListItem, type LeaveSummary, type MasterDatasetStatus, type StaffingReport } from '../api'
+import { api, type ReminderItem, type LeaveCalendar, type LeaveListItem, type LeaveSummary, type MasterDatasetStatus, type StaffingReport } from '../api'
 import type { SemesterReadiness } from '../types'
 import { fetchSessionQuote, getCachedQuote, type ScedularQuote } from '../quotes'
 import type { AcademicCycle } from '../academicCycle'
 import { Btn } from './ui'
 import { getSession } from '../session'
 import LeaveCalendarView, { SubLine, bareName } from './LeaveCalendar'
+import RemindersPanel from './RemindersPanel'
 import {
   BookOpen,
   Building2,
@@ -61,6 +62,8 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
   const [cal, setCal] = useState<LeaveCalendar | null>(null)
   const [selDay, setSelDay] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()))
   const me = getSession()?.user.facultyId
+  const [reminders, setReminders] = useState<ReminderItem[]>([])
+  const [addOn, setAddOn] = useState<{ date: string; n: number } | null>(null)
   const [quote, setQuote] = useState<ScedularQuote | null>(null)
 
   const reloadData = () => {
@@ -98,6 +101,14 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
   // substitution classes and leave letters (everyone: a teacher's own duties; the HOD also the number of letters waiting)
   useEffect(() => { api.leave.summary().then(setLeave).catch(() => setLeave(null)); api.leave.list().then(setLeaveList).catch(() => setLeaveList([])) }, [])
   useEffect(() => { api.leave.calendar(calMonth).then(setCal).catch(() => setCal(null)) }, [calMonth])
+  // reminders from the first day of the month on screen (or today's month) to well ahead
+  const loadReminders = useCallback(() => {
+    const t = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
+    const from = (calMonth < t.slice(0, 7) ? calMonth : t.slice(0, 7)) + '-01'
+    const to = new Date(Date.parse(t + 'T00:00:00Z') + 400 * 86_400_000).toISOString().slice(0, 10)
+    api.reminders.list(from, to).then(setReminders).catch(() => setReminders([]))
+  }, [calMonth])
+  useEffect(() => { loadReminders() }, [loadReminders])
 
   // Briefing data (HOD only): live staffing and readiness, read straight from the department's records.
   useEffect(() => {
@@ -206,26 +217,36 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
   const waiting = leaveList.filter(l => l.status === 'PENDING')
   const myRecent = leaveList.slice(0, 3)
   const isHod = role === 'HOD'
-  const panel = 'liquid-tint rounded-2xl p-4'
-  const head3 = 'text-[11px] font-700 tracking-[0.12em] text-[color:var(--c-600)] uppercase'
+  const marks: Record<string, number> = {}
+  for (const r of reminders) marks[r.date] = (marks[r.date] ?? 0) + 1
+  const dayReminders = reminders.filter(r => r.date === selDay)
+  // the timetable is generated once a cycle: the button only appears while there is none
+  const needsTimetable = isHod && !loading && !latestRun
+  const panel = 'glass-white p-4'
   const stats = isHod
     ? statCards.map(s => ({ label: s.label, value: s.value, page: s.page }))
     : [{ label: 'Cycle', value: cycle ?? '—', page: 'dashboard' as Page }, { label: 'My allocation', value: allocationStatus.label, page: 'faculty-allocation' as Page }, { label: 'Preferences', value: preferences.length, page: 'faculty-allocation' as Page }]
+  const Title = ({ icon: I, children, right }: { icon: typeof Bot; children: React.ReactNode; right?: React.ReactNode }) => (
+    <div className="flex items-center gap-2">
+      <span className="gw-icon"><I size={14} /></span><p className="gw-title">{children}</p>{right}
+    </div>
+  )
 
   return (
     <div className="space-y-4 pb-4">
-      {/* header: greeting, cycle and the two main actions */}
+      {/* header: greeting and the main actions */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 px-1">
         <div className="min-w-0">
           <h1 className="font-display font-700 text-xl md:text-2xl text-slate-900 tracking-tight">{getTimeGreeting()}{userName ? `, ${userName}` : ''}</h1>
-          <p className="text-[12px] text-slate-500 mt-0.5">{isHod ? 'Panimalar AI & DS' : 'Faculty portal'} · {cycleLine}</p>
+          <p className="text-[12px] text-slate-600 mt-0.5">{isHod ? 'Panimalar AI & DS' : 'Faculty portal'} · {cycleLine}</p>
           {quoteData && <p className="text-[12px] text-slate-500 italic mt-1 truncate" title={`${quoteData.text} — ${quoteData.author}`}>"{quoteData.text}" <span className="not-italic">— {quoteData.author}</span></p>}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {isHod ? (
             <>
-              <Btn onClick={() => navigate('generate')}><Cpu size={15} /> Generate timetable</Btn>
-              <Btn variant="secondary" onClick={() => navigate('view-timetable')}><Calendar size={15} /> View</Btn>
+              {needsTimetable && <Btn onClick={() => navigate('generate')}><Cpu size={15} /> Generate timetable</Btn>}
+              <Btn variant={needsTimetable ? 'secondary' : 'primary'} onClick={() => navigate('view-timetable')}><Calendar size={15} /> View timetable</Btn>
+              <Btn variant="secondary" onClick={() => navigate('leave')}><CalendarOff size={15} /> Take leave</Btn>
             </>
           ) : (
             <>
@@ -236,11 +257,11 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
         </div>
       </div>
 
-      {/* one slim strip of numbers instead of four big cards */}
-      <div className={`${panel} !py-2.5 grid grid-cols-2 ${isHod ? 'md:grid-cols-4' : 'md:grid-cols-3'} divide-x divide-white/40`}>
+      {/* one strip of numbers */}
+      <div className="glass-white tone-slate !py-2.5 grid grid-cols-2 md:grid-cols-4 md:divide-x divide-slate-300/60">
         {stats.map(x => (
-          <button key={x.label} onClick={() => navigate(x.page)} className="text-left px-4 py-1 hover:bg-white/30 rounded-lg transition">
-            <p className="text-[10.5px] font-600 uppercase tracking-[0.12em] text-slate-500">{x.label}</p>
+          <button key={x.label} onClick={() => navigate(x.page)} className="text-left px-4 py-1 hover:bg-white/50 rounded-lg transition">
+            <p className="text-[10.5px] font-700 uppercase tracking-[0.12em] text-slate-500">{x.label}</p>
             <p className="font-display font-800 text-[20px] leading-tight text-[color:var(--c-700)]">{loading ? '—' : typeof x.value === 'number' ? <CountUp to={x.value} /> : x.value}</p>
           </button>
         ))}
@@ -249,12 +270,8 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] items-start">
         {/* left: what needs attention */}
         <div className="space-y-4 min-w-0">
-          <div className={panel}>
-            <div className="flex items-center gap-2">
-              <p className={head3}>{isHod ? 'Substitutions · today' : 'Your substitutions · today'}</p>
-              <span className="text-[11px] text-slate-500">{fmtDay(todayStr)}</span>
-              <button onClick={() => navigate('leave')} className="ml-auto text-[11.5px] font-600 text-[color:var(--c-600)] hover:underline">Leave →</button>
-            </div>
+          <div className={`${panel} tone-terra`}>
+            <Title icon={Users} right={<><span className="text-[11px] text-slate-500">{fmtDay(todayStr)}</span><button onClick={() => navigate('leave')} className="ml-auto text-[11.5px] font-600 text-[color:var(--c-600)] hover:underline">Leave →</button></>}>{isHod ? 'Substitutions · today' : 'Your substitutions · today'}</Title>
             {(() => {
               const subs = cal?.days[todayStr]?.substitutions ?? []
               const leaves = cal?.days[todayStr]?.leaves ?? []
@@ -262,12 +279,12 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
               return (
                 <div className="mt-2 space-y-1.5">
                   {isHod && leaves.length > 0 && <p className="text-[12.5px] text-slate-600">On leave: {leaves.map(l => bareName(l.facultyName)).join(', ')}</p>}
-                  {subs.map(s => <p key={s.id} className="text-[12.5px] text-slate-700 rounded-lg bg-white/60 px-3 py-1.5"><SubLine s={s} me={me} role={role} /></p>)}
+                  {subs.map(s => <p key={s.id} className="text-[12.5px] text-slate-700 rounded-lg bg-white/70 ring-1 ring-white px-3 py-1.5"><SubLine s={s} me={me} role={role} /></p>)}
                 </div>
               )
             })()}
             {!isHod && leave && leave.upcomingDuties.filter(d => d.date > todayStr).length > 0 && (
-              <div className="mt-3 pt-2.5 border-t border-white/50">
+              <div className="mt-3 pt-2.5 border-t border-slate-200/70">
                 <p className="text-[11px] font-700 text-slate-500 uppercase tracking-wide mb-1">Coming up</p>
                 {leave.upcomingDuties.filter(d => d.date > todayStr).slice(0, 3).map(d => (
                   <p key={d.id} className="text-[12.5px] text-slate-700 py-0.5">You have a substitution class in place of <b>{bareName(d.inPlaceOfName)}</b>: {new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-IN', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' })}, {d.startPeriod === d.endPeriod ? `P${d.startPeriod}` : `P${d.startPeriod}–${d.endPeriod}`}, <b>{d.sectionId}</b></p>
@@ -276,18 +293,14 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
             )}
           </div>
 
-          <div className={panel}>
-            <div className="flex items-center gap-2">
-              <p className={head3}>{isHod ? 'Leave requests' : 'My leave requests'}</p>
-              {isHod && waiting.length > 0 && <span className="px-2 rounded-full bg-amber-100 text-amber-800 text-[11px] font-700">{waiting.length} waiting</span>}
-              <button onClick={() => navigate('leave')} className="ml-auto text-[11.5px] font-600 text-[color:var(--c-600)] hover:underline">{isHod ? 'Open all →' : 'Open →'}</button>
-            </div>
+          <div className={`${panel} tone-brass`}>
+            <Title icon={CalendarOff} right={<>{isHod && waiting.length > 0 && <span className="px-2 rounded-full bg-amber-100 text-amber-800 text-[11px] font-700">{waiting.length} waiting</span>}<button onClick={() => navigate('leave')} className="ml-auto text-[11.5px] font-600 text-[color:var(--c-600)] hover:underline">{isHod ? 'Open all →' : 'Open →'}</button></>}>{isHod ? 'Leave requests' : 'My leave requests'}</Title>
             {(isHod ? waiting : myRecent).length === 0 ? (
               <p className="text-[12.5px] text-slate-500 mt-2">{isHod ? 'No leave letter is waiting for you.' : 'You have not sent a leave letter.'}</p>
             ) : (
               <ul className="mt-2 space-y-1.5">
                 {(isHod ? waiting.slice(0, 4) : myRecent).map(l => (
-                  <li key={l.id} className="flex items-center gap-2 text-[12.5px] rounded-lg bg-white/60 px-3 py-1.5">
+                  <li key={l.id} className="flex items-center gap-2 text-[12.5px] rounded-lg bg-white/70 ring-1 ring-white px-3 py-1.5">
                     {isHod && <span className="font-700 text-slate-800">{bareName(l.facultyName)}</span>}
                     <span className="text-slate-600">{l.fromDate === l.toDate ? l.fromDate : `${l.fromDate} → ${l.toDate}`}</span>
                     <span className="text-slate-500">{l.coverage.covered}/{l.coverage.total} covered</span>
@@ -298,11 +311,8 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
             )}
           </div>
 
-          <div className={panel}>
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg flex items-center justify-center bg-[color:var(--c-600)] text-white flex-shrink-0"><Bot size={14} /></span>
-              <p className={head3}>{isHod ? 'Department briefing' : 'Your status'}</p>
-            </div>
+          <div className={`${panel} tone-teal`}>
+            <Title icon={Bot}>{isHod ? 'Department briefing' : 'Your status'}</Title>
             {briefLoading ? (
               <div className="mt-3 space-y-2 animate-pulse">{[0, 1, 2].map(i => <div key={i} className="h-4 bg-[color:var(--c-600)]/10 rounded w-11/12" />)}</div>
             ) : (
@@ -321,29 +331,35 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
 
         {/* right: the calendar and the chosen day */}
         <div className="space-y-4">
-          <div className={panel}>
-            <LeaveCalendarView data={cal} month={calMonth} onMonth={m => { setCalMonth(m); setSelDay(m === todayStr.slice(0, 7) ? todayStr : `${m}-01`) }} selected={selDay} onSelect={setSelDay} />
+          <div className={`${panel} tone-slate`}>
+            <LeaveCalendarView data={cal} marks={marks} month={calMonth} onMonth={m => { setCalMonth(m); setSelDay(m === todayStr.slice(0, 7) ? todayStr : `${m}-01`) }} selected={selDay} onSelect={setSelDay} />
           </div>
-          <div className={panel}>
-            <p className={head3}>{fmtDay(selDay)}</p>
-            {!dayInfo || (dayInfo.leaves.length === 0 && dayInfo.substitutions.length === 0) ? (
+          <div className={`${panel} tone-plum`}>
+            <div className="flex items-center gap-2"><p className="gw-title">{fmtDay(selDay)}</p>
+              {selDay >= todayStr && <button onClick={() => setAddOn({ date: selDay, n: Date.now() })} className="ml-auto text-[11.5px] font-700 text-[color:var(--c-600)] hover:underline">+ Reminder</button>}
+            </div>
+            {!dayInfo && dayReminders.length === 0 || (dayReminders.length === 0 && (dayInfo?.leaves.length ?? 0) === 0 && (dayInfo?.substitutions.length ?? 0) === 0) ? (
               <p className="text-[12.5px] text-slate-500 mt-1.5">Nothing on this day.</p>
             ) : (
               <div className="mt-2 space-y-1.5">
-                {dayInfo.leaves.map(l => <p key={l.id} className="text-[12.5px] text-slate-700"><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5" /><b>{bareName(l.facultyName)}</b> on leave{l.status === 'PENDING' ? ' (waiting for approval)' : ''}</p>)}
-                {dayInfo.substitutions.map(s => <p key={s.id} className="text-[12.5px] text-slate-700 rounded-lg bg-white/60 px-3 py-1.5"><SubLine s={s} me={me} role={role} /></p>)}
+                {dayInfo?.leaves.map(l => <p key={l.id} className="text-[12.5px] text-slate-700"><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5" /><b>{bareName(l.facultyName)}</b> on leave{l.status === 'PENDING' ? ' (waiting for approval)' : ''}</p>)}
+                {dayInfo?.substitutions.map(s => <p key={s.id} className="text-[12.5px] text-slate-700 rounded-lg bg-white/70 ring-1 ring-white px-3 py-1.5"><SubLine s={s} me={me} role={role} /></p>)}
+                {dayReminders.map(r => <p key={r.id} className="text-[12.5px] text-slate-700"><span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500 mr-1.5" /><b>{r.title}</b>{r.time ? ` · ${r.time}` : ''}</p>)}
               </div>
             )}
           </div>
         </div>
       </div>
 
+      {/* reminders sit below everything else, soonest first */}
+      <RemindersPanel items={reminders} today={todayStr} isHod={isHod} openFor={addOn} onChanged={loadReminders} />
+
       {/* shortcuts: one quiet row */}
       <div className="flex flex-wrap gap-2 px-1">
-        {quickActions.map(a => {
+        {quickActions.filter(a => a.title !== 'Generate Timetable').map(a => {
           const IconComp = a.icon
           return (
-            <button key={a.title} onClick={() => navigate(a.page)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12.5px] font-600 text-[color:var(--c-700)] bg-white/40 ring-1 ring-[color:var(--c-700)]/20 hover:bg-white/70 transition">
+            <button key={a.title} onClick={() => navigate(a.page)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12.5px] font-600 text-[color:var(--c-700)] bg-white/60 ring-1 ring-white hover:bg-white/90 transition shadow-sm">
               <IconComp size={14} /> {a.title}
             </button>
           )

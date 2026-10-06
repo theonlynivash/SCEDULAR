@@ -10,7 +10,10 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:solver": "tsx tests/stage6.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:check": "tsx src/scripts/dbCopy.ts check",
+    "db:push": "tsx src/scripts/dbCopy.ts push",
+    "db:pull": "tsx src/scripts/dbCopy.ts pull"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",

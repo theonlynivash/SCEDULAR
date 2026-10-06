@@ -57,6 +57,17 @@ interface SolveContext {
   // database, it only reads this in-memory map.
   labsByCourse: Map<string, string[]>,
   labsBySectionCourse: Map<string, string[]>
+  /** 0 = the plain deterministic order; any other number breaks ties differently (a restart that explores another part of the search) */
+  seed: number
+}
+
+/** a stable pseudo-random number in [0, 1) from a seed and a text key */
+function jitter(seed: number, key: string): number {
+  if (!seed) return 0
+  let h = (seed ^ 0x9e3779b9) | 0
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619)
+  h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13
+  return (h >>> 0) % 1000 / 1000
 }
 
 function slotKey(day: string, period: number) {
@@ -89,6 +100,7 @@ function buildContext(
     weeklyTheory: new Map(),
     sectionCoursePeriodCount: new Map(),
     labBusy: new Map(),
+    seed: 0,
     groups: contiguousGroups(config.periods),
     labsByCourse,
     labsBySectionCourse,
@@ -159,7 +171,7 @@ function getDomain(unit: SchedulableUnit, ctx: SolveContext, positionFloor?: Can
             startPeriod: p.index,
             endPeriod: p.index,
             facultyId,
-            score: courseDayCount * 5 + columnCount * columnCount * 6 + sectionDayCount * 2 + dailyCount,
+            score: courseDayCount * 5 + columnCount * columnCount * 6 + sectionDayCount * 2 + dailyCount + jitter(ctx.seed, `${unit.unitId}|${day}|${p.index}|${facultyId}`) * 4,
           }
           if (candidateAfter(candidate, positionFloor)) domain.push(candidate)
         }
@@ -177,14 +189,17 @@ function getDomain(unit: SchedulableUnit, ctx: SolveContext, positionFloor?: Can
             const freeLabs = labs.filter(labId => keys.every(k => getLabUsage(ctx, labId, k) < effectiveLabCapacity(ctx, labId)))
             if (freeLabs.length === 0) continue
             const sectionDayCount = ctx.sectionDailyCount.get(`${unit.sectionId}:${day}`) ?? 0
-            for (const labId of freeLabs) {
+            // Rooms in a unit's list are interchangeable choices. Branching on every free room multiplies the search for nothing, so
+            // the search normally takes the first free room only (the order the HOD gave them). Every second restart (even seeds)
+            // branches on all of them, so no arrangement is ever out of reach.
+            for (const labId of (ctx.seed > 0 && ctx.seed % 2 === 0 ? freeLabs : freeLabs.slice(0, 1))) {
               const candidate = {
                 day,
                 startPeriod: range[0],
                 endPeriod: range[range.length - 1],
                 facultyId,
                 labId,
-                score: sectionDayCount * 2 + dailyCount + gi,
+                score: sectionDayCount * 2 + dailyCount + gi + jitter(ctx.seed, `${unit.unitId}|${day}|${range[0]}|${facultyId}|${labId}`) * 4,
               }
               if (candidateAfter(candidate, positionFloor)) domain.push(candidate)
             }
@@ -640,11 +655,37 @@ export function constructiveGreedy(units: SchedulableUnit[], faculty: Faculty[],
 
   repairTheoryFacultyConflicts(scheduledRecords, ctx)
 
-  // A constructive result is only considered safe as a solver success if it
-  // has no known dynamic hard conflicts. The independent validator remains the
-  // final authority before a timetable can be published.
-  const conflictFree = unscheduled.length === 0 && facultyCollisionCount(scheduledRecords) === 0 && labCapacityViolationCount(scheduledRecords, ctx) === 0
-  return { assignments, unscheduled, conflictFree }
+  // The cheap placement above accepts a clash at a price, so check every result against EVERYTHING that is already booked:
+  // the earlier semesters (preplaced) and the placements before it. A placement that clashes is not kept: its unit is reported as
+  // unscheduled instead, so a clash can never hide inside a "complete" result.
+  const clashing = clashingRecords(scheduledRecords, preplaced, ctx)
+  const kept = scheduledRecords.filter(r => !clashing.has(r))
+  for (const r of scheduledRecords) if (clashing.has(r)) unscheduled.push(r.unit)
+
+  // A constructive result is only considered safe as a solver success if it has no known hard conflicts. The independent
+  // validator remains the final authority before a timetable can be published.
+  const conflictFree = unscheduled.length === 0 && clashing.size === 0 && facultyCollisionCount(kept) === 0 && labCapacityViolationCount(kept, ctx) === 0
+  void hadCrossResourceConflict
+  return { assignments: kept.map(r => r.assignment), unscheduled, conflictFree }
+}
+
+/** records whose teacher or lab room is already taken by an earlier booking (preplaced, or a record before it) */
+function clashingRecords(records: ScheduledRecord[], preplaced: Assignment[], ctx: SolveContext): Set<ScheduledRecord> {
+  const fac = new Map<string, number>(), lab = new Map<string, number>()
+  const each = (a: { facultyId: string; labId?: string | null; day: string; startPeriod: number; endPeriod: number }, fn: (fk: string, lk: string | null) => void) => {
+    for (let p = a.startPeriod; p <= a.endPeriod; p++) fn(`${a.facultyId}|${a.day}|${p}`, a.labId ? `${a.labId}|${a.day}|${p}` : null)
+  }
+  const book = (a: Parameters<typeof each>[0]) => each(a, (fk, lk) => { fac.set(fk, (fac.get(fk) ?? 0) + 1); if (lk) lab.set(lk, (lab.get(lk) ?? 0) + 1) })
+  for (const a of preplaced) book(a)
+  const bad = new Set<ScheduledRecord>()
+  for (const r of records) {
+    const a = r.assignment
+    let clash = false
+    each(a, (fk, lk) => { if ((fac.get(fk) ?? 0) > 0) clash = true; if (lk && (lab.get(lk) ?? 0) >= effectiveLabCapacity(ctx, a.labId!)) clash = true })
+    if (clash) bad.add(r)
+    else book(a)          // only clash-free placements hold their slots for the records after them
+  }
+  return bad
 }
 
 export interface SolveResult {
@@ -667,7 +708,10 @@ export function solve(
   labsBySectionCourse: Map<string, string[]>,
   labCapacityById: Map<string, number> = new Map(),
   preplaced: Assignment[] = [],
-  stepBudget: number = MAX_BACKTRACK_STEPS
+  stepBudget: number = MAX_BACKTRACK_STEPS,
+  /** wall-clock limit (ms since epoch): the search stops there and reports the budget as used up, so it can never run for ever */
+  deadline: number = Infinity,
+  seed: number = 0
 ): SolveResult {
   // Symmetry breaking is applied to identical demand units (same section, subject,
   // component, length, batch, faculty option set and lab option set): equivalent
@@ -694,6 +738,7 @@ export function solve(
   const symmetry = buildSymmetryInfo(ordered)
   const ctx = buildContext(faculty, unavailability, config, labsByCourse, labsBySectionCourse, labCapacityById)
   seedContext(ctx, preplaced)
+  ctx.seed = seed
   ctx.weeklyTheory = weeklyTheoryOf(units)
   const active = new Array<boolean>(n).fill(true)
   const assignedCandidate: (Candidate | null)[] = new Array(n).fill(null)
@@ -732,7 +777,7 @@ export function solve(
   function backtrack(remaining: number): boolean {
     if (remaining === 0) return true
     steps++
-    if (steps > stepBudget) {
+    if (steps > stepBudget || ((steps & 63) === 0 && Date.now() > deadline)) {
       budgetExceeded = true
       return false
     }

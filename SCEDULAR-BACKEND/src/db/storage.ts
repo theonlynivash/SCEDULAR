@@ -12,7 +12,32 @@
  */
 import pg from 'pg'
 
-export const storageMode: 'file' | 'postgres' = process.env.USE_LOCAL_DB === 'true' || !process.env.DATABASE_URL ? 'file' : 'postgres'
+/**
+ * Which store to use, decided from the environment:
+ *
+ *   STORAGE=file      always the local JSON file
+ *   STORAGE=postgres  always PostgreSQL (DATABASE_URL must be set)
+ *   STORAGE=auto      (default) on a website (Vercel) PostgreSQL, on a computer the local file.
+ *
+ * So the same `.env` can hold the Neon link while a developer works on a laptop: on the laptop the local file is used and the
+ * online data is never touched; on Vercel the link is used. `USE_LOCAL_DB=true` (the old switch) still forces the file.
+ */
+export function resolveStorage(env: NodeJS.ProcessEnv = process.env): { mode: 'file' | 'postgres'; reason: string; problem?: string } {
+  const choice = (env.STORAGE ?? '').trim().toLowerCase()
+  const url = (env.DATABASE_URL ?? '').trim()
+  const need = (reason: string) => url
+    ? { mode: 'postgres' as const, reason }
+    : { mode: 'postgres' as const, reason, problem: 'DATABASE_URL is not set. Add the PostgreSQL (Neon) connection string to the environment variables of this deployment.' }
+  if (choice === 'file') return { mode: 'file', reason: 'STORAGE=file' }
+  if (choice === 'postgres') return need('STORAGE=postgres')
+  if (env.USE_LOCAL_DB === 'true') return { mode: 'file', reason: 'USE_LOCAL_DB=true' }
+  if (env.VERCEL || env.SCEDULAR_SITE === 'true') return need(env.VERCEL ? 'running on Vercel' : 'SCEDULAR_SITE=true')
+  return { mode: 'file', reason: 'running on a computer (the local file is used; DATABASE_URL is ignored unless STORAGE=postgres)' }
+}
+
+const resolved = resolveStorage()
+export const storageMode: 'file' | 'postgres' = resolved.mode
+export const storageInfo = resolved
 
 export class ConflictError extends Error {
   constructor() { super('Someone else saved changes at the same moment. Your change was not saved; please try again.'); this.name = 'ConflictError' }

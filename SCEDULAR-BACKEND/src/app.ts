@@ -21,6 +21,8 @@ import { teacherExtrasRouter } from './routes/teacherExtras.js'
 import { passwordResetRouter } from './routes/passwordReset.js'
 import { assistantRouter } from './routes/assistant.js'
 import { leaveRouter } from './routes/leave.js'
+import { storageMode } from './db/storage.js'
+import { remindersRouter } from './routes/reminders.js'
 import { messagesRouter } from './routes/messages.js'
 import { dataEraseRouter } from './routes/dataErase.js'
 import { photosRouter } from './routes/photos.js'
@@ -36,7 +38,7 @@ function buildCorsOriginList(): (string | RegExp)[] {
     origins.push(`https://${vercelUrl}`)
     origins.push(/\.vercel\.app$/)
   }
-  const extra = process.env.CORS_ORIGINS?.split(',') ?? []
+  const extra = [...(process.env.CORS_ORIGINS?.split(',') ?? []), ...(process.env.FRONTEND_ORIGIN?.split(',') ?? [])]
   for (const raw of extra) {
     const v = raw.trim()
     if (!v) continue
@@ -52,10 +54,9 @@ function buildCorsOriginList(): (string | RegExp)[] {
   return origins
 }
 const corsOrigins = buildCorsOriginList()
+const strictCors = Boolean(process.env.FRONTEND_ORIGIN || process.env.CORS_ORIGINS) && (process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL))
 
 export const app = express()
-// behind Vercel (or any proxy) the real client address is in X-Forwarded-For
-if (process.env.VERCEL || process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1)
 // behind Vercel (or any proxy) the real client address is in X-Forwarded-For
 if (process.env.VERCEL || process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1)
 app.use(cors({
@@ -63,6 +64,9 @@ app.use(cors({
     if (!origin) return cb(null, true)
     const ok = corsOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin))
     if (ok) return cb(null, true)
+    // On a live site whose owner has listed the allowed websites (FRONTEND_ORIGIN / CORS_ORIGINS) any other website is refused.
+    // Without such a list the API stays open to every website (sign-in uses a bearer token, not cookies, so this is not a hole by itself).
+    if (strictCors) return cb(null, false)
     if (process.env.NODE_ENV !== 'production') console.warn(`[CORS] unexpected origin: ${origin}`)
     cb(null, true)
   },
@@ -75,7 +79,7 @@ app.use(express.json({ limit: '3mb' }))
 app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 
 app.use('/api', securityHeaders)
-app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'scedular-backend' }))
+app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'scedular-backend', storage: storageMode }))
 
 // loads the data (and, in PostgreSQL mode, syncs it with other instances and saves before the response is sent)
 app.use(storeMiddleware)
@@ -93,6 +97,7 @@ app.use('/api', passwordResetRouter)
 app.use('/api', assistantRouter)
 app.use('/api', messagesRouter)
 app.use('/api', leaveRouter)
+app.use('/api', remindersRouter)
 app.use('/api', dataEraseRouter)
 app.use('/api', photosRouter)
 app.use('/api', bulkImportRouter)
@@ -114,6 +119,8 @@ app.use('/api/timetable', hodWrites(), timetableRouter)
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err)
+  // a mistake in the deployment settings (not the user's fault): say what to fix
+  if (err?.status === 503 && err?.name === 'StorageConfigError') return res.status(503).json({ error: 'NOT_CONFIGURED', message: err.message })
   // internal details stay in the server log in production
   const message = process.env.NODE_ENV === 'production' ? 'Something went wrong on the server.' : (err?.message ?? 'Internal server error')
   res.status(500).json({ error: 'SERVER_ERROR', message })

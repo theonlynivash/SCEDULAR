@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import type { Assignment, GenerationResult } from '../types.js'
 import {
   createRun,
@@ -112,12 +113,18 @@ export async function generateTimetable(scopeArg?: GenerationScope | GenerationS
   const validateAll = (assignments: groupAssignments) => independentValidate({
     assignments, sections, subjects, sectionSubjects, teachingAssignments, faculty, unavailability, labs, config, labsBySubject, labsBySectionSubject,
   })
-  const runOrder = (order: { units: typeof units }[], budget?: number) => {
+  const trace = (m: string) => { if (process.env.SOLVER_TRACE) fs.appendFileSync(process.env.SOLVER_TRACE!, new Date().toISOString().slice(14, 23) + ' ' + m + '\n') }
+  // A generation never runs for ever: the whole search has a time limit (default 3 minutes, 45 seconds on Vercel; SOLVER_TIME_LIMIT_MS to change it) and
+  // each attempt inside it a smaller slice. When time is up the answer is reported honestly as "not proven", never faked.
+  const started = Date.now()
+  const hardStop = started + (Number(process.env.SOLVER_TIME_LIMIT_MS) || (process.env.VERCEL ? 45_000 : 180_000))
+  const slice = (ms: number) => Math.min(hardStop, Date.now() + ms)
+  const runOrder = (order: { units: typeof units }[], budget?: number, until: number = hardStop, seed = 0) => {
     const placed: groupAssignments = []
     const left: groupUnscheduled = []
     let over = false
     for (const g of order) {
-      const r = solve(g.units, faculty, unavailability, config, labsBySubject, labsBySectionSubject, labCapacityById, placed, budget)
+      const r = solve(g.units, faculty, unavailability, config, labsBySubject, labsBySectionSubject, labCapacityById, placed, budget, until, seed)
       placed.push(...r.assignments)
       left.push(...r.unscheduled)
       over = over || r.budgetExceeded
@@ -161,31 +168,58 @@ export async function generateTimetable(scopeArg?: GenerationScope | GenerationS
   }
   const quality = (placed: groupAssignments, left: groupUnscheduled) => validateAll(placed).length + left.length
 
-  let result: ReturnType<typeof runOrder> | null = null
+  let result = null as ReturnType<typeof runOrder> | null
   if (groups.length > 1) {
-    let best: ReturnType<typeof runOrder> | null = null
-    for (const order of [groups, [...groups].reverse()]) {
-      const r = runOrder(order, 15000)
-      if (!r.budgetExceeded && r.unscheduled.length === 0 && validateAll(r.assignments).length === 0) { best = r; result = r; break }
+    // 1) semester by semester, in every order (teachers are shared between semesters, so the order matters; 3 semesters = 6 orders)
+    const permutations = <T,>(xs: T[]): T[][] => xs.length <= 1 ? [xs] : xs.flatMap((x, i) => permutations([...xs.slice(0, i), ...xs.slice(i + 1)]).map(r => [x, ...r]))
+    const orders = [groups, [...groups].reverse(), ...permutations(groups)].filter((o, i, all) => all.findIndex(q => q.every((g, k) => g === o[k])) === i).slice(0, 8)
+    let best = null as ReturnType<typeof runOrder> | null
+    // Then RESTARTS: a depth-first search can get lost in a bad corner while another corner solves at once. Each restart breaks ties
+    // differently (a seed; the same seeds always give the same answer) and cycles through the orders that were not proven impossible.
+    // Orders that simply ran out of budget get a bigger one every few restarts.
+    const exhausted = new Set<number>()
+    const tryOrder = (oi: number, budget: number, ms: number, seed: number) => {
+      trace(`order ${oi} seed ${seed} budget ${budget}`)
+      const r = runOrder(orders[oi], budget, slice(ms), seed)
+      trace(`order done over=${r.budgetExceeded} left=${r.unscheduled.length}`)
+      if (!r.budgetExceeded && r.unscheduled.length === 0 && validateAll(r.assignments).length === 0) { best = r; result = r; return }
+      if (seed === 0 && !r.budgetExceeded && r.unscheduled.length > 0) exhausted.add(oi)   // searched completely: this order cannot work
       if (!best || quality(r.assignments, r.unscheduled) < quality(best.assignments, best.unscheduled)) best = r
     }
+    for (let oi = 0; oi < orders.length && !result && Date.now() < hardStop; oi++) tryOrder(oi, 15_000, 25_000, 0)
+    const live = orders.map((_, i) => i).filter(i => !exhausted.has(i))
+    // restarts get at most 70% of the time, the rest is left for the repair step
+    const restartStop = started + (hardStop - started) * 0.7
+    for (let seed = 1; !result && live.length > 0 && Date.now() < restartStop && seed <= 60; seed++) {
+      tryOrder(live[(seed - 1) % live.length], seed % 4 === 0 ? 60_000 : 15_000, 20_000, seed)
+    }
+    // 2) repair around the clashes: re-solve only the sections involved (and those sharing their teachers) against everything else fixed
     if (!result && best) {
       let cur = best
       let radius = 0
-      for (let iter = 0; iter < 10 && !result; iter++) {
+      let lastKey = ''
+      for (let iter = 0; iter < 10 && !result && Date.now() < hardStop; iter++) {
         let hood = problemSections(cur.assignments, cur.unscheduled)
         if (hood.size === 0) break
         for (let i = 0; i < radius; i++) hood = widen(hood)
+        // the search is deterministic: the same neighbourhood from the same state would give the same answer again
+        const key = [...hood].sort().join(',') + '|' + quality(cur.assignments, cur.unscheduled)
+        if (key === lastKey) break
+        lastKey = key
         const fixed = cur.assignments.filter(a => !hood.has(a.sectionId))
-        const r = solve(units.filter(u => hood.has(u.sectionId)), faculty, unavailability, config, labsBySubject, labsBySectionSubject, labCapacityById, fixed, 25000)
+        trace(`repair iter ${iter} hood=${hood.size}`)
+        const r = solve(units.filter(u => hood.has(u.sectionId)), faculty, unavailability, config, labsBySubject, labsBySectionSubject, labCapacityById, fixed, 25000, slice(45_000))
         const next = { assignments: [...fixed, ...r.assignments], unscheduled: r.unscheduled, budgetExceeded: r.budgetExceeded }
         if (!next.budgetExceeded && next.unscheduled.length === 0 && validateAll(next.assignments).length === 0) { result = next; break }
         if (quality(next.assignments, next.unscheduled) <= quality(cur.assignments, cur.unscheduled)) cur = next
         radius = Math.min(radius + 1, 3)
       }
+      // keep the best partial answer if time runs out, so the report says exactly what is left
+      if (!result && Date.now() >= hardStop) result = { ...cur, budgetExceeded: true }
     }
   }
-  if (!result) result = runOrder([{ units }])
+  // 3) last resort: one joint solve of everything, until the time limit
+  if (!result) { trace('LAST RESORT joint solve'); result = runOrder([{ units }]); trace('joint done') }
   const { assignments, unscheduled, budgetExceeded } = result
   const conflicts = [] as GenerationResult['conflicts']
   const warnings: string[] = []

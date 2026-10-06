@@ -1,6 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 import { initLocalDb, getLocalDb, installState, newDefaultState, useStorageDriver } from './localDb.js'
-import { ConflictError, initStorage, loadSnapshot, readVersion, saveSnapshot, storageMode } from './storage.js'
+import { ConflictError, initStorage, loadSnapshot, readVersion, saveSnapshot, storageInfo, storageMode } from './storage.js'
 
 /**
  * Keeps the in-memory copy of the data and the store in step (see storage.ts).
@@ -8,6 +8,9 @@ import { ConflictError, initStorage, loadSnapshot, readVersion, saveSnapshot, st
  *  postgres mode : before a request, reload if another instance saved; before the response goes out, save if this
  *                  request changed anything - and answer 409 (nothing overwritten) if someone else saved first.
  */
+/** The deployment is set up wrongly (for example no DATABASE_URL on Vercel): reported as 503 with a message the owner can act on. */
+export class StorageConfigError extends Error { status = 503; constructor(m: string) { super(m); this.name = 'StorageConfigError' } }
+
 let ready: Promise<void> | null = null
 let version: number | null = null
 let dirty = false
@@ -16,7 +19,8 @@ let saving: Promise<void> | null = null
 export function ensureReady(): Promise<void> {
   if (!ready) {
     ready = (async () => {
-      if (storageMode === 'file') { initLocalDb(); console.log('[DB] File mode: data/scedular_local_db.json'); return }
+      if (storageInfo.problem) throw new StorageConfigError(storageInfo.problem)
+      if (storageMode === 'file') { initLocalDb(); console.log(`[DB] File mode (${storageInfo.reason}): data/scedular_local_db.json`); return }
       await initStorage()
       const snap = await loadSnapshot()
       if (snap) { installState({ ...getBlank(), ...snap.state }); version = snap.version }
@@ -26,7 +30,7 @@ export function ensureReady(): Promise<void> {
         console.log('[DB] PostgreSQL mode: created the department data (sample or blank)')
       }
       useStorageDriver({ markDirty: () => { dirty = true } })
-      console.log(`[DB] PostgreSQL mode: loaded version ${version}`)
+      console.log(`[DB] PostgreSQL mode (${storageInfo.reason}): loaded version ${version}`)
     })().catch(err => { ready = null; console.error('[DB] initialisation failed:', err?.message ?? err); throw err })
   }
   return ready

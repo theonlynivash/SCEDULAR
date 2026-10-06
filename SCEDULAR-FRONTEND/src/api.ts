@@ -54,10 +54,17 @@ async function request<T>(path: string, options: RequestInit = {}, acceptedStatu
     options.body instanceof FormData
       ? { ...authHeaders, ...(options.headers as Record<string, string> | undefined) }
       : { 'Content-Type': 'application/json', ...authHeaders, ...(options.headers as Record<string, string> | undefined) }
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  } catch {
+    // the browser could not reach the API at all: wrong address, API not deployed, or offline
+    throw Object.assign(new Error(`Cannot reach the SCEDULAR server (${API_BASE}). Check your internet connection. If you are the administrator, check that the API is running and that VITE_API_URL points to it.`), { code: 'NETWORK', status: 0 })
+  }
+  // an HTML page instead of JSON means the website answered where the API should have (VITE_API_URL missing or wrong)
+  if (res.ok && (res.headers.get('content-type') ?? '').includes('text/html')) {
+    throw Object.assign(new Error('The website reached a page instead of the SCEDULAR API. The administrator must set VITE_API_URL to the API address (ending in /api) and redeploy.'), { code: 'WRONG_API', status: res.status })
+  }
   if (!res.ok && !acceptedStatuses.includes(res.status)) {
     let message = `Request failed (${res.status})`
     let code: string | undefined
@@ -436,6 +443,8 @@ export interface AbsenceReport {
 export interface CalendarSubstitution { id: number; leaveId: number; startPeriod: number; endPeriod: number; sectionId: string; blockType: 'THEORY' | 'LAB'; subject: string; originalId: string; originalName: string; substituteId: string; substituteName: string }
 export interface LeaveCalendar { month: string; today: string; days: Record<string, { leaves: { id: number; facultyId: string; facultyName: string; status: string }[]; substitutions: CalendarSubstitution[] }> }
 
+export interface ReminderItem { id: number; ownerId: string; date: string; time: string | null; title: string; note: string; audience: 'me' | 'all'; done: boolean; createdAt: string; mine: boolean }
+
 export interface StaffingReport {
   cycle: string; maxWeeklyPeriods: number; avgSectionsPerTeacher: number; teachers: number
   totalDemandPeriods: number; assignedPeriods: number; openPeriods: number
@@ -720,6 +729,12 @@ export const api = {
     unassign: (id: number, slotKey: string) => request<LeaveDetail>(`/leave/${id}/assign?slot=${encodeURIComponent(slotKey)}`, { method: 'DELETE' }),
     decide: (id: number, action: 'APPROVE' | 'REJECT', note?: string) => request<LeaveDetail>(`/leave/${id}/decision`, { method: 'POST', body: JSON.stringify({ action, note }) }),
     cancel: (id: number) => request<{ ok: boolean }>(`/leave/${id}/cancel`, { method: 'POST' }),
+  },
+  reminders: {
+    list: (from?: string, to?: string) => request<ReminderItem[]>(`/reminders?${from ? `from=${from}` : ''}${to ? `&to=${to}` : ''}`),
+    create: (b: { date: string; time?: string | null; title: string; note?: string; audience?: 'me' | 'all' }) => request<ReminderItem>('/reminders', { method: 'POST', body: JSON.stringify(b) }),
+    update: (id: number, b: Partial<{ date: string; time: string | null; title: string; note: string; done: boolean }>) => request<ReminderItem>(`/reminders/${id}`, { method: 'PUT', body: JSON.stringify(b) }),
+    remove: (id: number) => request<{ ok: boolean }>(`/reminders/${id}`, { method: 'DELETE' }),
   },
   messages: {
     threads: () => request<MsgThread[]>('/messages/threads'),

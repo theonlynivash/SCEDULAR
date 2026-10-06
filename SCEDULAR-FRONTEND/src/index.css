@@ -352,6 +352,25 @@
   --p-50: #f9f2f4; --p-100: #f1e1e7; --p-700: #b0587a; --p-800: #7b3e55;
 }
 
+
+/* A white, 70% see-through liquid-glass panel with a coloured top edge (the colour comes from a .tone-* class). Used where
+   panels must stand apart from one another: the dashboard cards. */
+.glass-white {
+  position: relative;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.64));
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-top: 3px solid var(--tc, var(--c-600));
+  border-radius: 1.1rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 30px rgba(var(--shadow-rgb), 0.13), 0 2px 6px rgba(var(--shadow-rgb), 0.07);
+  transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.25s;
+}
+.glass-white:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 14px 34px rgba(var(--shadow-rgb), 0.18), 0 2px 6px rgba(var(--shadow-rgb), 0.08); }
+.glass-white .gw-title { display: flex; align-items: center; gap: 0.5rem; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--td, var(--c-700)); }
+.glass-white .gw-icon { width: 1.6rem; height: 1.6rem; border-radius: 0.55rem; display: grid; place-items: center; color: #fff; background: linear-gradient(140deg, var(--tc, var(--c-600)), var(--td, var(--c-700))); flex-shrink: 0; }
+@media (prefers-reduced-motion: reduce) { .glass-white, .glass-white:hover { transition: none; transform: none; } }
+
 /* The app's markup uses font-500 … font-800, which Tailwind does not generate: without these every heading
    and label rendered at weight 400. */
 @utility font-300 { font-weight: 300; }

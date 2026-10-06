@@ -15,8 +15,10 @@ export function SubLine({ s, me, role }: { s: CalendarSubstitution; me?: string;
 }
 
 /** A month grid: a rose dot on days with leave, an amber dot on days with a substitution. Click a day to choose it. */
-export default function LeaveCalendarView({ data, month, onMonth, selected, onSelect }: {
+export default function LeaveCalendarView({ data, month, onMonth, selected, onSelect, marks = {} }: {
   data: LeaveCalendar | null; month: string; onMonth: (m: string) => void; selected: string; onSelect: (d: string) => void
+  /** number of reminders on each date (a blue dot) */
+  marks?: Record<string, number>
 }) {
   const [y, m] = [Number(month.slice(0, 4)), Number(month.slice(5))]
   const first = new Date(Date.UTC(y, m - 1, 1))
@@ -39,17 +41,18 @@ export default function LeaveCalendarView({ data, month, onMonth, selected, onSe
         {cells.map((d, i) => {
           if (!d) return <span key={i} />
           const info = data?.days[d]
-          const leaves = info?.leaves.length ?? 0, subs = info?.substitutions.length ?? 0
+          const leaves = info?.leaves.length ?? 0, subs = info?.substitutions.length ?? 0, rem = marks[d] ?? 0
           const sel = d === selected, isToday = d === today
           const weekend = i % 7 >= 5
           return (
-            <button key={d} onClick={() => onSelect(d)} title={`${leaves ? leaves + ' on leave' : ''}${leaves && subs ? ' · ' : ''}${subs ? subs + ' substitution' + (subs === 1 ? '' : 's') : ''}`}
+            <button key={d} onClick={() => onSelect(d)} title={[leaves ? `${leaves} on leave` : '', subs ? `${subs} substitution${subs === 1 ? '' : 's'}` : '', rem ? `${rem} reminder${rem === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')}
               className={`relative h-9 rounded-lg text-[12px] font-600 transition ${sel ? 'bg-[color:var(--c-600)] text-white shadow' : isToday ? 'ring-2 ring-[color:var(--accent)] text-slate-900 bg-white/60' : weekend ? 'text-slate-400 hover:bg-white/50' : 'text-slate-700 hover:bg-white/60'}`}>
               {Number(d.slice(8))}
-              {(leaves > 0 || subs > 0) && (
+              {(leaves > 0 || subs > 0 || rem > 0) && (
                 <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
                   {leaves > 0 && <span className={`w-1.5 h-1.5 rounded-full ${sel ? 'bg-rose-200' : 'bg-rose-500'}`} />}
                   {subs > 0 && <span className={`w-1.5 h-1.5 rounded-full ${sel ? 'bg-amber-200' : 'bg-amber-500'}`} />}
+                  {rem > 0 && <span className={`w-1.5 h-1.5 rounded-full ${sel ? 'bg-sky-200' : 'bg-indigo-500'}`} />}
                 </span>
               )}
             </button>
@@ -59,6 +62,7 @@ export default function LeaveCalendarView({ data, month, onMonth, selected, onSe
       <div className="flex gap-3 mt-2 text-[10.5px] text-slate-500">
         <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> leave</span>
         <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> substitution</span>
+        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> reminder</span>
       </div>
     </div>
   )

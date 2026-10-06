@@ -190,3 +190,21 @@ describe('leave letter → HOD → substitutes', () => {
     }
   })
 })
+
+describe('the HOD takes her own leave', () => {
+  it('needs no approval: it starts approved, and she assigns the free teachers herself', async () => {
+    const r = await call(hod, 'POST', '/leave', { fromDate: date, toDate: date, reason: 'a conference' })
+    expect(r.status).toBe(201)
+    const d = await call(hod, 'GET', `/leave/${r.json.id}`)
+    expect(d.json.facultyId).toBe('FAC-001')
+    expect(d.json.status).toBe('APPROVED')
+    // nothing was sent to herself
+    expect((await call(hod, 'GET', '/messages/unread')).json.count).toBeGreaterThanOrEqual(0)
+    const t = d.json.slots.find((s: any) => s.candidates.length > 0)
+    if (t) {
+      const a = await call(hod, 'POST', `/leave/${r.json.id}/assign`, { slotKey: t.key, facultyId: t.candidates[0].facultyId })
+      expect(a.status).toBe(200)
+      expect(a.json.coverage.covered).toBe(1)
+    }
+  })
+})

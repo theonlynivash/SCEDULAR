@@ -317,13 +317,13 @@ is: confirm the cycle → add new sections → approve preferences → assign �
 SCEDULAR/
 ├── README.md                    Short project introduction
 ├── SCEDULAR_REPORT.md           This report
-├── VERCEL_DEPLOY.md             Step-by-step Vercel deployment and environment variables
-├── vercel.json                  Vercel configuration (build, function, rewrites, headers)
-├── api/index.ts                 Vercel entry: exports the Express app as a serverless function
+├── VERCEL_DEPLOY.md             Step-by-step deployment: two Vercel projects (Web + API) and Neon PostgreSQL
+├── HOSTING_PROMPT.md            A prompt/guide for moving SCEDULAR to the college server or panimalar.in
 ├── docker-compose.yml           Optional local Postgres
 │
 ├── SCEDULAR-BACKEND/
-│   ├── package.json             scripts: dev, build, start, test, seed, migrate
+│   ├── package.json             scripts: dev, build, start, test, db:check, db:push, db:pull
+│   ├── api/index.ts + vercel.json   Vercel entry and settings of the API project (Root Directory = SCEDULAR-BACKEND)
 │   ├── vitest.config.ts         Test runner config (isolates the database per test file)
 │   ├── .env / .env.example      Configuration (never commit .env)
 │   ├── assets/fonts/            URW Bookman Light & Demi (used by the PDFs) + licence note
@@ -431,11 +431,13 @@ same in the cloud. Only *where the document is stored* differs.
 * If the file exists but cannot be read, the program **refuses to start**, keeps a copy named `...unreadable-<time>` next to it
   and tells you so. It never silently starts from the sample data (which would later overwrite your real file).
 * `SCEDULAR_DB_FILE` points to a different file (the tests use their own copy).
-* File mode is used whenever `DATABASE_URL` is empty or `USE_LOCAL_DB=true`.
+* **Which store is used (`STORAGE`, default `auto`):** on a computer the local file, **even if `DATABASE_URL` is in `.env`**; on Vercel PostgreSQL.
+  `STORAGE=file` and `STORAGE=postgres` force one; `USE_LOCAL_DB=true` still forces the file. `/api/health` shows the active store.
+  This lets one `.env` hold the Neon link while a laptop keeps using the local file.
 
 ### 9.2 PostgreSQL mode (cloud)
 
-* Set `DATABASE_URL`. The program creates two tables on the first request: `app_state` (the document, with a version
+* Set `DATABASE_URL` (used automatically on Vercel; on another server also set `STORAGE=postgres`). If it is missing where PostgreSQL is required the API answers **503 NOT_CONFIGURED** with an instruction. `npm run db:push -- --yes` copies the local file to the database, `npm run db:pull -- --yes` the other way (sessions are never copied). The program creates two tables on the first request: `app_state` (the document, with a version
   number) and `faculty_photos` (profile pictures, kept out of the document because they are large).
 * **Saved before answering.** A request that changes anything writes the document to PostgreSQL before its response is sent. If
   the save fails the user gets an error, never a false "done".
@@ -485,7 +487,7 @@ same in the cloud. Only *where the document is stored* differs.
 one strip with the live counts (sections, subjects, teachers, labs), then two columns. Left: **Substitutions · today** (who is on
 leave today and every substitution assigned for today, in full), **Leave requests** (the letters waiting for you, with a link),
 and the **Department briefing** (staffing, readiness, waiting leave letters, timetable). Right: a **month calendar** with a rose
-dot on days with leave and an amber dot on days with a substitution; click a day to see exactly who and which classes. A quiet row
+dot on days with leave and an amber dot on days with a substitution; click a day to see exactly who and which classes. **Reminders** (like events in Google Calendar) sit below everything else: press *Add* (or *+ Reminder* on a calendar day), give a date, an optional time, a title and a note; they are listed soonest first (today on top, then later dates) and the calendar shows a blue dot on those days. Tick one off, delete it, and (HOD only) tick *Show to all teachers* to post a notice for everyone. *Generate timetable* appears here only while no timetable exists (it is a once-per-cycle task); afterwards it is under View Timetable. Each card is a white, 70%-see-through glass panel with its own coloured top edge. A quiet row
 of shortcuts sits at the bottom. Counts come from the real data.
 
 ### 10.3 Settings (gear icon)
@@ -690,6 +692,8 @@ When a teacher is away, the HOD needs a substitute for every class she would hav
 3. **The substitute is told.** Their dashboard shows *"You have a substitution class in place of Mr A: Mon 13 Oct, P2, section Y2-C · Subject"*, and they get a message and an email. If the HOD changes or removes the substitute, the old one is told.
 
 **Scores.** The *Score & duties* tab shows leave days taken, periods covered for others, and two lists: *You worked for* and *Who covered for you*. When a teacher who once covered for A later asks for leave, A is marked in their list (the handshake icon: "you covered N periods for them"), so they can ask A in return. The HOD still makes every assignment. *Leave & cover record* gives the whole department's figures. The HOD can also record a leave on behalf of a teacher.
+
+**The HOD takes her own leave** (*Leave → Take leave*): she picks the dates and a reason; no letter or approval is needed. Her classes appear grouped by section with the free teachers under each, and she assigns them herself. The HOD has no "request leave" tab.
 
 Rules: dates cannot be in the past; a request covers up to 31 days; two open requests cannot overlap; a cancelled or rejected leave frees all its substitutes.
 
@@ -898,7 +902,10 @@ block type, lab). Views and PDFs always read the latest valid run (GREEN or YELL
 * Sample dataset: 28 sections, 984 placed periods, about 30–35 seconds on a laptop.
 * A step budget (up to 2,000,000 backtracking steps per attempt, smaller budgets for the first sequential passes) prevents endless runs; exceeding it triggers the repair stages.
 * **The search runs in a background worker thread** on a copy of the data, so the server keeps answering everyone else during the half minute it takes (this is tested: requests during a run were answered in well under 1.5 s). Only one generation runs at a time (a second request gets 409 "already being generated"). If a worker cannot be started the search runs in the main thread instead.
-* On Vercel, the function limit is 60 seconds; generation is the one heavy request.
+* **Time limit.** Every generation stops after `SOLVER_TIME_LIMIT_MS` (default 3 minutes, 45 seconds on Vercel) and says honestly what it could not place; it never runs for ever and never returns a wrong timetable.
+* **Strategy** (when several semesters are generated together): (1) every order of the semesters is tried with a small search budget; (2) restarts with different tie-breaks (seeded, reproducible); (3) repair around the clashes (re-solve only the sections involved); (4) a last joint search. The search takes the first free room of a unit's room list (every second restart tries all rooms).
+* **A fixed fault:** the quick placement used to accept a clash with a semester already placed and still report "complete"; clashes are now moved to "unscheduled" so a result can never hide one.
+* On Vercel, the function limit is 60 seconds; for a whole department generate on a computer against the online database (VERCEL_DEPLOY.md §5). Generating is done about once per cycle.
 
 ## 15. How a timetable is verified
 
@@ -1150,8 +1157,13 @@ What `vercel.json` does:
 | Variable | Used for | Default / note |
 |---|---|---|
 | `PORT` | Backend port (local) | 8090 |
-| `USE_LOCAL_DB` | Force the JSON database | `true` in the sample `.env`; unset on Vercel |
-| `DATABASE_URL` | Postgres connection string | If empty, local mode |
+| `STORAGE` | `auto` (computer → file, Vercel → PostgreSQL), `file`, `postgres` | `auto` |
+| `SCEDULAR_SITE` | `true` makes `auto` behave like a website (PostgreSQL) on your own server | unset |
+| `USE_LOCAL_DB` | Older switch: force the JSON database | unset |
+| `DATABASE_URL` | Postgres (Neon) connection string | used on Vercel; ignored on a computer unless `STORAGE=postgres` |
+| `FRONTEND_ORIGIN` | Website address(es) allowed to call the API (enforced on a live site once set) | unset |
+| `SOLVER_TIME_LIMIT_MS` | Longest a timetable search may run | 180000 (45000 on Vercel) |
+| `VITE_BASE_PATH` | Frontend build: site lives under a path such as `/scedular/` | `/` |
 | `PG_POOL_MAX` | Postgres pool size | 5 (use 3 on serverless) |
 | `SCEDULAR_DB_FILE` | Path of a different JSON database (tests) | `data/scedular_local_db.json` |
 | `SCEDULAR_START_BLANK` | First start with an empty dataset | off |
@@ -1164,7 +1176,7 @@ What `vercel.json` does:
 | `SOLVER_INLINE` | `true` runs the timetable search in the main thread instead of a worker (debugging only) | off |
 | `TRUST_PROXY` | `true` when the server sits behind a proxy, so sign-in limits use the real client address (set automatically on Vercel) | off |
 | `CORS_ORIGINS` | Extra allowed browser origins (comma separated; `/regex/` allowed) | localhost and `*.vercel.app` always allowed |
-| `VITE_API_URL` | Frontend: explicit API address | local dev uses `http://localhost:8090/api`; Vercel uses `/api` |
+| `VITE_API_URL` | Frontend: API address including `/api` (baked in when the site is built) | local dev uses `http://localhost:8090/api`; set it on the Vercel web project |
 
 **Never** set `NODE_TLS_REJECT_UNAUTHORIZED=0` anywhere real: it silently turns off certificate checking for every outgoing connection (mail, AI, database).
 Never commit `.env`; it is git-ignored.
@@ -1172,7 +1184,7 @@ Never commit `.env`; it is git-ignored.
 ## 23. Testing
 
 ### 23.1 What exists
-Twenty-seven test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts` and a scrubbed sample database in `tests/fixtures/`). At the time of writing **194 tests pass**, with none skipped or failing. The two script-style files (`stage6.test.ts`, `facultyAllocationPolicy.test.mjs`) are run by `npm test` directly and are excluded from vitest.
+Thirty test files under `SCEDULAR-BACKEND/tests` (plus `setup/isolate-db.ts` and a scrubbed sample database in `tests/fixtures/`). At the time of writing **214 tests pass**, with none skipped or failing. The two script-style files (`stage6.test.ts`, `facultyAllocationPolicy.test.mjs`) are run by `npm test` directly and are excluded from vitest.
 
 | File | What it protects |
 |---|---|

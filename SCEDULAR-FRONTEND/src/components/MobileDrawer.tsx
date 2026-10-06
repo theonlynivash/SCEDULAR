@@ -22,7 +22,7 @@ export default function MobileDrawer({ open, onClose, page, navigate, role = 'FA
       <div onClick={onClose} className={`absolute inset-0 bg-slate-950/50 backdrop-blur-[2px] transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`} />
       <aside className={`glass-chrome absolute left-2 top-2 bottom-2 w-[78%] max-w-[300px] rounded-3xl flex flex-col overflow-hidden transition-transform duration-300 ease-out ${open ? 'translate-x-0' : '-translate-x-[110%]'}`}>
         <div className="px-4 py-4 flex items-center gap-3 border-b border-white/10">
-          <img src="/PEC_ICON.jpeg" alt="" className="w-9 h-9 object-contain" />
+          <img src={`${import.meta.env.BASE_URL}PEC_ICON.jpeg`} alt="" className="w-9 h-9 object-contain" />
           <div className="min-w-0">
             <p className="font-display font-800 text-[14px] leading-tight text-white tracking-[0.14em]">SCEDULAR</p>
             <p className="text-white/55 text-[11px]">{role === 'HOD' ? 'HOD portal' : 'Faculty portal'}</p>

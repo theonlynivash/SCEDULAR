@@ -59,7 +59,7 @@ Teachers get their login from the HOD (Teachers page → create logins, or Setti
 | `SMTP_USER`, `SMTP_PASS` | Email (a Gmail address and its 16-letter **App Password**). Without them mail is switched off. |
 | `GROQ_API_KEY` | The AI assistant and AI-written email drafts. Without it they are switched off. |
 | `SCEDULAR_MASTER_PASSWORD` | The first-login password for accounts that have no personal password yet (default `SCEDULAR_AIDS`; **change it in production**). |
-| `DATABASE_URL` | Cloud mode (PostgreSQL). Leave empty to store everything in one local file. |
+| `STORAGE` + `DATABASE_URL` | `STORAGE=auto` (default): on your computer everything is stored in one local file even if `DATABASE_URL` is set; on Vercel the PostgreSQL (Neon) link in `DATABASE_URL` is used. |
 
 All settings are listed in `SCEDULAR-BACKEND/.env.example` and in the report (section 22). Never commit `.env`.
 
@@ -68,7 +68,7 @@ All settings are listed in `SCEDULAR-BACKEND/.env.example` and in the report (se
 ## How the data is stored
 
 * **Local mode (default):** one JSON file, `SCEDULAR-BACKEND/data/scedular_local_db.json`. Back it up by copying it.
-* **Cloud mode (`DATABASE_URL` set):** the same data as one **versioned JSON document** in PostgreSQL (table `app_state`),
+* **Cloud mode (on Vercel, or `STORAGE=postgres` with `DATABASE_URL`):** the same data as one **versioned JSON document** in PostgreSQL (table `app_state`),
   profile pictures in `faculty_photos`. Each change is saved before the response is sent. If two people save at the same
   moment the second save is refused with a clear message and never overwrites the first.
 * The data file holds real names, emails and password hashes. It is **git-ignored**. Never share or upload it.
@@ -79,9 +79,9 @@ All settings are listed in `SCEDULAR-BACKEND/.env.example` and in the report (se
 
 ```
 SCEDULAR/
-├── README.md · SCEDULAR_REPORT.md · VERCEL_DEPLOY.md · vercel.json · docker-compose.yml
-├── api/index.ts                 Vercel entry (the API as one serverless function)
+├── README.md · SCEDULAR_REPORT.md · VERCEL_DEPLOY.md · HOSTING_PROMPT.md · docker-compose.yml
 ├── SCEDULAR-BACKEND/            Node + Express + TypeScript
+│   ├── api/ + vercel.json       Vercel entry of the API project
 │   ├── src/solver/              the timetable engine and its independent validator
 │   ├── src/routes/              the API (all of it needs sign-in)
 │   ├── src/db/                  storage (file / PostgreSQL) and data access
@@ -99,7 +99,7 @@ SCEDULAR/
 
 ```bash
 cd SCEDULAR-BACKEND
-npm test                # 190+ tests, about a minute; they never touch your real data or send real mail
+npm test                # 210+ tests, about a minute; they never touch your real data or send real mail
 npx tsc --noEmit        # type-check (also in SCEDULAR-FRONTEND)
 ```
 
@@ -109,8 +109,7 @@ The tests run on a frozen, scrubbed sample database and on an in-memory PostgreS
 
 ## Putting it online (Vercel + a free PostgreSQL such as Neon)
 
-Step by step in **[VERCEL_DEPLOY.md](VERCEL_DEPLOY.md)**. In short: create the database, import the repository in Vercel,
-add the environment variables (`DATABASE_URL` is the one that matters), deploy, open `/api/health`.
+Two Vercel projects from the same repository: the API (Root Directory `SCEDULAR-BACKEND`) and the website (Root Directory `SCEDULAR-FRONTEND`, with `VITE_API_URL` pointing to the API). Step by step in **[VERCEL_DEPLOY.md](VERCEL_DEPLOY.md)**. To host on the college's own server or under `panimalar.in`, give **[HOSTING_PROMPT.md](HOSTING_PROMPT.md)** to a developer or an AI assistant.
 
 ---
 

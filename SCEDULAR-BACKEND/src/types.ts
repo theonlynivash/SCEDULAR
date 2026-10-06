@@ -465,3 +465,16 @@ export interface Substitution {
   assignedBy: string
   assignedAt: string
 }
+
+/** A calendar reminder (like an event in Google Calendar). `audience: 'all'` is the HOD's notice for every teacher. */
+export interface Reminder {
+  id: number
+  ownerId: string
+  date: string            // YYYY-MM-DD
+  time: string | null     // HH:MM, optional
+  title: string
+  note: string
+  audience: 'me' | 'all'
+  done: boolean
+  createdAt: string
+}

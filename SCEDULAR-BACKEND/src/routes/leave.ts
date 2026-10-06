@@ -114,7 +114,9 @@ leaveRouter.post('/leave', requireAuth, async (req, res, next) => {
     const leave: LeaveRequest = {
       id: t.nextLeaveId, facultyId: who, fromDate: p.data.fromDate, toDate: p.data.toDate, reason: p.data.reason,
       letter: p.data.letter || defaultLetter(f, p.data.fromDate, p.data.toDate, p.data.reason), slots, proposed,
-      status: 'PENDING', hodNote: null, createdBy: me, createdAt: new Date().toISOString(), decidedAt: null,
+      // the HOD taking her own leave needs no approval: she assigns the substitutes herself
+      status: who === me && isHod(req) ? 'APPROVED' : 'PENDING', hodNote: null, createdBy: me, createdAt: new Date().toISOString(),
+      decidedAt: who === me && isHod(req) ? new Date().toISOString() : null,
     }
     t.nextLeaveId += 1
     t.leaveRequests.push(leave)

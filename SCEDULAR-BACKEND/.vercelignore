@@ -1,0 +1,6 @@
+data/
+tests/
+*.md
+.env
+.env.*
+!.env.example

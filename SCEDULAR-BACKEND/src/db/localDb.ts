@@ -33,6 +33,7 @@ import type {
   FacultyResult,
   LeaveRequest,
   Substitution,
+  Reminder,
   MailLogEntry,
   ChatMessage,
 } from '../types.js'
@@ -96,6 +97,9 @@ export interface LocalDbState {
   substitutions?: Substitution[]
   nextLeaveId?: number
   nextSubstitutionId?: number
+  /** calendar reminders (optional: older data files do not have them yet) */
+  reminders?: Reminder[]
+  nextReminderId?: number
   messages: ChatMessage[]
   nextMessageId: number
   nextResultId: number
