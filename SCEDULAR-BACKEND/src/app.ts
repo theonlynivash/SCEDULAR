@@ -20,6 +20,7 @@ import { setupRouter } from './routes/setup.js'
 import { teacherExtrasRouter } from './routes/teacherExtras.js'
 import { passwordResetRouter } from './routes/passwordReset.js'
 import { assistantRouter } from './routes/assistant.js'
+import { leaveRouter } from './routes/leave.js'
 import { messagesRouter } from './routes/messages.js'
 import { dataEraseRouter } from './routes/dataErase.js'
 import { photosRouter } from './routes/photos.js'
@@ -91,6 +92,7 @@ app.use('/api', facultyAllocationRouter)
 app.use('/api', passwordResetRouter)
 app.use('/api', assistantRouter)
 app.use('/api', messagesRouter)
+app.use('/api', leaveRouter)
 app.use('/api', dataEraseRouter)
 app.use('/api', photosRouter)
 app.use('/api', bulkImportRouter)

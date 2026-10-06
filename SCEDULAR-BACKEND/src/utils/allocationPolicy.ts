@@ -15,6 +15,8 @@ export interface AllocationConfig {
   // HOD-controlled toggle: whether SCEDULAR AI is available to FACULTY users.
   // The motivational quote card is unaffected by this -- it always shows.
   facultyAiEnabled?: boolean // default true when unset
+  /** HOD-controlled: may a teacher open other teachers' timetables and download class / lab sheets? Default true when unset. */
+  facultyCanSeeOtherTimetables?: boolean
   /** Planning figure: a teacher takes about this many sections of one subject (decides how many preferences a subject accepts). Default 3. */
   avgSectionsPerTeacher?: number
   /** Most periods a teacher is allocated per week (also the basis of "need more teachers"). Default 28. */

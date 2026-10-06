@@ -222,3 +222,41 @@ export function renderMasterTimetablePdf(c: Ctx & { semesters: string[]; runId: 
     doc.font(LIGHT).fontSize(8).fillColor('#000').text('Periods per week in this semester. A total above the nominal limit is allowed.', 24, LAND_H - 22, { lineBreak: false })
   }
 }
+
+/* ───────────────────────────── lab-room timetables ───────────────────────────── */
+
+/** One landscape page per lab room: when the room is used, by which section, for which subject, with which teacher. */
+export function renderLabTimetablesPdf(c: Ctx & { labs: { id: string; name: string }[] }, doc: Doc): void {
+  const subj = new Map(c.subjects.map(s => [s.id, s]))
+  const fac = new Map(c.faculty.map(f => [f.id, f]))
+  const cols = buildColumns(c.config)
+  const days = c.config.workingDays
+  const ay = c.academicYear ?? academicYearLabel()
+  c.labs.forEach((lab, i) => {
+    if (i > 0) doc.addPage()
+    const mine = c.assignments.filter(a => a.labId === lab.id)
+    const y0 = heading(doc, [['PANIMALAR ENGINEERING COLLEGE, CHENNAI', 14], ['B. TECH – ARTIFICIAL INTELLIGENCE AND DATA SCIENCE', 11.5], [`LABORATORY TIMETABLE (${ay})`, 11.5]], 24)
+    doc.font(DEMI).fontSize(12).text(`${lab.name}  ·  ${lab.id}`, 0, y0 + 2, { width: LAND_W, align: 'center', lineBreak: false })
+    const rowH = 62, top = y0 + 26
+    drawGrid(doc, {
+      x: 30, y: top, w: LAND_W - 60, dayW: 62, headH: 40, rowH, cols, days, size: 10,
+      rows: days.map(d => ({ title: d, items: mine.filter(a => a.day === d) })),
+      label: a => {
+        const s = subj.get(a.subjectId ?? a.courseId)
+        const t = fac.get(a.facultyId)
+        return `${s ? shortNameOf(s) : a.courseId}\n${a.sectionId}\n${t ? bareName(t.name) : ''}`
+      },
+    })
+    const used = mine.reduce((n, a) => n + a.endPeriod - a.startPeriod + 1, 0)
+    const total = days.length * c.config.periods.filter(p => p.schedulable !== false).length
+    doc.font(DEMI).fontSize(10).fillColor('#000').text(`Used ${used} of ${total} periods per week${mine.length ? '' : '  (this room is not used in the current timetable)'}`, 30, top + 40 + rowH * days.length + 14, { lineBreak: false })
+  })
+}
+
+/** Every teacher's personal timetable in one file, one page each. */
+export function renderAllFacultyTimetablesPdf(c: Ctx & { facultyIds: string[] }, doc: Doc): void {
+  c.facultyIds.forEach((id, i) => {
+    if (i > 0) doc.addPage()
+    renderFacultyTimetablePdf({ ...c, facultyId: id }, doc)
+  })
+}

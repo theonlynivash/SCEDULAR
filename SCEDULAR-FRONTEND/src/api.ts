@@ -392,6 +392,50 @@ export interface TeacherWorkload {
   timetable: { runId: number; placedPeriods: number; labPeriods: number; byDay: Record<string, number>; busiestDay: string | null } | null
 }
 
+
+/* ───────────── leave and substitution ───────────── */
+export interface LeaveCandidate {
+  facultyId: string; name: string; designation: string | null
+  staffOfSection: boolean; sameSubject: boolean; proposed: boolean
+  covered: { forMe: number; byMe: number }   // forMe: periods they took for me; byMe: periods I took for them
+  weeklyLoad: number; substitutionsThatWeek: number
+}
+export interface LeaveSlotView {
+  key: string; date: string; day: string; startPeriod: number; endPeriod: number; sectionId: string; subjectId: string
+  blockType: 'THEORY' | 'LAB'; labId?: string | null; subjectName: string; subjectCode?: string
+  candidates: LeaveCandidate[]
+  proposed?: { facultyId: string; name: string }[]
+  substitute?: { facultyId: string; name: string; assignedAt: string } | null
+}
+export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+export interface LeaveListItem {
+  id: number; facultyId: string; facultyName: string; fromDate: string; toDate: string; reason: string; status: LeaveStatus; hodNote: string | null
+  createdAt: string; decidedAt: string | null; coverage: { total: number; covered: number }; classes: number
+}
+export interface LeaveDetail extends Omit<LeaveListItem, 'classes'> { letter: string; createdBy: string; slots: LeaveSlotView[] }
+export interface LeaveDuty {
+  id: number; date: string; day: string; startPeriod: number; endPeriod: number; sectionId: string; blockType: 'THEORY' | 'LAB'; subject: string
+  inPlaceOf: string; inPlaceOfName: string; substituteId: string; substituteName: string
+}
+export interface LeavePerson { facultyId: string; name: string; periods: number; dates: string[] }
+export interface LeaveSummary {
+  leaves: { requests: number; days: number; periodsMissed: number }
+  covering: { periods: number; forPeople: LeavePerson[] }
+  coveredForMe: LeavePerson[]
+  upcomingDuties: LeaveDuty[]
+  myClassesTaken: LeaveDuty[]
+  pendingForHod: number
+}
+
+export interface AbsenceReport {
+  asOf: string
+  totals: { teachers: number; periodsMissed: number; periodsUpcoming: number; notCovered: number }
+  rows: { facultyId: string; name: string; designation: string | null; leaveRequests: number; leaveDays: number; periodsMissed: number; periodsUpcoming: number; notCovered: number; weeklyPeriods: number
+    leaves: { id: number; fromDate: string; toDate: string; reason: string; days: number; periodsMissed: number; periodsUpcoming: number; notCovered: number }[] }[]
+}
+export interface CalendarSubstitution { id: number; leaveId: number; startPeriod: number; endPeriod: number; sectionId: string; blockType: 'THEORY' | 'LAB'; subject: string; originalId: string; originalName: string; substituteId: string; substituteName: string }
+export interface LeaveCalendar { month: string; today: string; days: Record<string, { leaves: { id: number; facultyId: string; facultyName: string; status: string }[]; substitutions: CalendarSubstitution[] }> }
+
 export interface StaffingReport {
   cycle: string; maxWeeklyPeriods: number; avgSectionsPerTeacher: number; teachers: number
   totalDemandPeriods: number; assignedPeriods: number; openPeriods: number
@@ -629,6 +673,7 @@ export const api = {
     )
   },
   timetable: {
+    visibility: () => request<{ canSeeOthers: boolean; canDownloadSheets: boolean }>('/timetable/visibility'),
     generate: (scope?: { year: string; semester: string }) =>
       request<GenerationResult>('/timetable/generate', { method: 'POST', body: JSON.stringify(scope ?? {}) }),
     regenerate: () => request<GenerationResult>('/timetable/regenerate', { method: 'POST' }),
@@ -660,6 +705,21 @@ export const api = {
   photo: {
     set: (facultyId: string, image: string) => request<{ success: boolean; photoAt: string }>(`/faculty/${encodeURIComponent(facultyId)}/photo`, { method: 'PUT', body: JSON.stringify({ image }) }),
     remove: (facultyId: string) => request<{ success: boolean }>(`/faculty/${encodeURIComponent(facultyId)}/photo`, { method: 'DELETE' }),
+  },
+  leave: {
+    preview: (from: string, to: string, facultyId?: string) => request<{ facultyId: string; timetableReady: boolean; overlapsLeaveId: number | null; letter: string; slots: LeaveSlotView[] }>(`/leave/preview?from=${from}&to=${to}${facultyId ? `&facultyId=${encodeURIComponent(facultyId)}` : ''}`),
+    letter: (from: string, to: string, reason: string, facultyId?: string) => request<{ letter: string }>(`/leave/letter?from=${from}&to=${to}&reason=${encodeURIComponent(reason)}${facultyId ? `&facultyId=${encodeURIComponent(facultyId)}` : ''}`),
+    create: (b: { fromDate: string; toDate: string; reason: string; letter?: string; proposed?: Record<string, string[]>; facultyId?: string }) => request<{ ok: boolean; id: number; classes: number }>('/leave', { method: 'POST', body: JSON.stringify(b) }),
+    list: () => request<LeaveListItem[]>('/leave'),
+    get: (id: number) => request<LeaveDetail>(`/leave/${id}`),
+    summary: () => request<LeaveSummary>('/leave/summary'),
+    absence: () => request<AbsenceReport>('/leave/absence'),
+    calendar: (month: string) => request<LeaveCalendar>(`/leave/calendar?month=${month}`),
+    scoreboard: () => request<{ facultyId: string; name: string; leaveRequests: number; leaveDays: number; periodsMissed: number; periodsCovered: number }[]>('/leave/scoreboard'),
+    assign: (id: number, slotKey: string, facultyId: string) => request<LeaveDetail>(`/leave/${id}/assign`, { method: 'POST', body: JSON.stringify({ slotKey, facultyId }) }),
+    unassign: (id: number, slotKey: string) => request<LeaveDetail>(`/leave/${id}/assign?slot=${encodeURIComponent(slotKey)}`, { method: 'DELETE' }),
+    decide: (id: number, action: 'APPROVE' | 'REJECT', note?: string) => request<LeaveDetail>(`/leave/${id}/decision`, { method: 'POST', body: JSON.stringify({ action, note }) }),
+    cancel: (id: number) => request<{ ok: boolean }>(`/leave/${id}/cancel`, { method: 'POST' }),
   },
   messages: {
     threads: () => request<MsgThread[]>('/messages/threads'),

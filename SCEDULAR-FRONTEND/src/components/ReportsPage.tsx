@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ChevronRight, Download } from 'lucide-react'
 import type { Page } from '../types'
-import { api, type TeacherWorkload, type AssignBoard, type Assignment, type Faculty, type Lab, type ScheduleConfig, type SetupOverview, type FacultyResultRow, type ResultSummary } from '../api'
+import { api, type TeacherWorkload, type AssignBoard, type Assignment, type Faculty, type Lab, type ScheduleConfig, type SetupOverview, type FacultyResultRow, type ResultSummary, type AbsenceReport } from '../api'
 import { PillTabs } from './ui'
 
-type Tab = 'overview' | 'needs' | 'workload' | 'results' | 'timetable'
+type Tab = 'overview' | 'needs' | 'workload' | 'absence' | 'results' | 'timetable'
 const NAVY = 'var(--c-700)', BLUE = 'var(--c-500)', GOLD = 'var(--accent)', GREEN = '#16a34a', MUTED = 'rgba(var(--ink-rgb),0.10)'
 const tl = (t: number, l: number) => (l > 0 ? `${t}T+${l}L` : `${t}T`)
 
@@ -142,6 +142,9 @@ function download(name: string, rows: (string | number)[][]) {
 // ───────── page ─────────
 export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
   const [tab, setTab] = useState<Tab>('overview')
+  const [absence, setAbsence] = useState<AbsenceReport | null>(null)
+  const [openAbs, setOpenAbs] = useState<string | null>(null)
+  useEffect(() => { if (tab === 'absence') api.leave.absence().then(setAbsence).catch(() => setAbsence({ asOf: '', totals: { teachers: 0, periodsMissed: 0, periodsUpcoming: 0, notCovered: 0 }, rows: [] })) }, [tab])
   const [ov, setOv] = useState<SetupOverview | null>(null)
   const [boards, setBoards] = useState<AssignBoard[]>([])
   const [faculty, setFaculty] = useState<Faculty[]>([])
@@ -237,8 +240,10 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
           <p className="text-xs text-slate-500">Live picture of staffing, workload and the generated timetable · {ov?.cycle} cycle</p>
         </div>
         <div className="ml-auto flex items-center gap-2 flex-wrap">
-          <PillTabs value={tab} onChange={setTab} tabs={[{ id: 'overview', label: 'Overview' }, { id: 'needs', label: 'Subject needs' }, { id: 'workload', label: 'Teacher workload' }, { id: 'results', label: 'Teacher results' }, { id: 'timetable', label: 'Timetable analysis' }]} />
-          <button onClick={() => tab === 'results'
+          <PillTabs value={tab} onChange={setTab} tabs={[{ id: 'overview', label: 'Overview' }, { id: 'needs', label: 'Subject needs' }, { id: 'workload', label: 'Teacher workload' }, { id: 'absence', label: 'Absence' }, { id: 'results', label: 'Teacher results' }, { id: 'timetable', label: 'Timetable analysis' }]} />
+          <button onClick={() => tab === 'absence'
+            ? download('teacher-absence.csv', [['Teacher', 'Leave requests', 'Leave days', 'Periods not attended (to date)', 'Upcoming periods', 'Not covered by a substitute'], ...(absence?.rows ?? []).map(r => [r.name, r.leaveRequests, r.leaveDays, r.periodsMissed, r.periodsUpcoming, r.notCovered])])
+            : tab === 'results'
             ? download('teacher-results.csv', [['Teacher', 'Academic year', 'Semester', 'Subject', 'Students appeared', 'Pass %'], ...(rt?.teachers ?? []).flatMap(t => t.results.map(r => [t.name, r.academicYear, r.semester, r.subjectName, r.studentsAppeared ?? '', r.passPercent]))])
             : tab === 'workload'
             ? download('teacher-workload.csv', [['Teacher', 'Designation', 'Load', 'Weekly limit', 'Subjects'], ...teachers.map(t => [t.name, t.designation, t.load, t.max, t.subjects.map(s => `${s.code}x${s.n}`).join(' ')])])
@@ -361,6 +366,58 @@ export function ReportsPage({ navigate }: { navigate: (p: Page) => void }) {
             </Card>
           </div>
         </div>
+      )}
+
+      {/* ───────── ABSENCE ───────── */}
+      {tab === 'absence' && (
+        !absence ? <p className="text-sm text-slate-500">Loading…</p> : (
+          <div className="space-y-2">
+            <div className="grid gap-2 grid-cols-2 xl:grid-cols-4">
+              <Kpi label="Periods not attended" value={absence.totals.periodsMissed} sub="up to today, approved leave" tone="terra" />
+              <Kpi label="Still to come" value={absence.totals.periodsUpcoming} sub="periods on approved leave ahead" tone="brass" />
+              <Kpi label="Not covered" value={absence.totals.notCovered} sub="missed with no substitute" tone="plum" />
+              <Kpi label="Teachers on leave" value={absence.totals.teachers} sub="with approved leave" tone="slate" />
+            </div>
+            <Card title="Periods each teacher did not attend" sub="approved leave only; a period is a class on the timetable that fell on a leave day">
+              {absence.rows.length === 0 ? <p className="text-[12.5px] text-slate-500 py-4 text-center">No approved leave yet.</p> : (
+                <div className="space-y-2.5">
+                  {absence.rows.map(r => {
+                    const max = Math.max(1, ...absence.rows.map(x => x.periodsMissed + x.periodsUpcoming))
+                    const open = openAbs === r.facultyId
+                    return (
+                      <div key={r.facultyId}>
+                        <button onClick={() => setOpenAbs(open ? null : r.facultyId)} className="w-full text-left">
+                          <div className="flex items-baseline gap-2 text-[12.5px]">
+                            <ChevronRight size={13} className={`self-center text-slate-400 transition ${open ? 'rotate-90' : ''}`} />
+                            <span className="font-600 text-slate-800">{r.name}</span>
+                            <span className="text-[11px] text-slate-500">{r.leaveDays} leave day{r.leaveDays === 1 ? '' : 's'} · {r.leaveRequests} request{r.leaveRequests === 1 ? '' : 's'}</span>
+                            <span className="ml-auto font-700 text-slate-800">{r.periodsMissed} not attended{r.periodsUpcoming ? <span className="font-500 text-slate-500"> · {r.periodsUpcoming} to come</span> : null}</span>
+                          </div>
+                          <div className="mt-1 ml-5"><Bar pct={(100 * (r.periodsMissed + r.periodsUpcoming)) / max} h={7} marker={(100 * r.periodsMissed) / max} /></div>
+                        </button>
+                        {open && (
+                          <div className="ml-5 mt-1.5 rounded-xl bg-white/50 p-2.5 text-[12px] space-y-1">
+                            <p className="text-slate-500">Teaches {r.weeklyPeriods} periods a week · {r.notCovered} of the missed periods had no substitute</p>
+                            {r.leaves.map(l => (
+                              <p key={l.id} className="flex flex-wrap gap-x-3 text-slate-700">
+                                <b>{l.fromDate === l.toDate ? l.fromDate : `${l.fromDate} → ${l.toDate}`}</b>
+                                <span>{l.days} day{l.days === 1 ? '' : 's'}</span>
+                                <span>{l.periodsMissed} not attended</span>
+                                {l.periodsUpcoming > 0 && <span>{l.periodsUpcoming} to come</span>}
+                                {l.notCovered > 0 && <span className="text-rose-700">{l.notCovered} not covered</span>}
+                                <span className="text-slate-500">{l.reason}</span>
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </Card>
+          </div>
+        )
       )}
 
       {/* ───────── TEACHER RESULTS ───────── */}

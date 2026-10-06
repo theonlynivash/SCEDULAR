@@ -1,24 +1,24 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 import type { Page } from '../types'
-import { api, type MasterDatasetStatus, type StaffingReport } from '../api'
+import { api, type LeaveCalendar, type LeaveListItem, type LeaveSummary, type MasterDatasetStatus, type StaffingReport } from '../api'
 import type { SemesterReadiness } from '../types'
 import { fetchSessionQuote, getCachedQuote, type ScedularQuote } from '../quotes'
 import type { AcademicCycle } from '../academicCycle'
 import { Btn } from './ui'
+import { getSession } from '../session'
+import LeaveCalendarView, { SubLine, bareName } from './LeaveCalendar'
 import {
-  ArrowRight,
   BookOpen,
   Building2,
   Calendar,
   Cpu,
   Database,
   FlaskConical,
-  RefreshCw,
-  Sparkles,
   Users,
   UserCheck,
   ClipboardList,
   Bot,
+  CalendarOff,
 } from 'lucide-react'
 
 /* ---------- Count-up Animation Component ---------- */
@@ -55,6 +55,12 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
   const [staffing, setStaffing] = useState<StaffingReport | null>(null)
   const [readiness, setReadiness] = useState<SemesterReadiness[] | null>(null)
   const [briefLoading, setBriefLoading] = useState(true)
+  const [leave, setLeave] = useState<LeaveSummary | null>(null)
+  const [leaveList, setLeaveList] = useState<LeaveListItem[]>([])
+  const [calMonth, setCalMonth] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()).slice(0, 7))
+  const [cal, setCal] = useState<LeaveCalendar | null>(null)
+  const [selDay, setSelDay] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()))
+  const me = getSession()?.user.facultyId
   const [quote, setQuote] = useState<ScedularQuote | null>(null)
 
   const reloadData = () => {
@@ -88,6 +94,10 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
     if (cached) setQuote(cached)
     else fetchSessionQuote().then(setQuote)
   }, [])
+
+  // substitution classes and leave letters (everyone: a teacher's own duties; the HOD also the number of letters waiting)
+  useEffect(() => { api.leave.summary().then(setLeave).catch(() => setLeave(null)); api.leave.list().then(setLeaveList).catch(() => setLeaveList([])) }, [])
+  useEffect(() => { api.leave.calendar(calMonth).then(setCal).catch(() => setCal(null)) }, [calMonth])
 
   // Briefing data (HOD only): live staffing and readiness, read straight from the department's records.
   useEffect(() => {
@@ -155,6 +165,7 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
         out.push({ tone: 'warn', title: 'Readiness', text: `${ready.length} of ${readiness.length} semesters ready. Semester ${first.semester}${why ? ` is waiting on: ${why}` : ' still has gaps'}${blocked.length > 1 ? ` (and ${blocked.length - 1} more)` : ''}.`, go: 'settings' as Page })
       }
     }
+    if (leave && leave.pendingForHod > 0) out.push({ tone: 'warn', title: 'Leave letters', text: `${leave.pendingForHod} leave request${leave.pendingForHod === 1 ? ' is' : 's are'} waiting for you. Assign substitutes for the classes.`, go: 'leave' as Page })
     out.push(latestRun
       ? { tone: 'ok', title: 'Timetable', text: `Generated ${new Date(latestRun.generatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} with ${latestRun.assignmentsCount} class periods placed.`, go: 'view-timetable' as Page }
       : { tone: 'todo', title: 'Timetable', text: 'Not generated yet. Generate it once staffing and readiness are complete.', go: 'generate' as Page })
@@ -189,210 +200,155 @@ export default function Dashboard({ navigate, role = 'HOD', userName = '' }: Das
 
   const quickActions = role === 'FACULTY' ? facultyQuickActions : hodQuickActions
 
+  const todayStr = cal?.today ?? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
+  const dayInfo = cal?.days[selDay]
+  const fmtDay = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-IN', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' })
+  const waiting = leaveList.filter(l => l.status === 'PENDING')
+  const myRecent = leaveList.slice(0, 3)
+  const isHod = role === 'HOD'
+  const panel = 'liquid-tint rounded-2xl p-4'
+  const head3 = 'text-[11px] font-700 tracking-[0.12em] text-[color:var(--c-600)] uppercase'
+  const stats = isHod
+    ? statCards.map(s => ({ label: s.label, value: s.value, page: s.page }))
+    : [{ label: 'Cycle', value: cycle ?? '—', page: 'dashboard' as Page }, { label: 'My allocation', value: allocationStatus.label, page: 'faculty-allocation' as Page }, { label: 'Preferences', value: preferences.length, page: 'faculty-allocation' as Page }]
+
   return (
-    <div className="space-y-6 pb-6">
-      {/* Welcome Hero Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8 relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[color:var(--c-600)]/10 text-[color:var(--c-600)] text-xs font-700 mb-2">
-              <Sparkles size={13} className="text-amber-500" />
-              Panimalar AI & DS Department
+    <div className="space-y-4 pb-4">
+      {/* header: greeting, cycle and the two main actions */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <h1 className="font-display font-700 text-xl md:text-2xl text-slate-900 tracking-tight">{getTimeGreeting()}{userName ? `, ${userName}` : ''}</h1>
+          <p className="text-[12px] text-slate-500 mt-0.5">{isHod ? 'Panimalar AI & DS' : 'Faculty portal'} · {cycleLine}</p>
+          {quoteData && <p className="text-[12px] text-slate-500 italic mt-1 truncate" title={`${quoteData.text} — ${quoteData.author}`}>"{quoteData.text}" <span className="not-italic">— {quoteData.author}</span></p>}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isHod ? (
+            <>
+              <Btn onClick={() => navigate('generate')}><Cpu size={15} /> Generate timetable</Btn>
+              <Btn variant="secondary" onClick={() => navigate('view-timetable')}><Calendar size={15} /> View</Btn>
+            </>
+          ) : (
+            <>
+              <Btn onClick={() => navigate('leave')}><CalendarOff size={15} /> Request leave</Btn>
+              <Btn variant="secondary" onClick={() => navigate('view-timetable')}><Calendar size={15} /> My timetable</Btn>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* one slim strip of numbers instead of four big cards */}
+      <div className={`${panel} !py-2.5 grid grid-cols-2 ${isHod ? 'md:grid-cols-4' : 'md:grid-cols-3'} divide-x divide-white/40`}>
+        {stats.map(x => (
+          <button key={x.label} onClick={() => navigate(x.page)} className="text-left px-4 py-1 hover:bg-white/30 rounded-lg transition">
+            <p className="text-[10.5px] font-600 uppercase tracking-[0.12em] text-slate-500">{x.label}</p>
+            <p className="font-display font-800 text-[20px] leading-tight text-[color:var(--c-700)]">{loading ? '—' : typeof x.value === 'number' ? <CountUp to={x.value} /> : x.value}</p>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] items-start">
+        {/* left: what needs attention */}
+        <div className="space-y-4 min-w-0">
+          <div className={panel}>
+            <div className="flex items-center gap-2">
+              <p className={head3}>{isHod ? 'Substitutions · today' : 'Your substitutions · today'}</p>
+              <span className="text-[11px] text-slate-500">{fmtDay(todayStr)}</span>
+              <button onClick={() => navigate('leave')} className="ml-auto text-[11.5px] font-600 text-[color:var(--c-600)] hover:underline">Leave →</button>
             </div>
-            <h1 className="font-display font-700 text-2xl md:text-3xl text-slate-900 tracking-tight">
-              {getTimeGreeting()}{userName ? `, ${userName}` : ''} 👋
-            </h1>
-            <p className="text-xs md:text-sm text-slate-500 mt-1">
-              {role === 'FACULTY' ? 'Faculty Portal' : 'SCEDULAR Configuration & Readiness Hub'} &middot; {cycleLine}
-            </p>
+            {(() => {
+              const subs = cal?.days[todayStr]?.substitutions ?? []
+              const leaves = cal?.days[todayStr]?.leaves ?? []
+              if (subs.length === 0 && leaves.length === 0) return <p className="text-[12.5px] text-slate-500 mt-2">{isHod ? 'Nobody is on leave today and no substitution is assigned.' : 'You have no substitution today.'}</p>
+              return (
+                <div className="mt-2 space-y-1.5">
+                  {isHod && leaves.length > 0 && <p className="text-[12.5px] text-slate-600">On leave: {leaves.map(l => bareName(l.facultyName)).join(', ')}</p>}
+                  {subs.map(s => <p key={s.id} className="text-[12.5px] text-slate-700 rounded-lg bg-white/60 px-3 py-1.5"><SubLine s={s} me={me} role={role} /></p>)}
+                </div>
+              )
+            })()}
+            {!isHod && leave && leave.upcomingDuties.filter(d => d.date > todayStr).length > 0 && (
+              <div className="mt-3 pt-2.5 border-t border-white/50">
+                <p className="text-[11px] font-700 text-slate-500 uppercase tracking-wide mb-1">Coming up</p>
+                {leave.upcomingDuties.filter(d => d.date > todayStr).slice(0, 3).map(d => (
+                  <p key={d.id} className="text-[12.5px] text-slate-700 py-0.5">You have a substitution class in place of <b>{bareName(d.inPlaceOfName)}</b>: {new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-IN', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' })}, {d.startPeriod === d.endPeriod ? `P${d.startPeriod}` : `P${d.startPeriod}–${d.endPeriod}`}, <b>{d.sectionId}</b></p>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {role === 'FACULTY' ? (
-              <>
-                <Btn onClick={() => navigate('faculty-allocation')}>
-                  <BookOpen size={16} /> My Allocation
-                </Btn>
-                <Btn variant="secondary" onClick={() => navigate('view-timetable')}>
-                  <Calendar size={16} /> My Timetable
-                </Btn>
-              </>
+          <div className={panel}>
+            <div className="flex items-center gap-2">
+              <p className={head3}>{isHod ? 'Leave requests' : 'My leave requests'}</p>
+              {isHod && waiting.length > 0 && <span className="px-2 rounded-full bg-amber-100 text-amber-800 text-[11px] font-700">{waiting.length} waiting</span>}
+              <button onClick={() => navigate('leave')} className="ml-auto text-[11.5px] font-600 text-[color:var(--c-600)] hover:underline">{isHod ? 'Open all →' : 'Open →'}</button>
+            </div>
+            {(isHod ? waiting : myRecent).length === 0 ? (
+              <p className="text-[12.5px] text-slate-500 mt-2">{isHod ? 'No leave letter is waiting for you.' : 'You have not sent a leave letter.'}</p>
             ) : (
-              <>
-                <Btn onClick={() => navigate('generate')}>
-                  <Cpu size={16} /> Generate Timetable
-                </Btn>
-                <Btn variant="secondary" onClick={() => navigate('view-timetable')}>
-                  <Calendar size={16} /> View Schedule
-                </Btn>
-              </>
+              <ul className="mt-2 space-y-1.5">
+                {(isHod ? waiting.slice(0, 4) : myRecent).map(l => (
+                  <li key={l.id} className="flex items-center gap-2 text-[12.5px] rounded-lg bg-white/60 px-3 py-1.5">
+                    {isHod && <span className="font-700 text-slate-800">{bareName(l.facultyName)}</span>}
+                    <span className="text-slate-600">{l.fromDate === l.toDate ? l.fromDate : `${l.fromDate} → ${l.toDate}`}</span>
+                    <span className="text-slate-500">{l.coverage.covered}/{l.coverage.total} covered</span>
+                    <span className={`ml-auto px-2 rounded-full text-[10.5px] font-700 ${l.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : l.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>{l.status === 'PENDING' ? 'Waiting' : l.status === 'APPROVED' ? 'Approved' : l.status === 'REJECTED' ? 'Not approved' : 'Cancelled'}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className={panel}>
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg flex items-center justify-center bg-[color:var(--c-600)] text-white flex-shrink-0"><Bot size={14} /></span>
+              <p className={head3}>{isHod ? 'Department briefing' : 'Your status'}</p>
+            </div>
+            {briefLoading ? (
+              <div className="mt-3 space-y-2 animate-pulse">{[0, 1, 2].map(i => <div key={i} className="h-4 bg-[color:var(--c-600)]/10 rounded w-11/12" />)}</div>
+            ) : (
+              <ul className="mt-2.5 space-y-2">
+                {briefing.map(b => (
+                  <li key={b.title} className="flex items-start gap-2.5">
+                    <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${b.tone === 'ok' ? 'bg-emerald-500' : b.tone === 'warn' ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                    <p className="min-w-0 flex-1 text-[12.5px] text-slate-600 leading-snug"><b className="text-slate-800">{b.title}.</b> {b.text}</p>
+                    {b.go && <button onClick={() => navigate(b.go!)} className="text-[11.5px] font-600 text-[color:var(--c-600)] hover:underline flex-shrink-0">Open →</button>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* right: the calendar and the chosen day */}
+        <div className="space-y-4">
+          <div className={panel}>
+            <LeaveCalendarView data={cal} month={calMonth} onMonth={m => { setCalMonth(m); setSelDay(m === todayStr.slice(0, 7) ? todayStr : `${m}-01`) }} selected={selDay} onSelect={setSelDay} />
+          </div>
+          <div className={panel}>
+            <p className={head3}>{fmtDay(selDay)}</p>
+            {!dayInfo || (dayInfo.leaves.length === 0 && dayInfo.substitutions.length === 0) ? (
+              <p className="text-[12.5px] text-slate-500 mt-1.5">Nothing on this day.</p>
+            ) : (
+              <div className="mt-2 space-y-1.5">
+                {dayInfo.leaves.map(l => <p key={l.id} className="text-[12.5px] text-slate-700"><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5" /><b>{bareName(l.facultyName)}</b> on leave{l.status === 'PENDING' ? ' (waiting for approval)' : ''}</p>)}
+                {dayInfo.substitutions.map(s => <p key={s.id} className="text-[12.5px] text-slate-700 rounded-lg bg-white/60 px-3 py-1.5"><SubLine s={s} me={me} role={role} /></p>)}
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-        {/* Department briefing: built from live staffing, readiness and timetable records (no generated prose) */}
-        <div className="liquid-tint tone-teal rounded-2xl p-5">
-          <div className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-xl flex items-center justify-center bg-[color:var(--c-600)] text-white flex-shrink-0"><Bot size={16} /></span>
-            <p className="text-[11px] font-700 tracking-[0.12em] text-[color:var(--c-600)] uppercase">{role === 'HOD' ? 'Department briefing' : 'Your status'}</p>
-          </div>
-          {briefLoading ? (
-            <div className="mt-3 space-y-2 animate-pulse">
-              {[0, 1, 2].map(i => <div key={i} className="h-4 bg-[color:var(--c-600)]/10 rounded w-11/12" />)}
-            </div>
-          ) : (
-            <ul className="mt-3 space-y-2.5">
-              {briefing.map(b => (
-                <li key={b.title} className="flex items-start gap-2.5">
-                  <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${b.tone === 'ok' ? 'bg-emerald-500' : b.tone === 'warn' ? 'bg-amber-500' : 'bg-slate-400'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[12px] font-700 text-slate-800">{b.title}</p>
-                    <p className="text-[12.5px] text-slate-600 leading-snug">{b.text}</p>
-                  </div>
-                  {b.go && <button onClick={() => navigate(b.go!)} className="text-[11.5px] font-600 text-[color:var(--c-600)] hover:underline flex-shrink-0 mt-0.5">Open →</button>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Motivational quote — decorative only, no allocation logic */}
-        {quoteData && (
-        <div className="rounded-2xl border border-[color:var(--c-600)]/20 bg-gradient-to-br from-[var(--c-600)]/5 to-amber-400/5 p-5 flex items-start gap-3">
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[color:var(--c-600)] text-white flex-shrink-0">
-            <Sparkles size={18} className="text-amber-300" />
-          </span>
-          <div>
-            <p className="text-[11px] font-700 tracking-wide text-[color:var(--c-600)] uppercase">Today's Note</p>
-            <p className="text-sm text-slate-700 italic mt-1">"{quoteData.text}"</p>
-            <p className="text-xs text-slate-500 mt-1">— {quoteData.author}</p>
-          </div>
-        </div>
-        )}
+      {/* shortcuts: one quiet row */}
+      <div className="flex flex-wrap gap-2 px-1">
+        {quickActions.map(a => {
+          const IconComp = a.icon
+          return (
+            <button key={a.title} onClick={() => navigate(a.page)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12.5px] font-600 text-[color:var(--c-700)] bg-white/40 ring-1 ring-[color:var(--c-700)]/20 hover:bg-white/70 transition">
+              <IconComp size={14} /> {a.title}
+            </button>
+          )
+        })}
       </div>
-
-      {role === 'FACULTY' ? (
-        /* ---------------- FACULTY DASHBOARD ---------------- */
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <p className="text-xs font-600 text-slate-500">Current Academic Cycle</p>
-              <p className="font-display font-800 text-2xl text-[color:var(--c-600)] mt-1">{cycle ?? '—'}</p>
-              <p className="text-xs text-slate-400 mt-0.5">Regulation 2024 · AI & DS</p>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <p className="text-xs font-600 text-slate-500">My Allocation Status</p>
-              <p className={`font-display font-800 text-xl mt-1 ${allocationStatus.tone}`}>{allocationStatus.label}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{preferences.length} preference(s) on record</p>
-            </div>
-          </div>
-
-          <div>
-            <h2 className="font-display font-700 text-base text-slate-900 mb-3">My Quick Links</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {quickActions.map((a, idx) => {
-                const IconComp = a.icon
-                return (
-                  <button key={a.title} onClick={() => navigate(a.page)} className="text-left group transition-all duration-200">
-                    <div style={{ '--stagger': idx } as CSSProperties} className={`animate-in bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-full flex items-center justify-between transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md ${a.highlight ? 'border-[color:var(--c-600)]/40 bg-blue-50/20' : ''}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${a.highlight ? 'bg-[color:var(--c-600)] text-white shadow-sm' : 'bg-[color:var(--c-600)]/10 text-[color:var(--c-600)]'}`}>
-                          <IconComp size={20} strokeWidth={1.8} />
-                        </div>
-                        <span className="font-display font-700 text-sm text-slate-900 group-hover:text-[color:var(--c-600)] transition">{a.title}</span>
-                      </div>
-                      <ArrowRight size={16} className="text-slate-400 group-hover:text-[color:var(--c-600)] group-hover:translate-x-1 transition-all" />
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* ---------------- HOD DASHBOARD ---------------- */
-        <div className="space-y-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {statCards.map((s, idx) => {
-              const isReady = !loading && s.value > 0
-              return (
-                <button key={s.label} onClick={() => navigate(s.page)} className="text-left group">
-                  <div style={{ '--stagger': idx } as CSSProperties} className="animate-in bg-white rounded-xl border border-slate-200 shadow-sm p-4.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md h-full">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className={`w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br ${s.tone} ${s.textTone}`}>
-                        <s.icon size={18} strokeWidth={2} />
-                      </span>
-                      {!loading && (
-                        <span className={`text-xs font-700 ${isReady ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          {isReady ? '✓ Active' : 'None yet'}
-                        </span>
-                      )}
-                    </div>
-                    <p className="font-display font-800 text-2xl text-slate-900">
-                      {loading ? '—' : <CountUp to={s.value} />}
-                    </p>
-                    <p className="text-xs font-600 text-slate-500 mt-0.5">{s.label}</p>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Master Schedule Status Banner */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${latestRun ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                <span className={`relative inline-flex rounded-full h-3 w-3 ${latestRun ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              </span>
-              <div>
-                <h4 className="font-display font-700 text-sm text-slate-900">
-                  {latestRun ? `Active Timetable (Run #${latestRun.runId})` : 'No Timetable Generated Yet'}
-                </h4>
-                <p className="text-xs text-slate-500">
-                  {latestRun ? `${latestRun.assignmentsCount} assignments · 0 hard conflicts` : 'Click generate to run the constraint solver'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-              {latestRun && (
-                <Btn variant="secondary" onClick={() => navigate('generate')}>
-                  <RefreshCw size={14} /> Regenerate
-                </Btn>
-              )}
-              <Btn onClick={() => navigate('view-timetable')}>View Timetable →</Btn>
-            </div>
-          </div>
-
-          {/* Modules Grid */}
-          <div>
-            <h2 className="font-display font-700 text-base text-slate-900 mb-3">Quick Modules</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {quickActions.map((a, idx) => {
-                const IconComp = a.icon
-                return (
-                  <button key={a.title} onClick={() => navigate(a.page)} className="text-left group transition-all duration-200">
-                    <div style={{ '--stagger': idx } as CSSProperties} className={`animate-in bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-full flex items-center justify-between transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md ${a.highlight ? 'border-[color:var(--c-600)]/40 bg-blue-50/20' : ''}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${a.highlight ? 'bg-[color:var(--c-600)] text-white shadow-sm' : 'bg-[color:var(--c-600)]/10 text-[color:var(--c-600)]'}`}>
-                          <IconComp size={20} strokeWidth={1.8} />
-                        </div>
-                        <span className="font-display font-700 text-sm text-slate-900 group-hover:text-[color:var(--c-600)] transition">{a.title}</span>
-                      </div>
-                      <ArrowRight size={16} className="text-slate-400 group-hover:text-[color:var(--c-600)] group-hover:translate-x-1 transition-all" />
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   )
 }

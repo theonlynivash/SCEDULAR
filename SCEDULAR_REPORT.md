@@ -411,6 +411,7 @@ Faculty 1───* TeachingAssignment *───1 SectionSubject *───1 Se
 Faculty 1───* Preference *───1 Subject
 Faculty 1───* FacultyResult
 Faculty 1───* ChatMessage (as sender or receiver)
+Faculty 1───* LeaveRequest 1───* Substitution *───1 Faculty (the substitute)
 
 GenerationRun 1───* Assignment (day, periods, section, subject, faculty, lab)
 ```
@@ -475,14 +476,17 @@ same in the cloud. Only *where the document is stored* differs.
 
 ### 10.2 The screen layout
 
-* **Left sidebar** (computer) — Dashboard, Assign Teachers, Teachers, View Timetable, Reports, My Profile, About.
+* **Left sidebar** (computer) — Dashboard, Assign Teachers, Teachers, View Timetable, Leave, Reports, My Profile, About.
 * **Top bar** — menu button, SCEDULAR name, **gear** (Settings, HOD only), **bell** (messages with unread count), **Logout**.
 * **Bottom-right button "SCEDULAR AI"** — opens the assistant.
 * **Phone**: a bottom bar (Home, Assign, Teachers, Timetable, More) and a slide-in menu; see §12.
 
-**Dashboard.** Shows a greeting, the current cycle, quick actions (Assign Teachers, Generate Timetable, View Timetable,
-Teachers, Subjects & Syllabus, Lab Management, Reports & Workload), live counts (sections, subjects, teachers, labs) and
-a readiness summary. Counts come from the real data.
+**Dashboard.** Kept deliberately light. A slim header (greeting, cycle, one line of inspiration, *Generate timetable* and *View*),
+one strip with the live counts (sections, subjects, teachers, labs), then two columns. Left: **Substitutions · today** (who is on
+leave today and every substitution assigned for today, in full), **Leave requests** (the letters waiting for you, with a link),
+and the **Department briefing** (staffing, readiness, waiting leave letters, timetable). Right: a **month calendar** with a rose
+dot on days with leave and an amber dot on days with a substitution; click a day to see exactly who and which classes. A quiet row
+of shortcuts sits at the bottom. Counts come from the real data.
 
 ### 10.3 Settings (gear icon)
 
@@ -540,6 +544,10 @@ each section. It saves at once and is printed on that section's timetable PDF.
 * **Staffing weightage** — two numbers: *sections one teacher takes (average)*, default 3, which sets how many preferences each subject accepts (§16.4a); and *most periods per teacher per week*, default 28, which is the cap used by assigning, auto-fill and the "need more teachers" check (§17.3a).
 * **SCEDULAR AI for Faculty** switch — turn the assistant on or off for teachers. When off, the SCEDULAR AI button disappears for
   teachers and the server refuses their questions. The HOD is never affected. (A fixed bug: the switch used to save only in memory and the knob was drawn out of place.)
+* **Show other teachers' timetables to teachers** switch — when **on** (default) a teacher can open any teacher's timetable and
+  download class and lab sheets. When **off**, each teacher still sees every class and lab timetable, but under *Faculty Timetable*
+  only her own name, and downloads only her own timetable; the class and lab download buttons disappear and the server refuses those
+  downloads. The HOD is never limited.
 * **Department snapshot** — counts of faculty, bands and the current cycle.
 
 #### Tab 7 — Dataset
@@ -637,7 +645,10 @@ When all offerings are staffed, the semester shows as ready on the Dashboard / S
 On the View Timetable page the **Download PDF** menu offers:
 
 * **Class timetables** — Semester by semester, or *All semesters in one file*. One A4 page per section in the department's printed format.
+* **Lab timetables** — one landscape page per lab room: when it is used, by which section, subject and teacher.
+* **Teacher timetables** (HOD) — every teacher of a semester (or all teachers) in one file, one page each.
 * **Master timetable (all sections)** — for each semester or all; landscape (HOD only).
+* On the *Class Timetable* and *Lab Timetable* tabs a button downloads the selected semester's class sheets or the selected lab room.
 * For a selected teacher on the *Faculty Timetable* tab, **Download PDF** gives that teacher's personal timetable.
 
 What each PDF contains is described in §13.
@@ -649,8 +660,9 @@ What each PDF contains is described in §13.
 1. **Overview** — key figures (staffing, teachers teaching, average load, timetable status with number of placements, lab rooms in use), staffing by semester, how loaded teachers are, the experience mix, teachers' choices per semester and the busiest teachers.
 2. **Subject needs** — for each subject how many sections need a teacher, how many are covered, and how many teachers chose it. Notes such as "Nobody chose it" or "Assigned directly".
 3. **Teacher workload** — weekly teaching load per teacher as bars. **Click a teacher to open everything about their work:** periods used and free (of the 28-period limit), theory and lab periods, number of subjects and sections, experience, past pass average, the sections they are class in-charge of, a table of every subject they teach (semester, the section letters, periods per section, total periods), their load per day in the generated timetable (busiest day, lab periods), their subject choices with status, and warnings (above the limit, experience not set, timetable out of date). Teachers who are not teaching yet are in a collapsible list with the same details. A distribution of teachers by weekly periods and the capacity summary sit beside it.
-4. **Teacher results** — department average pass percentage, number of teachers with results, highest and lowest averages, and per-teacher detail by semester.
-5. **Timetable analysis** — *When the department teaches* (a period-by-day heat grid), *Classes per day* and *Lab room use*.
+4. **Absence** — how many periods each teacher did not attend because of approved leave: periods not attended up to today, periods still to come, periods that had no substitute, and the number of teachers on leave. Click a teacher for each leave (dates, days, periods, reason). A period here is a class from the timetable that fell on a leave day. *Export CSV* saves the table.
+5. **Teacher results** — department average pass percentage, number of teachers with results, highest and lowest averages, and per-teacher detail by semester.
+6. **Timetable analysis** — *When the department teaches* (a period-by-day heat grid), *Classes per day* and *Lab room use*.
 
 Charts follow the department's navy/gold palette. Rings/bars are used instead of raw numbers wherever a proportion matters.
 
@@ -668,6 +680,18 @@ The bell shows a red badge with unread messages. Open it to see all teachers (se
 and an unread count. Tap a teacher to open the conversation; type and press Enter or the send arrow. Messages are plain
 text up to 1000 characters, show the time and "seen", refresh every few seconds, and are **deleted after 30 days**. They are
 **not encrypted** — do not use them for confidential matters. (More in §19.)
+
+### 10.12a Leave and substitution (Leave in the menu)
+
+When a teacher is away, the HOD needs a substitute for every class she would have taken. SCEDULAR does this in three steps.
+
+1. **The teacher sends a leave letter** (*Leave → Request leave*). She picks the dates and a reason and presses *Show my classes*. The app reads her classes of those dates from the timetable and lists them **grouped by day and section**. Under each class are the teachers who are **completely free in that exact period** (no class of their own, not marked unavailable, not on leave, not already substituting). A teacher who has agreed in person can be ticked; the HOD will see the name. The standard formal letter is written for her and she may edit it. *Send to HOD* delivers it as a **message and as an email** to the HOD.
+2. **The HOD assigns** (*Leave → Leave requests*). The request opens with the letter and every class under its section. Below each class the free teachers are shown in this order: those the teacher named, then those who teach that section, then (a click away) all other free teachers. One click assigns a substitute. Assigning approves the leave; the HOD can also approve or reject it, with a note. A teacher who is not free in that period cannot be assigned: the app refuses.
+3. **The substitute is told.** Their dashboard shows *"You have a substitution class in place of Mr A: Mon 13 Oct, P2, section Y2-C · Subject"*, and they get a message and an email. If the HOD changes or removes the substitute, the old one is told.
+
+**Scores.** The *Score & duties* tab shows leave days taken, periods covered for others, and two lists: *You worked for* and *Who covered for you*. When a teacher who once covered for A later asks for leave, A is marked in their list (the handshake icon: "you covered N periods for them"), so they can ask A in return. The HOD still makes every assignment. *Leave & cover record* gives the whole department's figures. The HOD can also record a leave on behalf of a teacher.
+
+Rules: dates cannot be in the past; a request covers up to 31 days; two open requests cannot overlap; a cancelled or rejected leave frees all its substitutes.
 
 ### 10.13 Using the AI assistant
 
@@ -715,12 +739,14 @@ with your registered email instead of the ID. After your first sign-in, change y
 *Forgot Password?* if you want a password you chose yourself (the HOD may also set one for you).
 
 ### 11.2 Signing in and the layout
-* Sidebar: **Dashboard, My Subjects, Timetable, My Profile, About**.
+* Sidebar: **Dashboard, My Subjects, Timetable, Leave, My Profile, About**.
 * Top bar: bell (messages with the HOD) and Logout.
 * Bottom-right: SCEDULAR AI (if the HOD has enabled it).
 
-**Dashboard.** Greeting, your current cycle, your allocation status (Not started / Draft / Submitted / Approved), shortcuts
-to My Allocation and My Timetable, and an inspirational note.
+**Dashboard.** Greeting, your cycle, your allocation status (Not started / Draft / Submitted / Approved), a **Request leave** button,
+**your substitutions today** ("Sangeetha takes it for you" or "you take it in place of …"), your leave requests, and a month calendar
+with your leave and substitution days. If the HOD has limited timetable viewing, the Timetable page shows only your own name under
+*Faculty Timetable* and offers only *Download my timetable*.
 
 ### 11.3 My Subjects (choosing preferred subjects)
 
@@ -740,6 +766,9 @@ Why limits exist: seniority decides which years a teacher may handle, and total 
 3. **Download my timetable** gives a one-page landscape PDF: your weekly grid, a "Subjects handled" table (code, title, sections, periods per week) and your total periods.
 4. You can only download your own personal PDF; class PDFs are available for every section.
 5. On a phone you see one card per day with times, subject, section and room; today's card is highlighted.
+
+### 11.4a Leave
+*Leave* has three tabs: **Request leave** (dates, reason, your classes with the free teachers under each, the letter), **My leaves** (status, who takes each class, cancel) and **Score & duties** (leave taken, classes you covered, substitution classes coming up, who worked for whom). Substitution classes also appear on your Dashboard. See §10.12a for the full flow.
 
 ### 11.5 My Profile
 * **Update experience** — corrects your years of experience (the HOD can also edit).
@@ -788,6 +817,9 @@ One portrait A4 page per section. Layout copied from the department's printed sh
 
 ### 13.2 Teacher's personal timetable
 Landscape A4: title with the teacher's name, designation and ID; the weekly grid showing subject acronym and section for each class; the **Subjects handled** table and the total periods per week.
+
+### 13.2a Lab-room timetable
+Landscape A4, one page per lab room: the weekly grid with the subject acronym, section and teacher of every session, and how many of the week's periods the room is used.
 
 ### 13.3 Master timetable (HOD)
 Landscape A4, in this order:

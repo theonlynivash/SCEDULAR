@@ -40,3 +40,33 @@ describe('faculty and master timetable PDFs', () => {
     expect(buf.length).toBeGreaterThan(20_000)
   })
 })
+
+describe('lab and all-teacher timetable PDFs', () => {
+  const pdf = async (r: Response) => Buffer.from(await r.arrayBuffer())
+  it('lab-room timetables: one room or all, for any signed-in user', async () => {
+    const hod = await login('FAC-001', 'SCEDULAR_AIDS')
+    expect((await get('/api/timetable/export/labs?lab=all')).status).toBe(401)
+    const all = await get('/api/timetable/export/labs?lab=all', hod)
+    expect(all.status).toBe(200)
+    expect(all.headers.get('content-type')).toContain('application/pdf')
+    const buf = await pdf(all)
+    expect(buf.subarray(0, 4).toString()).toBe('%PDF')
+    const { getLocalDb } = await import('../src/db/localDb.js')
+    const usedLab = getLocalDb().assignments.find(a => a.labId)?.labId
+    if (usedLab) expect((await get(`/api/timetable/export/labs?lab=${usedLab}`, hod)).status).toBe(200)
+    expect((await get('/api/timetable/export/labs?lab=NOPE', hod)).status).toBe(400)
+  })
+
+  it('all teachers in one file is HOD only', async () => {
+    const { listFaculty } = await import('../src/db/repo.js')
+    const { setFacultyPassword } = await import('../src/auth/passwords.js')
+    const t = (await listFaculty()).find(f => f.role !== 'HOD')!
+    await setFacultyPassword(t.id, 'Teacher-pass-2')
+    const tok = await login(t.id, 'Teacher-pass-2')
+    const hod = await login('FAC-001', 'SCEDULAR_AIDS')
+    expect((await get('/api/timetable/export/faculty-all?semester=all', tok)).status).toBe(403)
+    const r = await get('/api/timetable/export/faculty-all?semester=all', hod)
+    expect(r.status).toBe(200)
+    expect((await pdf(r)).subarray(0, 4).toString()).toBe('%PDF')
+  })
+})

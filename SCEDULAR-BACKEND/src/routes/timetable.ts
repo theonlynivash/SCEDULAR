@@ -13,12 +13,30 @@ import {
   listSubjects,
   listTeachingAssignments,
   getScheduleConfig,
+  listLabs,
+  getAllocationSettings,
 } from '../db/repo.js'
 import { createPdf, renderClassTimetablesPdf } from '../export/classTimetablePdf.js'
-import { createLandscapePdf, renderFacultyTimetablePdf, renderMasterTimetablePdf } from '../export/facultyMasterPdf.js'
+import { createLandscapePdf, renderAllFacultyTimetablesPdf, renderFacultyTimetablePdf, renderLabTimetablesPdf, renderMasterTimetablePdf } from '../export/facultyMasterPdf.js'
 import { requireAuth, requireRole } from '../auth/middleware.js'
 
 export const timetableRouter = Router()
+
+/**
+ * HOD setting (Settings → Policy): may teachers look at other teachers' timetables and download class / lab sheets?
+ * When it is off a teacher still SEES every class and lab timetable, but only their own under "Faculty", and can download
+ * only their own PDF. The HOD is never limited.
+ */
+async function restricted(req: any): Promise<boolean> {
+  if (req.auth?.role === 'HOD') return false
+  return (await getAllocationSettings()).facultyCanSeeOtherTimetables === false
+}
+const OFF = { error: 'NOT_ALLOWED', message: 'The HOD has limited this to your own timetable.' }
+
+// GET /api/timetable/visibility -> what the signed-in user may do (the screens hide the rest)
+timetableRouter.get('/visibility', requireAuth, async (req, res, next) => {
+  try { const r = await restricted(req); res.json({ canSeeOthers: !r, canDownloadSheets: !r }) } catch (err) { next(err) }
+})
 
 // Kicks off the full pipeline and persists the run.
 // The backend is authoritative: readiness is re-checked here even if the
@@ -136,8 +154,9 @@ timetableRouter.get('/section/:sectionId', async (req, res, next) => {
   }
 })
 
-timetableRouter.get('/faculty/:facultyId', async (req, res, next) => {
+timetableRouter.get('/faculty/:facultyId', requireAuth, async (req, res, next) => {
   try {
+    if (req.auth!.facultyId !== req.params.facultyId && await restricted(req)) return res.status(403).json(OFF)
     const latest = await getLatestValidRun()
     if (!latest) return res.status(404).json({ error: 'No validated timetable has been generated yet' })
     const assignments = (await getAssignmentsForRun(latest.id)).filter(a => a.facultyId === req.params.facultyId)
@@ -193,6 +212,50 @@ timetableRouter.get('/export/faculty/:facultyId', requireAuth, async (req, res, 
   } catch (err) { next(err) }
 })
 
+// GET /api/timetable/export/labs?lab=CC15|all - the lab-room timetables (one page per room)
+timetableRouter.get('/export/labs', requireAuth, async (req, res, next) => {
+  try {
+    if (await restricted(req)) return res.status(403).json(OFF)
+    const wanted = String(req.query.lab ?? 'all')
+    const run = await getLatestValidRun()
+    if (!run) return res.status(404).json({ error: 'NO_TIMETABLE', message: 'No timetable has been generated yet.' })
+    const [sections, subjects, sectionSubjects, teachingAssignments, faculty, config, assignments, labs] = await Promise.all([
+      listSections(), listSubjects(), listSectionSubjects(), listTeachingAssignments(), listFaculty(), getScheduleConfig(), getAssignmentsForRun(run.id), listLabs(),
+    ])
+    const used = new Set(assignments.map(a => a.labId).filter(Boolean))
+    const picked = wanted === 'all' ? labs.filter(l => used.has(l.id)) : labs.filter(l => l.id === wanted)
+    if (picked.length === 0) return res.status(wanted === 'all' ? 404 : 400).json({ error: 'NO_LABS', message: wanted === 'all' ? 'No lab room is used in the current timetable.' : 'Unknown lab room.' })
+    const doc = createLandscapePdf('Lab Timetables')
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="Lab-Timetable-${wanted === 'all' ? 'All-Labs' : wanted}.pdf"`)
+    doc.pipe(res)
+    renderLabTimetablesPdf({ labs: picked.map(l => ({ id: l.id, name: l.name })), sections, subjects, sectionSubjects, teachingAssignments, faculty, assignments, config }, doc)
+    doc.end()
+  } catch (err) { next(err) }
+})
+
+// GET /api/timetable/export/faculty-all?semester=III|all - HOD only: every teacher's timetable in one file
+timetableRouter.get('/export/faculty-all', requireAuth, requireRole('HOD'), async (req, res, next) => {
+  try {
+    const wanted = String(req.query.semester ?? 'all').toUpperCase()
+    const run = await getLatestValidRun()
+    if (!run) return res.status(404).json({ error: 'NO_TIMETABLE', message: 'No timetable has been generated yet.' })
+    const [sections, subjects, sectionSubjects, teachingAssignments, faculty, config, assignments] = await Promise.all([
+      listSections(), listSubjects(), listSectionSubjects(), listTeachingAssignments(), listFaculty(), getScheduleConfig(), getAssignmentsForRun(run.id),
+    ])
+    const inSem = new Set(sections.filter(s => wanted === 'ALL' || s.semester === wanted).map(s => s.id))
+    const ids = [...new Set(assignments.filter(a => inSem.has(a.sectionId)).map(a => a.facultyId))]
+      .filter(id => faculty.some(f => f.id === id)).sort((a, b) => (faculty.find(f => f.id === a)!.name).localeCompare(faculty.find(f => f.id === b)!.name))
+    if (ids.length === 0) return res.status(400).json({ error: 'NO_TEACHERS', message: `No teacher has classes in ${wanted === 'ALL' ? 'the current timetable' : 'Semester ' + wanted}.` })
+    const doc = createLandscapePdf('Teacher Timetables')
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="Teacher-Timetables-${wanted === 'ALL' ? 'All' : 'Sem-' + wanted}.pdf"`)
+    doc.pipe(res)
+    renderAllFacultyTimetablesPdf({ facultyIds: ids, sections, subjects, sectionSubjects, teachingAssignments, faculty, assignments, config }, doc)
+    doc.end()
+  } catch (err) { next(err) }
+})
+
 // GET /api/timetable/export/master?semester=VII|all - HOD only: the department's master timetable
 timetableRouter.get('/export/master', requireAuth, requireRole('HOD'), async (req, res, next) => {
   try {
@@ -215,8 +278,9 @@ timetableRouter.get('/export/master', requireAuth, requireRole('HOD'), async (re
   } catch (err) { next(err) }
 })
 
-timetableRouter.get('/export', async (req, res, next) => {
+timetableRouter.get('/export', requireAuth, async (req, res, next) => {
   try {
+    if (await restricted(req)) return res.status(403).json(OFF)
     const wanted = String(req.query.semester ?? '').toUpperCase()
     const run = await getLatestValidRun()
     if (!run) return res.status(404).json({ error: 'NO_TIMETABLE', message: 'No timetable has been generated yet.' })

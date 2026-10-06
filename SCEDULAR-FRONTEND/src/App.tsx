@@ -18,6 +18,7 @@ import { UploadCurriculum, UploadWorkload, ConstraintManagement } from './compon
 import { GenerateTimetable, TimetableResult, ViewTimetable, EditTimetable } from './components/TimetablePages'
 import { ReportsPage } from './components/ReportsPage'
 import About from './components/About'
+import LeavePage from './components/LeavePage'
 import FacultyProfile from './components/FacultyProfile'
 import HodSettings from './components/HodSettings'
 
@@ -27,7 +28,7 @@ import HodAssignBoard from './components/HodAssignBoard'
 import HodFacultyManagement from './components/HodFacultyManagement'
 import ScedularAiAssistant from './components/ScedularAiAssistant'
 
-const PAGES: Page[] = ['dashboard', 'profile', 'faculty-allocation', 'hod-allocation-review', 'hod-faculty-management', 'faculty', 'subjects', 'data-hub', 'lab-management', 'upload-curriculum', 'upload-workload', 'constraints', 'generate', 'timetable-result', 'view-timetable', 'edit-timetable', 'reports', 'settings', 'mail', 'about']
+const PAGES: Page[] = ['dashboard', 'profile', 'faculty-allocation', 'hod-allocation-review', 'hod-faculty-management', 'faculty', 'subjects', 'data-hub', 'lab-management', 'upload-curriculum', 'upload-workload', 'constraints', 'generate', 'timetable-result', 'view-timetable', 'edit-timetable', 'reports', 'leave', 'settings', 'mail', 'about']
 /** The page named in the address bar (#/reports), so links, reload and the browser's Back button work. */
 const pageFromHash = (): Page | null => { const p = window.location.hash.replace(/^#\/?/, '') as Page; return PAGES.includes(p) ? p : null }
 
@@ -135,6 +136,7 @@ export default function App() {
               {page === 'timetable-result' && <TimetableResult navigate={navigate} runId={lastRunId} />}
               {page === 'view-timetable' && <ViewTimetable navigate={navigate} role={role} />}
               {page === 'edit-timetable' && <EditTimetable navigate={navigate} />}
+              {page === 'leave' && <LeavePage role={role} navigate={navigate} />}
               {page === 'reports' && <ReportsPage navigate={navigate} />}
               {page === 'settings' && role === 'HOD' && <HodSettings navigate={navigate} />}
               {page === 'about' && <About navigate={navigate} />}

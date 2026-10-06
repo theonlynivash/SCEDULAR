@@ -413,3 +413,55 @@ export interface ChatMessage {
   sentAt: string
   readAt: string | null
 }
+
+/* ───────────── leave and substitution ───────────── */
+
+export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+
+/** One class of the leave-taking teacher that falls inside the leave dates (taken from the timetable when the leave is requested). */
+export interface LeaveSlot {
+  key: string                // date|section|startPeriod
+  date: string               // YYYY-MM-DD
+  day: string                // MON..
+  startPeriod: number
+  endPeriod: number
+  sectionId: string
+  subjectId: string
+  blockType: BlockType
+  labId?: string | null
+}
+
+export interface LeaveRequest {
+  id: number
+  facultyId: string
+  fromDate: string
+  toDate: string
+  reason: string
+  letter: string
+  slots: LeaveSlot[]
+  /** slot key -> teachers the requester says are free and ready to take that class */
+  proposed: Record<string, string[]>
+  status: LeaveStatus
+  hodNote: string | null
+  createdBy: string
+  createdAt: string
+  decidedAt: string | null
+}
+
+/** A class taken by another teacher in place of the one on leave. */
+export interface Substitution {
+  id: number
+  leaveId: number
+  slotKey: string
+  date: string
+  day: string
+  startPeriod: number
+  endPeriod: number
+  sectionId: string
+  subjectId: string
+  blockType: BlockType
+  originalFacultyId: string
+  substituteFacultyId: string
+  assignedBy: string
+  assignedAt: string
+}

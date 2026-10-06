@@ -17,6 +17,7 @@ export type Page =
   | 'view-timetable'
   | 'edit-timetable'
   | 'reports'
+  | 'leave'
   | 'settings'
   | 'mail'
   | 'about'

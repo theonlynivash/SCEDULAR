@@ -435,11 +435,14 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [error, setError] = useState<string | null>(null)
   const [hasMasterRun, setHasMasterRun] = useState<boolean | null>(null)
+  // HOD setting: when off, a teacher sees every class and lab timetable but only her own under Faculty, and downloads only her own PDF
+  const [canSeeOthers, setCanSeeOthers] = useState(true)
   const isHod = role === 'HOD'
   const tabs = ['Faculty Timetable', 'Class Timetable', 'Lab Timetable']
 
   useEffect(() => {
     api.timetable.master().then(() => setHasMasterRun(true)).catch(() => setHasMasterRun(false))
+    api.timetable.visibility().then(v => setCanSeeOthers(v.canSeeOthers)).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -482,7 +485,10 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
 
   const isScopeAll = scope.year === 'ALL' && scope.semester === 'ALL'
 
-  const scopedFaculty = isScopeAll
+  const myId = getSession()?.user.facultyId
+  const scopedFaculty = !isHod && !canSeeOthers
+    ? facultyList.filter(f => f.id === myId)
+    : isScopeAll
     ? facultyList
     : facultyList.filter(f => {
         const hasCanonical = canonicalTeachingAssignments.some(a => a.facultyId === f.id && scopedSectionSubjectIds.has(a.sectionSubjectId))
@@ -564,7 +570,7 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
   return (
     <div>
       <PageHeader title="View Timetable">
-        {isHod && <DownloadTimetables />}
+        {(isHod || canSeeOthers) && <DownloadTimetables />}
         <BackBtn navigate={navigate} />
       </PageHeader>
 
@@ -615,6 +621,21 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
           <button onClick={() => downloadFile(`/timetable/export/faculty/${encodeURIComponent(selectedFaculty)}`, 'Timetable.pdf').catch(e => setError(e.message))}
             className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-500 text-[color:var(--c-700)] bg-white/40 ring-1 ring-[color:var(--c-700)]/25 hover:bg-white/70 transition">
             <Download size={14} /> {isHod ? 'Download PDF' : 'Download my timetable'}
+          </button>
+        )}
+        {tab === 1 && selectedSection && (isHod || canSeeOthers) && (() => {
+          const sem = sections.find(x => x.id === selectedSection)?.semester
+          return sem ? (
+            <button onClick={() => downloadFile(`/timetable/export?semester=${encodeURIComponent(sem)}`, 'Class-Timetables.pdf').catch(e => setError(e.message))}
+              className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-500 text-[color:var(--c-700)] bg-white/40 ring-1 ring-[color:var(--c-700)]/25 hover:bg-white/70 transition">
+              <Download size={14} /> Class sheets · Sem {sem}
+            </button>
+          ) : null
+        })()}
+        {tab === 2 && selectedLab && (isHod || canSeeOthers) && (
+          <button onClick={() => downloadFile(`/timetable/export/labs?lab=${encodeURIComponent(selectedLab)}`, 'Lab-Timetable.pdf').catch(e => setError(e.message))}
+            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-500 text-[color:var(--c-700)] bg-white/40 ring-1 ring-[color:var(--c-700)]/25 hover:bg-white/70 transition">
+            <Download size={14} /> Download lab PDF
           </button>
         )}
         {tab === 0 && (

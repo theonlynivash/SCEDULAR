@@ -31,6 +31,8 @@ import type {
   WorkloadTemplate,
   FacultyWorkloadAllocation,
   FacultyResult,
+  LeaveRequest,
+  Substitution,
   MailLogEntry,
   ChatMessage,
 } from '../types.js'
@@ -89,6 +91,11 @@ export interface LocalDbState {
   facultyWorkloadAllocations: FacultyWorkloadAllocation[]
   facultyResults: FacultyResult[]
   mailLog: MailLogEntry[]
+  /** leave letters and the classes other teachers take in place (optional: older data files do not have them yet) */
+  leaveRequests?: LeaveRequest[]
+  substitutions?: Substitution[]
+  nextLeaveId?: number
+  nextSubstitutionId?: number
   messages: ChatMessage[]
   nextMessageId: number
   nextResultId: number

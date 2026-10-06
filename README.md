@@ -19,8 +19,9 @@ format. Reports, email, chat and an AI assistant are built in. It works on a pho
 | Approve teachers' subject choices; assign sections (plan editor, auto-fill, change teacher) | Choose preferred subjects (limits by experience and by how many teachers each subject needs) |
 | See "need more teachers" when the work does not fit | See the personal timetable and **download it as PDF** |
 | Generate the timetable for all ready semesters in one run | Record past pass percentages, add a profile photo |
-| Download class timetables, teacher timetables and the **master timetable** (PDF) | Chat with the HOD |
+| Download class, lab-room and teacher timetables and the **master timetable** (PDF) | Chat with the HOD |
 | Reports: staffing, subject needs, **each teacher's full workload**, results, timetable analysis | Ask the AI assistant about their own data |
+| **Leave letters**: see the classes under each section with the free teachers beside them, assign substitutes | **Send a leave letter**, name the colleagues who agreed, see substitution classes on the dashboard |
 | Email teachers (AI-drafted), reset or issue logins, chat with anyone | |
 
 **Rules the timetable never breaks:** no teacher, lab or section is ever in two places at once; labs run as whole blocks and

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import type { AcademicCycle } from '../academicCycle'
-import { ShieldCheck, Bot, Info, Plus, Trash2 } from 'lucide-react'
+import { ShieldCheck, Bot, Info, Plus, Trash2, CalendarDays } from 'lucide-react'
 import type { Page } from '../types'
 import SetupOverviewTab from './SetupOverviewTab'
 import SetupSyllabusTab from './SetupSyllabusTab'
@@ -27,6 +27,7 @@ interface AllocationConfig {
   bands: AllocationBand[]
   subjectMinExperienceRules?: Record<string, number>
   facultyAiEnabled?: boolean
+  facultyCanSeeOtherTimetables?: boolean
   avgSectionsPerTeacher?: number
   maxWeeklyPeriods?: number
 }
@@ -256,6 +257,32 @@ function PolicyAndCycle() {
             <button
               type="button" role="switch" aria-checked={on} aria-label="SCEDULAR AI for faculty"
               onClick={() => saveConfig({ ...config, facultyAiEnabled: !on })}
+              disabled={saving}
+              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 disabled:opacity-60 ${on ? 'bg-emerald-500' : 'bg-slate-300'}`}
+            >
+              <span className={`absolute left-0 top-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+        )
+      })()}
+
+      {/* 4b. other teachers' timetables */}
+      {(() => {
+        const on = config.facultyCanSeeOtherTimetables ?? true
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-9 h-9 rounded-xl flex items-center justify-center bg-[color:var(--c-600)]/10 text-[color:var(--c-600)] shrink-0"><CalendarDays className="w-4.5 h-4.5" /></span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-700 text-slate-800">Show other teachers' timetables to teachers</h2>
+                <p className="text-[11px] text-slate-500">{on
+                  ? 'Each teacher can open any teacher\'s timetable and download class and lab sheets.'
+                  : 'Each teacher still sees every class and lab timetable, but only her own name under Faculty Timetable, and can download only her own timetable (no class or lab downloads).'}</p>
+              </div>
+            </div>
+            <button
+              type="button" role="switch" aria-checked={on} aria-label="Show other teachers' timetables to teachers"
+              onClick={() => saveConfig({ ...config, facultyCanSeeOtherTimetables: !on })}
               disabled={saving}
               className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 disabled:opacity-60 ${on ? 'bg-emerald-500' : 'bg-slate-300'}`}
             >
