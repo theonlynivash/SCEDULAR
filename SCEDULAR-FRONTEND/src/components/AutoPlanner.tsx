@@ -19,7 +19,7 @@ export default function AutoPlanner({ semester, board, say, onChanged }: {
   const [active, setActive] = useState('')
   const [adding, setAdding] = useState('')
   const [busy, setBusy] = useState(false)
-  const cap = board.maxWeeklyPeriods ?? board.teachers[0]?.max ?? 28
+  const cap = board.maxWeeklyPeriods ?? board.teachers[0]?.max ?? 22
   const byId = useMemo(() => new Map(board.teachers.map(t => [t.facultyId, t])), [board])
 
   // periods the HOD has planned but not yet saved, per teacher (so the cap is checked across subjects)
@@ -103,7 +103,7 @@ export default function AutoPlanner({ semester, board, say, onChanged }: {
         {plans && balanced.length > 1 && <button disabled={busy} onClick={applyAll} className="px-4 py-1.5 bg-[color:var(--c-600)] text-white text-xs font-700 rounded-lg disabled:opacity-40">Assign all {balanced.length} balanced subjects</button>}
       </div>
 
-      {plans && plans.length > 0 && pending.length === 0 && <p className="text-xs font-700 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">✓ Every subject of this plan is assigned. Semester allocation is done; move on to the next semester or generate the timetable.</p>}
+      {plans && plans.length > 0 && pending.length === 0 && <p className="text-xs font-700 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">Every subject of this plan is assigned. Semester allocation is done; move on to the next semester or generate the timetable.</p>}
 
       <div className="space-y-2">
         {(plans ?? []).map(p => {
@@ -135,7 +135,7 @@ export default function AutoPlanner({ semester, board, say, onChanged }: {
                       return (
                         <div key={r.facultyId} className="px-3 py-2 flex items-center gap-3 text-xs">
                           <div className="min-w-0 flex-1">
-                            <p className="font-600 text-slate-800 truncate">{t.name}{t.prefs.some(x => x.subjectId === p.subjectId) && <span className="ml-1.5 text-[10px] font-700 text-emerald-700">chose it ✓</span>}</p>
+                            <p className="font-600 text-slate-800 truncate">{t.name}{t.prefs.some(x => x.subjectId === p.subjectId) && <span className="ml-1.5 text-[10px] font-700 text-emerald-700">chose it</span>}</p>
                             <p className="text-[10.5px] text-slate-400 truncate">{t.assigned.length ? `already: ${t.assigned.map(a => `${a.code}×${a.sections}`).join(', ')}` : 'free'}</p>
                           </div>
                           <span title="This teacher's workload after everything planned" className={`w-24 text-right text-[11px] font-700 ${over ? 'text-amber-700' : 'text-slate-700'}`}>{after}/{cap}<span className="font-500 text-slate-400"> periods</span></span>
@@ -152,7 +152,7 @@ export default function AutoPlanner({ semester, board, say, onChanged }: {
                   </div>
 
                   <div className={`rounded-lg px-3 py-2 text-[11.5px] font-600 flex items-center gap-2 flex-wrap ${bal === 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'}`}>
-                    <span>{bal === 0 ? `✓ Balanced: ${p.open} sections covered by ${p.rows.length} teacher${p.rows.length === 1 ? '' : 's'}.` : bal > 0 ? `${bal} section${bal === 1 ? '' : 's'} (${bal * p.per} periods) still need a teacher. Add another teacher or give someone more.` : `${-bal} section${-bal === 1 ? '' : 's'} too many. Take them off a teacher.`}</span>
+                    <span>{bal === 0 ? `Balanced: ${p.open} sections covered by ${p.rows.length} teacher${p.rows.length === 1 ? '' : 's'}.` : bal > 0 ? `${bal} section${bal === 1 ? '' : 's'} (${bal * p.per} periods) still need a teacher. Add another teacher or give someone more.` : `${-bal} section${-bal === 1 ? '' : 's'} too many. Take them off a teacher.`}</span>
                     {bal > 0 && <button onClick={() => fillRest(p)} className="ml-auto px-2.5 py-1 rounded-md bg-white border border-amber-300 text-amber-900 font-700 hover:bg-amber-100">Fill the rest automatically</button>}
                   </div>
 

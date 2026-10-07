@@ -604,7 +604,7 @@ function WorkloadRow({ t, d, open, onToggle }: {
                 {d.classIncharge.length > 0 && <span className="text-slate-500">Class in-charge of <b className="text-slate-800">{d.classIncharge.join(', ')}</b></span>}
               </div>
 
-              {alerts.length > 0 && <ul className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 space-y-0.5">{alerts.map(a => <li key={a}>⚠ {a}</li>)}</ul>}
+              {alerts.length > 0 && <ul className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 space-y-0.5">{alerts.map(a => <li key={a}>{a}</li>)}</ul>}
 
               {d.subjects.length > 0 && (
                 <div className="overflow-x-auto">

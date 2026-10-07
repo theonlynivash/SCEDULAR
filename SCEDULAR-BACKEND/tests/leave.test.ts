@@ -140,6 +140,20 @@ describe('leave letter → HOD → substitutes', () => {
     }
   })
 
+  it('prints the day\'s substitution sheet as a PDF (HOD only); an empty day is refused', async () => {
+    const raw = (tok: string, path: string) => fetch(base + '/api' + path, { headers: { authorization: `Bearer ${tok}` } })
+    const ok = await raw(hod, `/leave/export/substitutions?date=${date}`)
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get('content-type')).toContain('application/pdf')
+    expect(ok.headers.get('content-disposition')).toContain(`Substitutions-${date}.pdf`)
+    const buf = Buffer.from(await ok.arrayBuffer())
+    expect(buf.subarray(0, 4).toString()).toBe('%PDF')
+    expect(buf.length).toBeGreaterThan(2500)
+    expect((await raw(tokA, `/leave/export/substitutions?date=${date}`)).status).toBe(403)       // teachers do not print the department's sheet
+    expect((await raw(hod, '/leave/export/substitutions?date=2031-01-01')).status).toBe(404)      // nothing arranged that day
+    expect((await fetch(base + '/api/leave/export/substitutions')).status).toBe(401)
+  })
+
   it('replacing a substitute tells the old one; removing one frees the class', async () => {
     const d = await call(hod, 'GET', `/leave/${leaveId}`)
     const covered = d.json.slots.find((s: any) => s.substitute)

@@ -13,9 +13,10 @@
  */
 import * as XLSX from 'xlsx'
 import {
-  listFaculty, upsertFaculty, deleteFacultyCascade, eraseGeneratedTimetables, listSections, listSubjects, upsertSubject, listLabs, listLabSubjectMappings,
-  listSectionSubjects, upsertSection, getCurrentAcademicCycle,
+  listFaculty, upsertFaculty, deleteFacultyCascade, deleteSection, deleteSubjectCascade, eraseGeneratedTimetables, listSections, listSubjects, upsertSubject, listLabs, listLabSubjectMappings,
+  listSectionSubjects, upsertSection, getCurrentAcademicCycle, getAllocationSettings,
 } from '../db/repo.js'
+import { staffingPolicy } from '../utils/staffing.js'
 import { generatePassword, setFacultyPassword } from '../auth/passwords.js'
 import { saveLocalDb } from '../db/localDb.js'
 import { SEMESTER_TO_YEAR, semesterInCycle } from '../utils/academicCycle.js'
@@ -190,11 +191,21 @@ export function parseSheet(kind: ImportKind, buffer: Uint8Array): ParseResult {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-export interface ImportOptions { /** teachers only: throw away every current teacher (except the HOD) and load exactly this list */ replaceAll?: boolean }
+export interface ImportOptions {
+  /** Reset: throw away everything of this kind that exists today and load exactly the file (teachers: all but the HOD). Without it the file is only added. */
+  reset?: boolean
+}
+
+/** What a reset of this kind would remove, for the confirmation screen. */
+export async function resetScope(kind: ImportKind): Promise<{ count: number; what: string; alsoRemoves: string }> {
+  if (kind === 'teachers') return { count: (await listFaculty()).filter(f => f.role !== 'HOD').length, what: 'teachers', alsoRemoves: 'their logins, subject choices, teaching assignments and timetables' }
+  if (kind === 'sections') return { count: (await listSections()).length, what: 'sections', alsoRemoves: 'their teaching assignments and generated timetables' }
+  return { count: (await listSubjects()).length, what: 'subjects', alsoRemoves: 'their section offerings, teaching assignments, teachers\' choices, lab-room settings and generated timetables' }
+}
 
 export async function validateTeachers(staged: StagedRow[], opts: ImportOptions = {}): Promise<CheckedRow[]> {
   // when replacing, today's teachers are about to disappear, so only the HOD can clash with the file
-  const existing = (await listFaculty()).filter(f => !opts.replaceAll || f.role === 'HOD')
+  const existing = (await listFaculty()).filter(f => !opts.reset || f.role === 'HOD')
   const byId = new Map(existing.map(f => [f.id.toLowerCase(), f]))
   const byEmail = new Map(existing.filter(f => f.email).map(f => [String(f.email).toLowerCase(), f]))
   const seenEmail = new Map<string, number>()
@@ -209,7 +220,7 @@ export async function validateTeachers(staged: StagedRow[], opts: ImportOptions 
 
     const id = cell(v.facultyId)
     let target = undefined as (typeof existing)[number] | undefined
-    if (id && opts.replaceAll) add('facultyId', 'warning', 'IDs are generated when replacing all teachers; this value is ignored.')
+    if (id && opts.reset) add('facultyId', 'warning', 'IDs are generated when teachers are reset; this value is ignored.')
     else if (id) {
       target = byId.get(id.toLowerCase())
       if (!target) add('facultyId', 'error', `No teacher has the ID ${id}. Leave the ID blank to add a new teacher.`)
@@ -266,9 +277,9 @@ const normCategory = (s: string): string | null => {
 
 export interface ResolvedSubjectRow { semester: string; code: string; name: string; shortName: string | null; deliveryType: 'THEORY' | 'INTEGRATED' | 'LAB'; theory: number; lab: number; credits: number; category: string | null; labIds: string[]; sectionIds: string[] | null }
 
-export async function validateSyllabus(staged: StagedRow[]): Promise<CheckedRow[]> {
-  const [subjects, labs, sections, offerings] = await Promise.all([listSubjects(), listLabs(), listSections(), listSectionSubjects()])
-  void offerings
+export async function validateSyllabus(staged: StagedRow[], opts: ImportOptions = {}): Promise<CheckedRow[]> {
+  const [all, labs, sections] = await Promise.all([listSubjects(), listLabs(), listSections()])
+  const subjects = opts.reset ? [] : all        // a reset removes today's subjects, so nothing in the file can clash with them
   const byCode = new Map(subjects.map(s => [s.code.toLowerCase(), s]))
   const labByName = new Map<string, string>()
   for (const l of labs) { labByName.set(norm(l.name), l.id); labByName.set(norm(l.id), l.id) }
@@ -369,8 +380,9 @@ export async function validateSyllabus(staged: StagedRow[]): Promise<CheckedRow[
   })
 }
 
-export async function validateSections(staged: StagedRow[]): Promise<CheckedRow[]> {
-  const [existing, faculty] = await Promise.all([listSections(), listFaculty()])
+export async function validateSections(staged: StagedRow[], opts: ImportOptions = {}): Promise<CheckedRow[]> {
+  const [current, faculty] = await Promise.all([listSections(), listFaculty()])
+  const existing = opts.reset ? [] : current
   const byId = new Map(existing.map(x => [x.id, x]))
   const seen = new Map<string, number>()
   return staged.map(r => {
@@ -410,9 +422,9 @@ async function refreshLabRoomCounts() {
 
 export async function validateRows(kind: ImportKind, rows: StagedRow[], opts: ImportOptions = {}): Promise<CheckedRow[]> {
   if (kind === 'teachers') return validateTeachers(rows, opts)
-  if (kind === 'sections') return validateSections(rows)
+  if (kind === 'sections') return validateSections(rows, opts)
   await refreshLabRoomCounts()
-  return validateSyllabus(rows)
+  return validateSyllabus(rows, opts)
 }
 
 export const summarize = (rows: CheckedRow[]) => ({
@@ -426,7 +438,7 @@ export const summarize = (rows: CheckedRow[]) => ({
 
 /* ───────────────────────────── commit ───────────────────────────── */
 
-export interface CommitResult { created: number; updated: number; skipped: number; removed?: number; logins: { facultyId: string; name: string; email: string | null; password: string }[]; subjects: string[] }
+export interface CommitResult { created: number; updated: number; skipped: number; removed?: number; removedWhat?: string; logins: { facultyId: string; name: string; email: string | null; password: string }[]; subjects: string[] }
 
 export async function commitRows(kind: ImportKind, rows: StagedRow[], skipInvalid: boolean, opts: ImportOptions = {}): Promise<{ ok: true; result: CommitResult } | { ok: false; checked: CheckedRow[] }> {
   const checked = await validateRows(kind, rows, opts)
@@ -434,6 +446,14 @@ export async function commitRows(kind: ImportKind, rows: StagedRow[], skipInvali
   if (bad.length && !skipInvalid) return { ok: false, checked }
   const good = checked.filter(r => !r.issues.some(i => i.level === 'error'))
   const result: CommitResult = { created: 0, updated: 0, skipped: bad.length, logins: [], subjects: [] }
+
+  if (opts.reset && kind !== 'teachers') {
+    // every old one goes with what hangs off it; generated timetables are stale afterwards, so they go too
+    const gone = kind === 'sections' ? (await listSections()).map(x => x.id) : (await listSubjects()).map(x => x.id)
+    for (const id of gone) { if (kind === 'sections') await deleteSection(id); else await deleteSubjectCascade(id) }
+    await eraseGeneratedTimetables()
+    result.removed = gone.length; result.removedWhat = kind === 'sections' ? 'sections' : 'subjects'
+  }
 
   if (kind === 'sections') {
     const [faculty, cycle, existing] = await Promise.all([listFaculty(), getCurrentAcademicCycle(), listSections()])
@@ -453,16 +473,17 @@ export async function commitRows(kind: ImportKind, rows: StagedRow[], skipInvali
       if (r.action === 'update') result.updated++; else result.created++
     }
   } else if (kind === 'teachers') {
-    if (opts.replaceAll) {
-      // full rewrite (e.g. another department): every teacher but the HOD goes, together with their logins, preferences,
-      // assignments and messages; class in-charges that pointed at them are cleared and old timetables (now stale) are removed
+    if (opts.reset) {
+      // every teacher but the HOD goes, together with their logins, preferences, assignments and messages; class in-charges
+      // that pointed at them are cleared and old timetables (now stale) are removed
       const gone = (await listFaculty()).filter(f => f.role !== 'HOD').map(f => f.id)
       for (const id of gone) await deleteFacultyCascade(id)
       for (const sec of await listSections()) if (sec.classIncharge && gone.includes(sec.classIncharge)) await upsertSection({ ...sec, classIncharge: null })
       await eraseGeneratedTimetables()
-      result.removed = gone.length
+      result.removed = gone.length; result.removedWhat = 'teachers'
     }
     const existing = await listFaculty()
+    const weekly = staffingPolicy(await getAllocationSettings()).maxWeeklyPeriods
     let ids = existing.map(f => f.id)
     for (const r of good) {
       const v = r.values
@@ -478,7 +499,7 @@ export async function commitRows(kind: ImportKind, rows: StagedRow[], skipInvali
         const id = nextFacultyId(ids); ids = [...ids, id]
         await upsertFaculty({
           id, name: cell(v.name), designation: cell(v.designation) || 'Assistant Professor', department: 'AI & DS', email: cell(v.email) ? cell(v.email).toLowerCase() : null,
-          phone: cell(v.phone) || null, role: 'FACULTY', allocationExperience: exp, previousExperience: exp, currentExperience: 0, maxDailyPeriods: 6, maxWeeklyPeriods: 24,
+          phone: cell(v.phone) || null, role: 'FACULTY', allocationExperience: exp, previousExperience: exp, currentExperience: 0, maxDailyPeriods: 6, maxWeeklyPeriods: weekly,
         } as any)
         const password = generatePassword()
         await setFacultyPassword(id, password)

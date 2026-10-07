@@ -9,11 +9,13 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { requireAuth } from '../auth/middleware.js'
-import { addMessage, getFaculty, listFaculty } from '../db/repo.js'
+import { addMessage, getFaculty, listFaculty, listLabs } from '../db/repo.js'
 import { saveLocalDb, runAtomic } from '../db/localDb.js'
 import { sendMail } from '../mail/mailer.js'
 import type { LeaveRequest, Substitution } from '../types.js'
-import { MAX_LEAVE_DAYS, absenceReport, buildSlots, coverageOf, datesBetween, defaultLetter, freeFor, isDate, leaveTables, loadCtx, summaryFor, todayIst, type Ctx } from '../leave/service.js'
+import { createLandscapePdf } from '../export/facultyMasterPdf.js'
+import { renderSubstitutionSheetPdf } from '../export/substitutionPdf.js'
+import { MAX_LEAVE_DAYS, absenceReport, buildSlots, substitutionSheet, coverageOf, datesBetween, defaultLetter, freeFor, isDate, leaveTables, loadCtx, summaryFor, todayIst, type Ctx } from '../leave/service.js'
 
 export const leaveRouter = Router()
 const fail = (res: any, status: number, error: string, message: string) => res.status(status).json({ error, message })
@@ -133,6 +135,23 @@ leaveRouter.post('/leave', requireAuth, async (req, res, next) => {
     }
     if (who !== me) await tell(me, who, 'A leave was recorded for you', `The HOD recorded a leave for you: ${range}. ${summary}.`)
     res.status(201).json({ ok: true, id: leave.id, classes: slots.length })
+  } catch (err) { next(err) }
+})
+
+// GET /api/leave/export/substitutions?date=YYYY-MM-DD (default today) -> HOD: the day's substitution arrangement as a PDF table
+leaveRouter.get('/leave/export/substitutions', requireAuth, async (req, res, next) => {
+  try {
+    if (!isHod(req)) return fail(res, 403, 'FORBIDDEN', 'Only the HOD prints the substitution sheet.')
+    const date = typeof req.query.date === 'string' && isDate(req.query.date) ? req.query.date : todayIst()
+    const [ctx, labs, me] = await Promise.all([loadCtx(), listLabs(), getFaculty(req.auth!.facultyId)])
+    const sheet = substitutionSheet(ctx, date)
+    if (sheet.covered.length + sheet.uncovered.length === 0) return fail(res, 404, 'NOTHING_TO_PRINT', 'No substitution is arranged for that day.')
+    const doc = createLandscapePdf('Substitution arrangement')
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="Substitutions-${date}.pdf"`)
+    doc.pipe(res)
+    renderSubstitutionSheetPdf({ ...sheet, periods: ctx.config.periods, labName: id => (id ? labs.find(l => l.id === id)?.name ?? id : null), preparedBy: me?.name ?? 'HOD', generatedAt: new Date() }, doc)
+    doc.end()
   } catch (err) { next(err) }
 })
 

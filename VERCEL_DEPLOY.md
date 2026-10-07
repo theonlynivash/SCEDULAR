@@ -66,6 +66,8 @@ npm run db:push -- --yes      # local file -> Neon  (replaces what is online; se
 Later, to bring the online data back to your computer: `npm run db:pull -- --yes` (your old local file is saved as a backup first).
 Profile pictures travel with it. Teachers' passwords travel too, so everyone keeps their login.
 
+**After updating the code, update the online data too.** Settings you change on your computer (for example the weekly limit of 22 periods, lab rooms, or an Import *Reset*) live in the local file; run `npm run db:push -- --yes` again to copy them to Neon. No new environment variables are needed for these changes; redeploy both Vercel projects.
+
 ## 5. Timetable generation on Vercel
 Generating a timetable is heavy and happens only once per cycle. A Vercel function has a time limit (60 seconds in `vercel.json`; Pro plans
 may raise `maxDuration` up to 300 in `SCEDULAR-BACKEND/vercel.json`). The search therefore stops after `SOLVER_TIME_LIMIT_MS`

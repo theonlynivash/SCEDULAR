@@ -8,7 +8,7 @@
 | Written for | The HOD and department staff who run SCEDULAR, and the developers who maintain it |
 | Covers | Semesters II – VIII (Year 1 / Semester I is outside the scope of this build) |
 | Status of the build described | Local deployment verified end to end; cloud mode (Vercel + PostgreSQL) verified against an in-memory PostgreSQL in the automated tests, not yet on a real hosted database (see §21, §26) |
-| Last updated | October 2026 (after the hardening pass: sign-in required everywhere, versioned cloud storage, background timetable generation) |
+| Last updated | 7 October 2026 (Import has Add and Reset, one weekly limit of 22 periods, Lab rooms merged into Settings, staffing dropdown, liquid-glass dashboard, substitution-sheet PDF, mobile bottom bar) |
 
 > **How to read this report.** Part A (sections 1–5) explains what the system is. Part B (6–9) explains how it is built.
 > Part C (10–13) is the **user manual**: one chapter for the HOD and one for teachers, written as click-by-click steps.
@@ -483,7 +483,7 @@ same in the cloud. Only *where the document is stored* differs.
 * **Bottom-right button "SCEDULAR AI"** — opens the assistant.
 * **Phone**: a bottom bar (Home, Assign, Teachers, Timetable, More) and a slide-in menu; see §12.
 
-**Dashboard.** Kept deliberately light. A slim header (greeting, cycle, one line of inspiration, *Generate timetable* and *View*),
+**Dashboard (liquid glass).** The page sits on a soft coloured mesh and every card is frosted glass. A header gives the greeting and cycle, a status bar shows readiness for the current cycle (its four semesters), and a collapsible **Today** row shows the day period by period (what is on now, what is next, classes that still need a substitute); the HOD can download **today's substitution sheet** from it (below). Older, more detailed description: A slim header (greeting, cycle, one line of inspiration, *Generate timetable* and *View*),
 one strip with the live counts (sections, subjects, teachers, labs), then two columns. Left: **Substitutions · today** (who is on
 leave today and every substitution assigned for today, in full), **Leave requests** (the letters waiting for you, with a link),
 and the **Department briefing** (staffing, readiness, waiting leave letters, timetable). Right: a **month calendar** with a rose
@@ -516,20 +516,23 @@ These were one tab and are now two: **Sections** (add / delete sections, class i
 * The **short name** is what appears in the timetable grid (for example ARVR). If empty, the initials of the main words are used.
 
 #### Tab — Lab rooms
-The rooms themselves (add with an optional capacity, remove) and, for every subject that has lab periods, which room(s) can host it: click a room to switch it on or off for **all sections** of that subject. "A different room for a section" fixes another room for one section. A subject with lab periods and no room is marked "No room set" (and its semester ⚠); the timetable cannot be generated until each has one. In the Syllabus tab a subject without a room shows a **set rooms →** link that opens this tab.
+The rooms themselves (add with an optional capacity, remove) and, for every subject that has lab periods, which room(s) can host it: click a room to switch it on or off for **all sections** of that subject. "A different room for a section" fixes another room for one section. Only subjects that are offered to a **running section** are listed, so semesters outside the current cycle (or with no sections, such as Year 1 here) never appear and never count as "missing". A subject with lab periods and no room for some section is marked "No room set" (and its semester !); the timetable cannot be generated until each has one. This tab is the only place for lab rooms: the older separate *Lab Management* page was removed (it used a course-level mapping that always said "no lab mapped"), and the Dashboard tile, Semester setup and Data Hub now open this tab. The *Lab rooms in use* figure in Reports counts lab periods in the generated timetable, so it reads 0 until a timetable exists. In the Syllabus tab a subject without a room shows a **set rooms →** link that opens this tab.
 
 #### Tab 4 — Import (set a department up from Excel)
-Three steps, in order: **1 Sections → 2 Syllabus → 3 Teachers.** One **all-in-one workbook** (sheets *Sections*, *Syllabus*, *Teachers*, plus README and a Lists sheet of allowed values and your lab rooms) can be downloaded, filled, and uploaded once per step; each step also has its own template.
+**Download template** is on top (one all-in-one workbook: sheets *Sections*, *Syllabus*, *Teachers*, plus a README and a Lists sheet of allowed values and your lab rooms). Below it are two tabs, each with the same three steps, **1 Sections → 2 Syllabus → 3 Teachers**:
+
+* **Add** — keeps everything you have and adds your file. A row with an existing ID (teacher) or code (subject) updates that record.
+* **Reset** — removes the current data of that type, then loads your file. The review screen says exactly what will go (for example "all 28 sections, with their teaching assignments and generated timetables"), and **your password must be entered again** before it runs. Resetting *Teachers* keeps the HOD account and removes the others with their logins, choices, assignments, results and messages; *Sections* removes every section with its offerings and assignments; *Syllabus* removes every subject with its offerings, assignments, teachers' choices and lab-room settings. Lab rooms themselves are never removed. Generated timetables are removed in all three cases (they would be stale); generate again.
 
 How an import works (stage → fix → commit):
 1. Upload the file. **Nothing is saved yet.** Every row is checked against your live data and the rules the rest of SCEDULAR needs.
 2. The review window lists **exactly what is missing or wrong** ("Row 3 · Experience (years): Experience (years) is missing. A teacher cannot submit subject preferences without it.") in red (blocks the import) or amber (a warning), and each problem has a **Fix** button that jumps to the cell. Cells are edited right there (drop-downs for semester, type, category; a lab-room list); every edit is re-checked immediately. Rows can be removed or added.
 3. **Import** is enabled when no row has an error (or tick "skip the rows that still have errors"). New teachers receive generated IDs and one-time passwords (shown once, CSV download).
-4. A **readiness panel** then says whether the data is ready for teacher preferences and for timetable generation, and lists anything still missing (teachers without experience, lab subjects without a room, semesters with subjects but no sections, offerings still without a teacher).
+4. A **readiness panel** then says whether the data is ready for teacher preferences and for timetable generation, and lists anything still missing (teachers without experience, lab subjects without a room, offerings still without a teacher). The same problem on many rows is one line ("67 teachers: experience is not set…"). Only what will really be scheduled counts: sections that are running and the subjects offered to them.
 
 What is checked: *Sections* — semester I–VIII, one letter per row, duplicates, student count, class in-charge (warning if that teacher does not exist yet). *Syllabus* — semester, unique code (an existing code in the same semester is **updated**), type, periods that fit the type, lab rooms exist and are present when there are lab periods, sections exist, category, credits; a lab-only row that looks like the lab of a theory subject gets a warning to make it one integrated subject. *Teachers* — name, experience (required, because it decides the preference limits), email format and uniqueness (also inside the file), designation default; a Faculty ID in the file updates that teacher.
 
-**Teachers: add or replace.** The teacher import has two modes. *Add teachers* appends to the current list. *Replace all teachers* is a full rewrite for another department: every current teacher except the HOD is removed together with their logins, preferences, assignments, results and messages, class in-charges pointing at them are cleared, old timetables are removed, and the file becomes the new list. It needs the HOD password and the word REPLACE. Sections and the syllabus are never touched by it. Semester I is supported everywhere, so a department can be built from scratch for Semester I this way and its timetable generated.
+New teachers get the department's weekly limit (22 by default). Semester I is supported everywhere, so a department can be built from scratch for Semester I with Reset and its timetable generated.
 
 #### Theory + lab are one subject (xT + yL)
 A course such as AIES is one subject with theory and lab periods, and the teacher of a class handles **both** for that class. If a syllabus lists it twice ("AIES" and "AIES Laboratory"), the Syllabus tab shows a banner with each pair and **Combine** / **Combine all**. Combining turns the theory subject into one INTEGRATED subject (T + L), gives it **exactly the lab rooms that were set for the lab subject** (the rooms for every section and any room fixed for one section), makes the class's theory teacher take the lab too (or the lab teacher both, if only the lab had one), keeps teachers' choices of the lab as choices of the combined subject, deletes the separate lab subject and clears the old timetables (generate again). Integrated subjects are always assigned as one unit: the Assign screen, Auto-fill and the plan editor give theory and lab of a section to the same teacher.
@@ -543,7 +546,7 @@ each section. It saves at once and is printed on that section's timetable PDF.
   because it changes what every teacher sees.
 * **Experience bands** — the preference policy (see §16). Edit the minimum/maximum experience, which years the band may
   pick from, and how many preferences are allowed in total and per year. Add or remove bands. Press **Save** to store.
-* **Staffing weightage** — two numbers: *sections one teacher takes (average)*, default 3, which sets how many preferences each subject accepts (§16.4a); and *most periods per teacher per week*, default 28, which is the cap used by assigning, auto-fill and the "need more teachers" check (§17.3a).
+* **Staffing weightage** — two numbers: *sections one teacher takes (average)*, default 3, which sets how many preferences each subject accepts (§16.4a); and *weekly limit per teacher*, default **22** periods, which is the cap used by assigning, auto-fill, the "need more teachers" check (§17.3a) and by the timetable solver. Saving a changed limit applies it to **every teacher**; one teacher can still be changed afterwards on the Teachers page.
 * **SCEDULAR AI for Faculty** switch — turn the assistant on or off for teachers. When off, the SCEDULAR AI button disappears for
   teachers and the server refuses their questions. The HOD is never affected. (A fixed bug: the switch used to save only in memory and the knob was drawn out of place.)
 * **Show other teachers' timetables to teachers** switch — when **on** (default) a teacher can open any teacher's timetable and
@@ -561,8 +564,8 @@ The only two erase actions in SCEDULAR. Each card shows what it would remove *ri
 2. **Erase allocation** — removes who teaches which section, the workload allocations and the timetables generated from them.
    *Kept:* teachers, logins, sections, syllabus and **all teacher preferences**.
 
-Teachers and the syllabus can **never** be erased in bulk — not here, not in the Data Hub, not through the server. They are changed
-one at a time (Teachers page; Settings → Syllabus & sections). The older "Delete all data", "Start a new dataset" and "Reset
+Teachers, sections and the syllabus cannot be erased from here or from the Data Hub. The one bulk route is **Settings → Import → Reset**, which replaces them with a new file and asks for your password again. Otherwise they are changed
+one at a time (Teachers page; Settings → Sections and Syllabus). The older "Delete all data", "Start a new dataset" and "Reset
 allocation cycle" buttons and their server routes were removed for this reason.
 
 ### 10.4 Choosing the academic cycle
@@ -577,6 +580,7 @@ percentage** (from results teachers recorded), **email** (editable inline), **lo
 
 * **Add teacher** — name, designation, experience, weekly limit, optional email. The system creates the next ID
   (`FAC-0nn`) and a **one-time password** shown once on screen (and emailed as a notice if an email is set).
+* **Weekly limit for all teachers** — a bar above the table sets the same limit (default **22** periods a week) for everyone with *Apply to all*; the message names any teacher who already carries more than the new limit (move a section off them in Assign Teachers, or generation will fail). It also updates the policy setting, so the two never differ.
 * **Weekly limit** and **email** are edited directly in the teacher's row. Experience can be corrected by the teacher (My Profile → Update experience).
 * **Email column** — click the address to edit; the **envelope icon** opens the mail composer for that teacher. A teacher
   without an email shows "+ add email".
@@ -585,8 +589,7 @@ percentage** (from results teachers recorded), **email** (editable inline), **lo
 * **Create missing logins** — one press creates logins for everyone who has none; a panel lists them with a **CSV** download and copy buttons. The panel shows passwords only once — save the CSV before closing it.
 * **Delete** — removes the teacher with their assignments, preferences, history, login and messages.
 
-A weekly load above the nominal limit (for example 28 of 24) is displayed neutrally. It is allowed by the department
-and is **not** treated as a conflict anywhere (see §14.6).
+A load above the weekly limit is shown as over the limit. The timetable solver enforces each teacher's weekly limit, so such a teacher must be relieved before generating (see §14.6).
 
 ### 10.6 Assign Teachers (the core workflow)
 
@@ -616,7 +619,7 @@ The goal is every subject at 100%. Subjects nobody has chosen can still be assig
 **Build plan** proposes who takes how many sections of every open subject from the preferences. Then the HOD edits it: each teacher's share has a **− n +** stepper (workload = sections × periods per section, shown against the weekly cap across everything planned), teachers can be added from the free/assigned lists or removed, and the subject's remaining need moves with every change ("+2 still needed", "1 too many", "balanced"). **Fill the rest automatically** hands the uncovered sections to the teachers with the most room. **Assign** for a subject is enabled only when its sections add up exactly; after it the next subject opens. **Assign all balanced subjects** applies several at once. The staffing card above shows when more teachers are needed.
 
 (Older description of this tab:)
-* **Subject templates** — per subject, the teachers' section counts; **Workload** per teacher; **Auto-fill from
+* **Subject templates** — a dropdown (closed until opened) listing, per subject, the teachers' section counts; **Workload** per teacher; **Auto-fill from
   preferences** distributes sections to teachers according to approved choices and their remaining capacity.
 * Run Auto-fill first, then fix the remainder on the Assign tab. (Details in §17.)
 
@@ -655,13 +658,15 @@ On the View Timetable page the **Download PDF** menu offers:
 
 What each PDF contains is described in §13.
 
+**Substitution sheet (PDF).** On the Dashboard's Today row (and on the Leave pages) the HOD can download a PDF of every substitution for a day: one table with the absent teacher, period, section, subject, and who covers it, plus any class still uncovered.
+
 ### 10.10 Reports
 
 **Reports** has five tabs:
 
 1. **Overview** — key figures (staffing, teachers teaching, average load, timetable status with number of placements, lab rooms in use), staffing by semester, how loaded teachers are, the experience mix, teachers' choices per semester and the busiest teachers.
 2. **Subject needs** — for each subject how many sections need a teacher, how many are covered, and how many teachers chose it. Notes such as "Nobody chose it" or "Assigned directly".
-3. **Teacher workload** — weekly teaching load per teacher as bars. **Click a teacher to open everything about their work:** periods used and free (of the 28-period limit), theory and lab periods, number of subjects and sections, experience, past pass average, the sections they are class in-charge of, a table of every subject they teach (semester, the section letters, periods per section, total periods), their load per day in the generated timetable (busiest day, lab periods), their subject choices with status, and warnings (above the limit, experience not set, timetable out of date). Teachers who are not teaching yet are in a collapsible list with the same details. A distribution of teachers by weekly periods and the capacity summary sit beside it.
+3. **Teacher workload** — weekly teaching load per teacher as bars. **Click a teacher to open everything about their work:** periods used and free (of the weekly limit, 22 by default), theory and lab periods, number of subjects and sections, experience, past pass average, the sections they are class in-charge of, a table of every subject they teach (semester, the section letters, periods per section, total periods), their load per day in the generated timetable (busiest day, lab periods), their subject choices with status, and warnings (above the limit, experience not set, timetable out of date). Teachers who are not teaching yet are in a collapsible list with the same details. A distribution of teachers by weekly periods and the capacity summary sit beside it.
 4. **Absence** — how many periods each teacher did not attend because of approved leave: periods not attended up to today, periods still to come, periods that had no substitute, and the number of teachers on leave. Click a teacher for each leave (dates, days, periods, reason). A period here is a class from the timetable that fell on a leave day. *Export CSV* saves the table.
 5. **Teacher results** — department average pass percentage, number of teachers with results, highest and lowest averages, and per-teacher detail by semester.
 6. **Timetable analysis** — *When the department teaches* (a period-by-day heat grid), *Classes per day* and *Lab room use*.
@@ -798,7 +803,7 @@ cannot see other teachers' results or email details, and cannot send email. If t
 
 The portal is built to be used on a phone browser (no app to install).
 
-* **Bottom bar** with four main pages and **More**. Teachers: Home, Subjects, Timetable, Profile. HOD: Home, Assign, Teachers, Timetable.
+* **Bottom bar**, like a video app's, with four main pages and **More**. Teachers: Home, Subjects, Timetable, Profile. HOD: Home, Assign, Teachers, Timetable.
 * **Menu drawer** — press ☰ (top left) or *More*. It lists every page, shows who is signed in and has **Log out**. Tap outside it or press Esc to close.
 * **SCEDULAR AI button** floats just above the bottom bar; its chat window fits the screen.
 * **Timetables** appear as day cards: for each day, each class with its time range, subject acronym and full name, section, and lab. Days with no class show "Free day".
@@ -887,7 +892,7 @@ All of these must hold in a GREEN result:
 12. No partial or duplicate placement counts as complete.
 13. Malformed data is rejected before the search.
 
-**Weekly load and the solver.** The allocation cap is 28 periods per teacher per week (a department setting). The solver does not treat a weekly total as a violation, so a teacher whom the HOD deliberately assigned above the cap through an override still gets a valid timetable; only the **daily** limit is enforced during generation.
+**Weekly load and the solver.** The weekly limit is 22 periods per teacher by default (one department setting that is also stored on every teacher). The solver enforces it together with the **daily** limit: a teacher assigned more than their weekly limit cannot be placed, and generation reports it as a shortage. Relieve the teacher in Assign Teachers (or raise the limit) first.
 
 ### 14.7 Floating subject: Library
 Library has no teacher conflict risk and exists only to use leftover free periods. It is **not** put through the main
@@ -976,22 +981,27 @@ covered. The HOD fills the remaining demand by choosing teachers and counts so t
 Auto-fill walks through subjects and gives open sections to teachers who **chose** the subject (submitted or approved; approved first, then by the teacher's own ranking), always choosing the least-loaded eligible teacher and tracking a running "virtual load" against the weekly limit. Sections nobody can take are left open for manual assignment.
 
 ### 17.3a Staffing check: "Need more teachers"
-At the top of Assign Teachers a **staffing card** compares the work with the people:
+At the top of Assign Teachers a **staffing card** compares the work with the people. Closed, it is one line: a coloured dot, "Teachers are enough for this cycle" (or "Need N more teachers") and a summary such as "68 teachers · at least 40 needed · 1120 of 1120 periods assigned". Press it to open the details:
+
+* **Figures** — weekly demand, teacher capacity (teachers × weekly limit), minimum teachers, and spare capacity (or the shortfall), with a bar of assigned periods against capacity.
+* **Semester by semester** — sections, weekly periods, minimum teachers, assigned, open and a status for each running semester, plus a total row.
+* **Who can take more** (loaded when opened) — teachers with free time, teachers with no classes yet, the average load, how many are at or above the limit, the teachers with most free time, and about how many more sections the free time could absorb.
+* **Subjects without a teacher** — the open ones (or all subjects), with teachers chosen against teachers wanted.
+* **What to do** — suggestions that apply (add teachers or raise the limit, use Auto-fill, move a section off an overloaded teacher).
 
 ```
 weekly demand  = sections x subjects x periods per section (theory + lab), for the current cycle
-a teacher      = at most 28 periods a week (department setting; Settings -> Policy & cycle -> Staffing weightage)
-teachers needed = ceil( demand / 28 )
+a teacher      = at most 22 periods a week (default; Settings -> Policy & cycle, or Teachers -> Weekly limit for all teachers)
+teachers needed = ceil( demand / 22 )
 ```
 
-Worked example: 12 teachers, 3 theory subjects, 12 sections, 4 periods each → demand = 12 × 3 × 4 = **144** periods. At 28 per teacher that needs
-ceil(144 / 28) = **6** teachers, so 12 teachers are enough (the card turns green and says so). With only 4 teachers the capacity is 112, the
-shortfall is 32 periods, and the card says **"Need 2 more teachers"** (amber).
+Worked example: 12 teachers, 3 theory subjects, 12 sections, 4 periods each → demand = 12 × 3 × 4 = **144** periods. At 22 per teacher that needs
+ceil(144 / 22) = **7** teachers, so 12 teachers are enough (green). With only 4 teachers the capacity is 88, the
+shortfall is 56 periods, and the card says **"Need 3 more teachers"** (amber).
 
-The card also takes **what is already assigned** into account: it adds up the free room left in each teacher's 28 periods and compares it with the
-periods still unassigned, so after assigning or auto-fill the message always reflects what is really missing. Auto-fill repeats the message when
-it had to leave sections open. A semester-by-semester and subject-by-subject breakdown is available from `GET /api/hod/staffing`.
-The weekly cap is also what the assign board's load bars use; assigning past it needs an explicit override, and auto-fill never goes past it.
+The card also takes **what is already assigned** into account: it adds up the free room left in each teacher's weekly limit and compares it with the
+periods still unassigned, so after assigning or auto-fill the message always reflects what is really missing. The same figures are available from `GET /api/hod/staffing`.
+The weekly limit is also what the assign board's load bars use; assigning past it needs an explicit override, and auto-fill never goes past it.
 
 ### 17.4 Manual assignment preview
 Before assigning, each row shows *current load → after / limit*. Because exceeding the limit is permitted by the department,
@@ -1080,7 +1090,7 @@ The assistant is a **tool-using language model**. It does not memorise project d
 | `mail_history` (HOD) | Recent mails (no passwords) |
 | `draft_email` (HOD) | Prepares a draft — never sends |
 
-The model is told today's date, who it is talking to, how SCEDULAR works, to show times on a 12-hour clock, that 28/24 is not a conflict, and never to reveal passwords.
+The model is told today's date, who it is talking to, how SCEDULAR works, to show times on a 12-hour clock, that a load above the weekly limit must be relieved before generating, and never to reveal passwords.
 
 ### 20.2 Safety
 * Teachers cannot read other teachers' results, emails or phones, and cannot create drafts.
@@ -1277,7 +1287,7 @@ Layout checks were done in a headless Chrome at desktop and phone sizes (About p
 
 **Library is missing in some section.** A section with no free period left cannot receive Library (every period is taken by real classes).
 
-**A teacher shows more than 28 periods.** That only happens through an explicit HOD override on the Assign screen. It is not a timetable conflict, but consider moving a section to a teacher with room (the staffing card shows how much room there is).
+**A teacher shows more than the weekly limit.** That happens through an explicit HOD override on the Assign screen, or when the limit is lowered below an existing load. The solver will not place more than the limit, so move a section to a teacher with room (the staffing card shows how much room there is) before generating.
 
 ### PDFs
 **The PDF looks different from the printed sheet.** Names come from the database ("Mrs.MAHALAKSHMI" vs "MRS.S.MAHALAKSHMI"), and subject titles use the case stored in the syllabus. Edit the teacher/subject text to match. Fonts: if `assets/fonts` is missing the PDF falls back to Times.
@@ -1410,7 +1420,8 @@ All routes are under `/api`. "Auth" = needs `Authorization: Bearer <token>`; "HO
 | GET/POST | `/hod/allocation-settings` | HOD | Experience bands, AI switch, staffing weightage (`avgSectionsPerTeacher`, `maxWeeklyPeriods`) |
 | POST | `/hod/apply-plan` · `/hod/reassign` | HOD | Save one subject's edited plan (must cover the open sections exactly) · move a teacher's sections to another teacher |
 | GET | `/setup/import/template/:kind` (`sections`, `syllabus`, `teachers`, `all`) | HOD | Excel templates |
-| POST | `/setup/import/:kind/preview` · `/validate` · `/commit` | HOD | Stage an upload, re-check edited rows, save (teachers: `mode: replace` needs password + REPLACE) |
+| POST | `/setup/import/:kind/preview` · `/validate` · `/commit` | HOD | Stage an upload, re-check edited rows, save (`mode: add` keeps what exists; `mode: reset` removes it first and needs the HOD's password; preview of a reset also returns `willRemove`) |
+| POST | `/setup/weekly-limit` `{ limit }` | HOD | Same weekly limit for every teacher and the policy setting; lists teachers already above it |
 | GET | `/setup/import/data-check` | HOD | What is still missing for preferences and timetable generation |
 | PUT | `/setup/subjects/:id/lab-rooms` | HOD | Replace all lab rooms of a subject (`{ rooms: [{ labId, sectionId? }] }`) |
 | GET · POST | `/setup/subjects/merge-candidates` · `/setup/subjects/merge-lab` | HOD | Find / combine theory + lab pairs |
@@ -1461,7 +1472,7 @@ All routes are under `/api`. "Auth" = needs `Authorization: Bearer <token>`; "HO
 
 | Setting | Value |
 |---|---|
-| Weekly periods per teacher (allocation cap) | 28 (Settings → Staffing weightage); the per-teacher field of 24 is only a nominal label |
+| Weekly periods per teacher | 22 (Settings → Policy & cycle, or Teachers → Weekly limit for all teachers; stored on every teacher and enforced by the solver) |
 | Average sections one teacher takes | 3 → a subject accepts ceil(sections / 3) teachers |
 | Teacher daily limit | 6 periods |
 | Senior threshold | 13 years |

@@ -82,7 +82,7 @@ export default function HodAssignBoard() {
           <div className="mt-3">
             <div className="flex justify-between text-[11px] text-slate-600 mb-1">
               <span><b>{totals.done}</b> of <b>{totals.sections}</b> sections have a teacher</span>
-              <span>{totals.openSubjects === 0 ? 'Ready for timetable ✓' : `${totals.openSubjects} subject${totals.openSubjects === 1 ? '' : 's'} still open`}</span>
+              <span>{totals.openSubjects === 0 ? 'Ready for timetable' : `${totals.openSubjects} subject${totals.openSubjects === 1 ? '' : 's'} still open`}</span>
             </div>
             <div className="h-1.5 bg-[color:var(--ink-800)]/8 rounded-full overflow-hidden">
               <div className="h-full rounded-full bg-gradient-to-r from-[var(--c-500)]/60 to-[var(--c-700)]/70 transition-all" style={{ width: `${(100 * totals.done) / totals.sections}%` }} />
@@ -96,7 +96,7 @@ export default function HodAssignBoard() {
 
       {notice && (
         <div className={`slide-down text-xs font-600 rounded-xl px-4 py-3 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
-          {notice.ok ? '✓' : '⚠'} {notice.text}
+          {notice.text}
         </div>
       )}
       {loading && !board && <p className="text-sm text-slate-500 py-10 text-center">Loading…</p>}

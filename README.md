@@ -15,9 +15,9 @@ format. Reports, email, chat and an AI assistant are built in. It works on a pho
 
 | For the HOD | For teachers |
 |---|---|
-| Set up sections, syllabus, lab rooms, teachers (by hand or **Excel import**) | Sign in, change or reset the password (emailed code) |
+| Set up sections, syllabus, lab rooms, teachers (by hand or **Excel import**: *Add* keeps your data, *Reset* replaces it after re-entering your password) | Sign in, change or reset the password (emailed code) |
 | Approve teachers' subject choices; assign sections (plan editor, auto-fill, change teacher) | Choose preferred subjects (limits by experience and by how many teachers each subject needs) |
-| See "need more teachers" when the work does not fit | See the personal timetable and **download it as PDF** |
+| See "need more teachers" (a dropdown with semester-wise minimums, who has free time, and what to do); one weekly limit for every teacher, 22 periods by default | See the personal timetable and **download it as PDF** |
 | Generate the timetable for all ready semesters in one run | Record past pass percentages, add a profile photo |
 | Download class, lab-room and teacher timetables and the **master timetable** (PDF) | Chat with the HOD |
 | Reports: staffing, subject needs, **each teacher's full workload**, results, timetable analysis | Ask the AI assistant about their own data |
@@ -99,7 +99,7 @@ SCEDULAR/
 
 ```bash
 cd SCEDULAR-BACKEND
-npm test                # 210+ tests, about a minute; they never touch your real data or send real mail
+npm test                # 229 tests, about a minute; they never touch your real data or send real mail
 npx tsc --noEmit        # type-check (also in SCEDULAR-FRONTEND)
 ```
 

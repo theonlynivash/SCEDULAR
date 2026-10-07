@@ -151,7 +151,7 @@ export function UploadCurriculum({ navigate }: { navigate: (p: Page) => void }) 
             )}
             {committed && (
               <div className="rounded-2xl bg-emerald-400/10 border border-emerald-300/40 p-4">
-                <p className="font-700 text-emerald-700">✓ Dataset imported successfully.</p>
+                <p className="font-700 text-emerald-700">Dataset imported successfully.</p>
                 <p className="text-xs text-slate-500 mt-1">The canonical dataset is now ready for timetable generation.</p>
                 <div className="flex justify-end gap-2 mt-3"><Btn variant="secondary" onClick={() => navigate('data-hub')}>Data Hub</Btn><Btn onClick={() => navigate('generate')}>Generate Timetable →</Btn></div>
               </div>

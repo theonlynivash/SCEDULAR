@@ -70,7 +70,8 @@ describe('absence report and calendar', () => {
     const asg = await getAssignmentsForRun((await getLatestValidRun())!.id)
     const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
     let date = ''
-    for (let i = 1; i < 14 && !date; i++) { const d = addDays(i); if (asg.some(a => a.facultyId === A && a.day === DAYS[new Date(d + 'T00:00:00Z').getUTCDay()])) date = d }
+    // start two days ahead: that is never "today" in India, whatever the time of day
+    for (let i = 2; i < 14 && !date; i++) { const d = addDays(i); if (asg.some(a => a.facultyId === A && a.day === DAYS[new Date(d + 'T00:00:00Z').getUTCDay()])) date = d }
     const r = await call(tokA, 'POST', '/leave', { fromDate: date, toDate: date, reason: 'a medical check-up' })
     expect(r.status).toBe(201); leaveId = r.json.id
     // not approved yet: nothing counted

@@ -35,7 +35,7 @@ interface Profile {
 }
 const T4 = [26.1, 105, 245, 283, 320, 351, 385, 437, 585.1]
 const PROFILES: Record<number, Profile> = {
-  2: { title: [['L1', 25, 12, 'D'], ['L2', 39, 11, 'D'], ['L3', 54, 11, 'D'], ['L4', 68, 11, 'D']], gridTop: 76.5, rowH: 41, theoryTop: 327, tableX: [29.3, 112, 292, 322, 352, 380, 410, 470, 581.9] },
+  2: { title: [['L1', 25, 12, 'D'], ['L2', 39, 11, 'D'], ['L3', 54, 11, 'D'], ['L4', 68, 11, 'D']], gridTop: 76.5, rowH: 41, theoryTop: 327, tableX: [29.3, 112, 276, 306, 336, 364, 394, 450, 581.9] },
   3: { title: [['L1', 27, 14, 'D'], ['L2', 44, 12, 'D'], ['L3', 58, 12, 'D'], ['L4', 73, 12, 'D']], gridTop: 94, rowH: 41, theoryTop: 342, tableX: T4 },
   4: { title: [['L1', 42, 14, 'D'], ['L2', 59, 12, 'D'], ['L3', 74, 12, 'D'], ['L4', 88, 12, 'D']], gridTop: 112.4, rowH: 38.2, theoryTop: 371, tableX: T4 },
 }
@@ -149,14 +149,19 @@ export function renderClassTimetablesPdf(input: SheetInput, doc: InstanceType<ty
     const P = PROFILES[Math.ceil(n / 2)] ?? PROFILES[4]
     const gx = GRID_X[0], gw = GRID_X[GRID_X.length - 1] - GRID_X[0]
     const headH = 45.2, rowH = P.rowH
-    const gy = P.gridTop
+    // The measured positions are only a starting point: the grid must start BELOW the last heading line ("SECTION A") and the
+    // theory heading must start BELOW the grid, whatever the font and the number of working days are.
+    const lastTitle = P.title[P.title.length - 1]
+    const gy = Math.max(P.gridTop, lastTitle[1] + lastTitle[2] * 1.3 + 5)
+    const gridBottom = gy + headH + rowH * days.length
+    const theoryTop = Math.max(P.theoryTop, gridBottom + 12)
     const edges = P.tableX
     const heads = ['CODE', 'COURSE TITLE', 'L', 'T', 'P', 'C', 'HOURS\nALLOC\nATED', 'STAFF NAME']
     const fits = (fs: number, minRow: number) => {
       const lh = fs * 1.22
       const rh = (r: Row) => Math.max(minRow, Math.max(doc.font(LIGHT).fontSize(fs).heightOfString(r.title, { width: edges[2] - edges[1] - 8, lineGap: LG }), doc.heightOfString(r.staff, { width: edges[8] - edges[7] - 8, lineGap: LG })) + 6 + 0 * lh)
       const total = (rows: Row[]) => 40 + rows.reduce((a, r) => a + rh(r), 0)
-      return { rh, bottom: P.theoryTop + 14 + total(theory) + 16 + 14 + total(practical) + 22 + 14 }
+      return { rh, bottom: theoryTop + 14 + total(theory) + 16 + 14 + total(practical) + 22 + 14 }
     }
     let fs = 11, minRow = 33
     let fit = fits(fs, minRow)
@@ -253,7 +258,7 @@ export function renderClassTimetablesPdf(input: SheetInput, doc: InstanceType<ty
       }
       return y
     }
-    let y = P.theoryTop
+    let y = theoryTop
     doc.font(DEMI).fontSize(11).fillColor('#000').text('SUBJECT HANDLING THEORY', 0, y, { width: 595.28, align: 'center', lineBreak: false })
     y = drawTable(y + 14, theory) + 14
     doc.font(DEMI).fontSize(11).text('PRACTICALS', 0, y, { width: 595.28, align: 'center', lineBreak: false })

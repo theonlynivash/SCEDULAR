@@ -6,9 +6,10 @@ const TITLE: Record<ImportKind, string> = { sections: 'Sections', syllabus: 'Syl
 
 /**
  * Import wizard: choose the Excel file -> every missing or wrong value is listed exactly and can be fixed on the spot
- * -> import. Nothing is saved until the last step.
+ * -> import. Nothing is saved until the last step. Mode 'add' keeps what exists; 'reset' removes it first and asks for the
+ * HOD's password again.
  */
-export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKind; onClose: () => void; onDone: () => void }) {
+export default function ImportWizard({ kind, mode = 'add', onClose, onDone }: { kind: ImportKind; mode?: ImportMode; onClose: () => void; onDone: () => void }) {
   const [step, setStep] = useState<'upload' | 'review' | 'done'>('upload')
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [rows, setRows] = useState<CheckedRow[]>([])
@@ -19,13 +20,11 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
   const [skipInvalid, setSkipInvalid] = useState(false)
   const [result, setResult] = useState<ImportCommit | null>(null)
   const [check, setCheck] = useState<DataCheck | null>(null)
-  const [mode, setMode] = useState<ImportMode>('add')          // teachers only: add to the list, or replace all of it
   const [password, setPassword] = useState('')
-  const [confirmText, setConfirmText] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const fileRef = useRef<HTMLInputElement>(null)
   const cols = preview?.columns ?? []
-  const replacing = kind === 'teachers' && mode === 'replace'
+  const reset = mode === 'reset'
 
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [busy, onClose])
 
@@ -70,7 +69,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
   async function commit() {
     setBusy(true); setError(null)
     try {
-      const r = await api.bulkImport.commit(kind, rows.map(x => ({ row: x.row, values: x.values })), skipInvalid, replacing ? { mode, password, confirm: confirmText } : {})
+      const r = await api.bulkImport.commit(kind, rows.map(x => ({ row: x.row, values: x.values })), skipInvalid, reset ? { mode, password } : {})
       setResult(r); setStep('done'); onDone()
       api.bulkImport.dataCheck().then(setCheck).catch(() => {})
     } catch (e: any) { setError(e?.message || 'Import failed.') }
@@ -95,47 +94,28 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3 shrink-0">
           <FileSpreadsheet className="w-5 h-5 text-[color:var(--c-600)]" />
           <div>
-            <h2 className="text-sm font-800 text-slate-800">Import {TITLE[kind].toLowerCase()} from Excel</h2>
-            <p className="text-[11px] text-slate-500">{step === 'upload' ? 'Download the template, fill it, then upload it.' : step === 'review' ? 'Fix anything marked in red (blocks the import) or amber (a warning), then import.' : 'Done.'}</p>
+            <h2 className="text-sm font-800 text-slate-800">{reset ? 'Reset' : 'Add'} {TITLE[kind].toLowerCase()}</h2>
+            <p className="text-[11px] text-slate-500">{step === 'upload' ? (reset ? 'Your file replaces the current data.' : 'Your file is added to the current data.') : step === 'review' ? 'Fix the red rows to continue. Amber is only a warning.' : 'Done.'}</p>
           </div>
           <button onClick={onClose} disabled={busy} className="ml-auto p-1.5 rounded-full hover:bg-slate-100 text-slate-500"><X className="w-4 h-4" /></button>
         </div>
 
-        {error && <p className="mx-5 mt-3 text-xs font-600 text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">⚠ {error}</p>}
+        {error && <p className="mx-5 mt-3 text-xs font-600 text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{error}</p>}
 
         {/* ── 1. upload ── */}
         {step === 'upload' && (
-          <div className="p-6 grid gap-4 md:grid-cols-2 overflow-y-auto">
-            {kind === 'teachers' && (
-              <div className="md:col-span-2 grid gap-2 sm:grid-cols-2">
-                {([['add', 'Add teachers', 'Adds the teachers in the file to your current list. A Faculty ID in the file updates that teacher instead.'], ['replace', 'Replace all teachers', 'Full rewrite for another department: every current teacher (except you) is removed with their logins, preferences and assignments, and the file becomes the new list.']] as [ImportMode, string, string][]).map(([m, t, d]) => (
-                  <button key={m} onClick={() => setMode(m)} className={`text-left rounded-xl border p-3 transition ${mode === m ? (m === 'replace' ? 'border-rose-400 bg-rose-50/60 ring-1 ring-rose-200' : 'border-[color:var(--c-600)] bg-blue-50/50 ring-1 ring-[color:var(--c-600)]/20') : 'border-slate-200 hover:bg-slate-50'}`}>
-                    <p className={`text-xs font-800 ${m === 'replace' ? 'text-rose-700' : 'text-[color:var(--c-600)]'}`}>{mode === m ? '● ' : '○ '}{t}</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">{d}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-xs font-800 text-slate-700">1 · Get the template</p>
-              <p className="text-[11px] text-slate-500 mt-1">It lists every column, marks the required ones and has example rows to copy. Rows that start with "Example:" are ignored.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button onClick={() => downloadFile(`/setup/import/template/${kind}`, 'template.xlsx').catch(e => setError(e.message))} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[color:var(--c-600)] text-[color:var(--c-600)] text-xs font-700 hover:bg-blue-50"><Download className="w-3.5 h-3.5" /> {TITLE[kind]} template</button>
-                <button onClick={() => downloadFile('/setup/import/template/all', 'template.xlsx').catch(e => setError(e.message))} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-300 text-slate-600 text-xs font-600 hover:bg-slate-50"><Download className="w-3.5 h-3.5" /> All-in-one (sections + syllabus + teachers)</button>
-              </div>
-              <div className="mt-4 text-[11px] text-slate-500">
-                <p className="font-700 text-slate-600 mb-1">Columns</p>
-                <ul className="space-y-0.5">{(preview?.columns ?? defaultCols(kind)).map(c => <li key={c.key}><b className="text-slate-700">{c.label}{c.required ? ' *' : ''}</b> · {c.hint}</li>)}</ul>
-              </div>
-            </div>
-            <div className="rounded-xl border-2 border-dashed border-slate-300 p-6 flex flex-col items-center justify-center text-center"
+          <div className="p-6 overflow-y-auto">
+            <div className="rounded-xl border-2 border-dashed border-slate-300 p-8 flex flex-col items-center justify-center text-center"
               onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); choose(e.dataTransfer.files?.[0]) }}>
               <Upload className="w-8 h-8 text-slate-400" />
-              <p className="text-xs font-700 text-slate-700 mt-2">2 · Upload the filled file</p>
-              <p className="text-[11px] text-slate-500 mt-1">Drop the .xlsx here, or</p>
+              <p className="text-sm font-700 text-slate-700 mt-2">Drop your Excel file here</p>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => choose(e.target.files?.[0])} />
-              <button disabled={busy} onClick={() => fileRef.current?.click()} className="mt-2 px-4 py-1.5 rounded-full bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">{busy ? 'Reading…' : 'Choose file'}</button>
-              <p className="text-[10.5px] text-slate-400 mt-3">Nothing is saved yet. You review and fix everything first.</p>
+              <button disabled={busy} onClick={() => fileRef.current?.click()} className="mt-3 px-4 py-1.5 rounded-full bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">{busy ? 'Reading…' : 'Choose file'}</button>
+              <p className="text-[11px] text-slate-400 mt-3">You check everything before it is saved.</p>
+            </div>
+            <div className="mt-3 flex items-center gap-3 flex-wrap text-[11px] text-slate-500">
+              <button onClick={() => downloadFile(`/setup/import/template/${kind}`, 'template.xlsx').catch(e => setError(e.message))} className="inline-flex items-center gap-1 font-700 text-[color:var(--c-700)] hover:underline"><Download className="w-3.5 h-3.5" /> {TITLE[kind]} template</button>
+              <span>Columns marked * are required.</span>
             </div>
           </div>
         )}
@@ -159,7 +139,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
                 <ul className="space-y-0.5">
                   {problems.slice(0, 60).map((p, i) => (
                     <li key={i} className="text-[11px] flex gap-2">
-                      <span className={`shrink-0 font-700 ${p.level === 'error' ? 'text-rose-700' : 'text-amber-700'}`}>{p.level === 'error' ? '✕' : '!'} Row {p.row} · {p.label}</span>
+                      <span className={`shrink-0 font-700 ${p.level === 'error' ? 'text-rose-700' : 'text-amber-700'}`}>{p.level === 'error' ? 'Error' : 'Warning'} · Row {p.row} · {p.label}</span>
                       <span className="text-slate-700 min-w-0">{p.message}</span>
                       <button onClick={() => focusCell(p.row, p.field)} className="ml-auto shrink-0 text-[color:var(--c-700)] font-700 hover:underline">Fix</button>
                     </li>
@@ -203,17 +183,16 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
                   ))}
                 </tbody>
               </table>
-              {shown.length === 0 && <p className="text-xs text-slate-400 text-center py-8">{rows.length === 0 ? 'No rows left.' : 'No problems. 🎉'}</p>}
+              {shown.length === 0 && <p className="text-xs text-slate-400 text-center py-8">{rows.length === 0 ? 'No rows left.' : 'No problems.'}</p>}
               <button onClick={addRow} className="mt-2 inline-flex items-center gap-1 text-[11px] font-700 text-[color:var(--c-700)] hover:underline"><Plus className="w-3.5 h-3.5" /> Add a row</button>
             </div>
 
-            {replacing && (
+            {reset && (
               <div className="mx-5 mb-2 rounded-xl border border-rose-300 bg-rose-50/70 px-3 py-2.5 shrink-0">
-                <p className="text-[11px] font-800 text-rose-800">Replace all teachers: every current teacher except you will be removed, with their logins, subject preferences, assignments and generated timetables. This cannot be undone.</p>
-                <div className="mt-2 flex gap-2 flex-wrap">
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your HOD password" className="border border-rose-200 rounded-lg px-2.5 py-1.5 text-xs bg-white w-52" />
-                  <input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder="Type REPLACE" className="border border-rose-200 rounded-lg px-2.5 py-1.5 text-xs bg-white w-40" />
-                </div>
+                <p className="text-[11.5px] font-700 text-rose-800">
+                  This removes {preview.willRemove ? `all ${preview.willRemove.count} ${preview.willRemove.what}` : `the current ${TITLE[kind].toLowerCase()}`}{preview.willRemove ? `, with ${preview.willRemove.alsoRemoves}` : ''}, then loads your file. It cannot be undone.
+                </p>
+                <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password to confirm" className="mt-2 border border-rose-200 rounded-lg px-2.5 py-1.5 text-xs bg-white w-64" />
               </div>
             )}
             <div className="px-5 py-3 border-t border-slate-100 flex items-center gap-3 flex-wrap shrink-0">
@@ -221,8 +200,8 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
               {errorRows > 0 && (
                 <label className="flex items-center gap-1.5 text-[11px] text-slate-600"><input type="checkbox" checked={skipInvalid} onChange={e => setSkipInvalid(e.target.checked)} /> Skip the {errorRows} row{errorRows === 1 ? '' : 's'} that still have errors</label>
               )}
-              <button disabled={busy || toImport === 0 || (errorRows > 0 && !skipInvalid) || (replacing && (!password || confirmText !== 'REPLACE'))} onClick={commit} className="ml-auto px-5 py-2 rounded-full bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">
-                {busy ? 'Importing…' : errorRows > 0 && !skipInvalid ? `Fix ${errorRows} error${errorRows === 1 ? '' : 's'} to import` : replacing ? `Replace all teachers with these ${toImport}` : `Import ${toImport} ${TITLE[kind].toLowerCase()}`}
+              <button disabled={busy || toImport === 0 || (errorRows > 0 && !skipInvalid) || (reset && !password)} onClick={commit} className={`ml-auto px-5 py-2 rounded-full text-white text-xs font-700 disabled:opacity-40 ${reset ? 'bg-rose-600' : 'bg-[color:var(--c-600)]'}`}>
+                {busy ? (reset ? 'Resetting…' : 'Adding…') : errorRows > 0 && !skipInvalid ? `Fix ${errorRows} error${errorRows === 1 ? '' : 's'} to import` : reset ? `Reset and load ${toImport}` : `Add ${toImport} ${TITLE[kind].toLowerCase()}`}
               </button>
             </div>
           </>
@@ -231,7 +210,7 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
         {/* ── 3. done ── */}
         {step === 'done' && result && (
           <div className="p-6 overflow-y-auto space-y-4">
-            <div className="flex items-center gap-2 text-emerald-700"><CheckCircle2 className="w-5 h-5" /><p className="text-sm font-800">Imported: {result.created} added{result.removed ? `, ${result.removed} old teachers removed` : ''}{result.updated ? `, ${result.updated} updated` : ''}{result.skipped ? `, ${result.skipped} skipped` : ''}.</p></div>
+            <div className="flex items-center gap-2 text-emerald-700"><CheckCircle2 className="w-5 h-5" /><p className="text-sm font-800">{result.removed ? `${result.removed} old ${result.removedWhat ?? 'records'} removed. ` : ''}{result.created} added{result.updated ? `, ${result.updated} updated` : ''}{result.skipped ? `, ${result.skipped} skipped` : ''}.</p></div>
             {kind === 'teachers' && result.logins.length > 0 && (
               <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
                 <div className="flex items-center gap-2"><p className="text-xs font-800 text-amber-900">One-time passwords — shown only now. Save or hand them out.</p><button onClick={csv} className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-amber-300 text-amber-900 text-[11px] font-700 hover:bg-amber-100"><Download className="w-3 h-3" /> CSV</button></div>
@@ -249,20 +228,34 @@ export default function ImportWizard({ kind, onClose, onDone }: { kind: ImportKi
   )
 }
 
-/** What is still missing before preferences, approval and timetable generation can work. */
+/** What is still missing before preferences, approval and timetable generation can work. Same problem on many rows is one line. */
 export function ReadyPanel({ check }: { check: DataCheck | null }) {
   if (!check) return <p className="text-[11px] text-slate-400">Checking what is still missing…</p>
-  const errors = check.items.filter(i => i.level === 'error'), warns = check.items.filter(i => i.level === 'warning')
+  const groups = new Map<string, { level: 'error' | 'warning'; area: string; text: string; names: string[]; one: string }>()
+  for (const i of [...check.items.filter(x => x.level === 'error'), ...check.items.filter(x => x.level === 'warning')]) {
+    const cut = i.message.indexOf(': ')
+    const per = Boolean(i.ref) && (i.area === 'teachers' || i.area === 'syllabus') && cut > 0
+    const text = per ? i.message.slice(cut + 2) : i.message
+    const key = `${i.level}|${i.area}|${text}`
+    const g = groups.get(key) ?? { level: i.level, area: i.area, text, names: [], one: i.message }
+    if (per) g.names.push(i.message.slice(0, cut))
+    groups.set(key, g)
+  }
+  const list = [...groups.values()]
   return (
     <div className="rounded-xl border border-slate-200 p-3 space-y-2">
       <div className="flex gap-2 flex-wrap">
-        <Chip tone={check.ready.preferences ? 'green' : 'red'}>{check.ready.preferences ? '✓' : '✕'} Ready for teacher preferences</Chip>
-        <Chip tone={check.ready.timetable ? 'green' : 'amber'}>{check.ready.timetable ? '✓' : '…'} Ready for timetable generation</Chip>
+        <Chip tone={check.ready.preferences ? 'green' : 'red'}>Ready for teacher preferences</Chip>
+        <Chip tone={check.ready.timetable ? 'green' : 'amber'}>Ready for timetable generation</Chip>
         <span className="text-[11px] text-slate-400 self-center">{check.counts.sections} sections · {check.counts.subjects} subjects · {check.counts.teachers} teachers</span>
       </div>
-      {[...errors, ...warns].length === 0 ? <p className="text-xs text-emerald-700 font-600">Nothing is missing.</p> : (
-        <ul className="space-y-0.5 max-h-44 overflow-y-auto">
-          {[...errors, ...warns].slice(0, 40).map((i, k) => <li key={k} className={`text-[11px] ${i.level === 'error' ? 'text-rose-700' : 'text-amber-800'}`}>{i.level === 'error' ? '✕' : '!'} {i.message}</li>)}
+      {list.length === 0 ? <p className="text-xs text-emerald-700 font-600">Nothing is missing.</p> : (
+        <ul className="space-y-1 max-h-44 overflow-y-auto">
+          {list.map((g, k) => (
+            <li key={k} className={`text-[11.5px] ${g.level === 'error' ? 'text-rose-700' : 'text-amber-800'}`}>
+              {g.names.length > 1 ? <><b>{g.names.length} {g.area === 'teachers' ? 'teachers' : 'subjects'}:</b> {g.text} <span className="text-slate-400">({g.names.slice(0, 3).join(', ')}, …)</span></> : g.one}
+            </li>
+          ))}
         </ul>
       )}
     </div>
@@ -273,9 +266,3 @@ function Chip({ tone, children }: { tone: 'green' | 'red' | 'amber' | 'blue' | '
   const c = { green: 'bg-emerald-50 text-emerald-700 border-emerald-200', red: 'bg-rose-50 text-rose-700 border-rose-200', amber: 'bg-amber-50 text-amber-800 border-amber-200', blue: 'bg-blue-50 text-blue-700 border-blue-200', slate: 'bg-slate-50 text-slate-600 border-slate-200' }[tone]
   return <span className={`text-[11px] font-700 px-2.5 py-0.5 rounded-full border ${c}`}>{children}</span>
 }
-
-const defaultCols = (kind: ImportKind) => ({
-  sections: [{ key: 'semester', label: 'Semester', required: true, hint: 'I to VIII' }, { key: 'section', label: 'Section', required: true, hint: 'A, B, C … one per row' }, { key: 'students', label: 'Students', hint: 'optional' }, { key: 'incharge', label: 'Class In-charge', hint: 'optional' }],
-  syllabus: [{ key: 'semester', label: 'Semester', required: true, hint: 'I to VIII' }, { key: 'code', label: 'Subject Code', required: true, hint: 'unique' }, { key: 'name', label: 'Subject Name', required: true, hint: '' }, { key: 'type', label: 'Type', required: true, hint: 'THEORY / INTEGRATED / LAB' }, { key: 'theory', label: 'Theory periods/week', required: true, hint: 'per section' }, { key: 'lab', label: 'Lab periods/week', required: true, hint: 'per section' }, { key: 'labs', label: 'Lab rooms', hint: 'needed when there are lab periods' }],
-  teachers: [{ key: 'name', label: 'Name', required: true, hint: '' }, { key: 'experience', label: 'Experience (years)', required: true, hint: 'decides which subjects they may choose' }, { key: 'email', label: 'Email', hint: 'for Forgot password and mails' }, { key: 'designation', label: 'Designation', hint: '' }],
-}[kind]) as { key: string; label: string; required?: boolean; hint: string }[]

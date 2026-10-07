@@ -10,7 +10,7 @@ export function TeacherInfo({ t, subjectId, semester, extra }: { t: BoardTeacher
       <p className="text-xs font-600 text-slate-800 truncate">
         {t.name}
         <span className="ml-1.5 text-[10px] font-500 text-slate-400">{t.experience != null ? `${t.experience} yrs` : 'experience not set'}</span>
-        {choseThis && <span className="ml-1.5 text-[10px] font-700 text-emerald-700">· chose this subject ✓</span>}
+        {choseThis && <span className="ml-1.5 text-[10px] font-700 text-emerald-700">· chose this subject</span>}
         {extra}
       </p>
       {t.free ? (

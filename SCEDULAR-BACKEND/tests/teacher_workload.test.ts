@@ -13,7 +13,7 @@ afterAll(() => new Promise<void>(res => server.close(() => res())))
 describe('Reports: full workload of each teacher', () => {
   it('lists subjects, sections, periods, class in-charge, preferences, results and the timetable load', async () => {
     const r = await (await get('/api/hod/teacher-workload', hod)).json() as any
-    expect(r.cap).toBe(28)
+    expect(r.cap).toBe(22)
     expect(r.teachers.length).toBeGreaterThan(10)
     const busy = r.teachers.filter((t: any) => t.load > 0)
     expect(busy.length).toBeGreaterThan(10)

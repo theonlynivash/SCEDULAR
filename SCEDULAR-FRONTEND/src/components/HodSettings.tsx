@@ -232,11 +232,11 @@ function PolicyAndCycle() {
             <span className="block text-[11px] text-slate-400 mt-1">A subject in 10 sections then accepts {Math.ceil(10 / (config.avgSectionsPerTeacher ?? 3))} teachers.</span>
           </label>
           <label className="block">
-            <span className="text-[11px] font-700 text-slate-500 uppercase tracking-wider">Most periods per teacher per week</span>
-            <input type="number" min={1} max={40} value={config.maxWeeklyPeriods ?? 28}
+            <span className="text-[11px] font-700 text-slate-500 uppercase tracking-wider">Weekly limit per teacher (periods)</span>
+            <input type="number" min={1} max={40} value={config.maxWeeklyPeriods ?? 22}
               onChange={e => setConfig({ ...config, maxWeeklyPeriods: Math.max(1, Math.min(40, Number(e.target.value) || 1)) })}
               className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-            <span className="block text-[11px] text-slate-400 mt-1">Assigning past this needs an explicit override; auto-fill never goes past it.</span>
+            <span className="block text-[11px] text-slate-400 mt-1">Applies to every teacher when saved (one teacher can be changed on the Teachers page). Auto-fill never goes past it.</span>
           </label>
         </div>
         <button onClick={() => saveConfig(config)} disabled={saving} className="px-4 py-1.5 rounded-full bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">Save weightage</button>
@@ -355,7 +355,10 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 export default function HodSettings({ navigate }: { navigate: (p: Page) => void }) {
-  const [tab, setTab] = useState<Tab>('setup')
+  const [tab, setTab] = useState<Tab>(() => {
+    try { const t = sessionStorage.getItem('scedular-settings-tab'); sessionStorage.removeItem('scedular-settings-tab'); if (t && TABS.some(x => x.id === t)) return t as Tab } catch { /* private window */ }
+    return 'setup'
+  })
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
   const say = (ok: boolean, text: string) => { setNotice({ ok, text }); setTimeout(() => setNotice(null), 6000) }
 
@@ -365,7 +368,7 @@ export default function HodSettings({ navigate }: { navigate: (p: Page) => void 
         <h1 className="font-display font-700 text-lg text-[color:var(--c-600)] flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Settings</h1>
         <PillTabs value={tab} onChange={setTab} tabs={TABS} />
       </div>
-      {notice && <div className={`slide-down text-xs font-600 rounded-lg px-4 py-2.5 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>{notice.ok ? '✓' : '⚠'} {notice.text}</div>}
+      {notice && <div className={`slide-down text-xs font-600 rounded-lg px-4 py-2.5 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>{notice.text}</div>}
       {tab === 'setup' && <SetupOverviewTab navigate={navigate} goTo={setTab} />}
       {tab === 'sections' && <SetupSyllabusTab say={say} mode="sections" />}
       {tab === 'syllabus' && <SetupSyllabusTab say={say} mode="syllabus" onOpenLabs={() => setTab('labs')} />}

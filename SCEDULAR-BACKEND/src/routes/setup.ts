@@ -15,8 +15,10 @@ import {
   listSectionSubjects, upsertSectionSubject, listTeachingAssignments,
   upsertCourse, deleteCourse, getCurrentAcademicCycle, getFacultyPreferences, listLabs,
   listLabSubjectMappings, setLabSubjectMapping, deleteLabSubjectMapping,
-  addTeachingAssignment, removeTeachingAssignment, hodChangePreferenceSubject, eraseGeneratedTimetables,
+  addTeachingAssignment, removeTeachingAssignment, hodChangePreferenceSubject, eraseGeneratedTimetables, getAllocationSettings,
 } from '../db/repo.js'
+import { staffingPolicy } from '../utils/staffing.js'
+import { applyWeeklyLimit, MAX_WEEKLY_LIMIT } from '../utils/weeklyLimit.js'
 import { deriveInitialCourses, saveLocalDb, runAtomic } from '../db/localDb.js'
 import { requireAuth, requireRole } from '../auth/middleware.js'
 import { generatePassword, hasPersonalPassword, setFacultyPassword, verifyFacultyPassword } from '../auth/passwords.js'
@@ -391,13 +393,22 @@ setupRouter.post('/setup/faculty', async (req, res, next) => {
     await upsertFaculty({
       id, name: p.data.name, designation: p.data.designation ?? 'Assistant Professor', department: 'AI & DS', email: p.data.email ?? null,
       role: 'FACULTY', allocationExperience: p.data.allocationExperience, previousExperience: p.data.allocationExperience, currentExperience: 0,
-      maxDailyPeriods: p.data.maxDailyPeriods ?? 6, maxWeeklyPeriods: p.data.maxWeeklyPeriods ?? 24,
+      maxDailyPeriods: p.data.maxDailyPeriods ?? 6, maxWeeklyPeriods: p.data.maxWeeklyPeriods ?? staffingPolicy(await getAllocationSettings()).maxWeeklyPeriods,
     } as any)
     const password = generatePassword()
     await setFacultyPassword(id, password)
     await notifyPasswordChanged(id, 'created')
     saveLocalDb()
     res.status(201).json({ facultyId: id, name: p.data.name, password })
+  } catch (err) { next(err) }
+})
+
+// POST /setup/weekly-limit { limit } -> the same weekly limit for every teacher (and the policy setting the staffing maths use).
+setupRouter.post('/setup/weekly-limit', async (req, res, next) => {
+  try {
+    const p = z.object({ limit: z.number().int().min(1).max(MAX_WEEKLY_LIMIT) }).safeParse(req.body)
+    if (!p.success) return fail(res, 400, 'INVALID_INPUT', `Give a weekly limit from 1 to ${MAX_WEEKLY_LIMIT} periods.`)
+    res.json({ success: true, ...(await applyWeeklyLimit(p.data.limit)) })
   } catch (err) { next(err) }
 })
 

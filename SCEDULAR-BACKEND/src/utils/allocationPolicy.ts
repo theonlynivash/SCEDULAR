@@ -56,7 +56,7 @@ export const DEFAULT_ALLOCATION_CONFIG: AllocationConfig = {
   ],
   subjectMinExperienceRules: {},
   avgSectionsPerTeacher: 3,
-  maxWeeklyPeriods: 28,
+  maxWeeklyPeriods: 22,
 }
 
 export interface PolicyEvaluation {

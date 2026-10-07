@@ -6,6 +6,8 @@ import {
   listLabCourseMappings,
   listLabSubjectMappings,
   listLabs,
+  listSubjects,
+  listCourses,
   setLabCourseMapping,
   setLabSubjectMapping,
   deleteLabSubjectMapping,
@@ -28,8 +30,19 @@ const subjectMappingSchema = z.object({
 
 labsRouter.get('/', async (_req, res, next) => {
   try {
-    const [labs, mappings] = await Promise.all([listLabs(), listLabCourseMappings()])
-    res.json(labs.map(l => ({ ...l, courseIds: mappings.filter(m => m.labId === l.id).map(m => m.courseId) })))
+    const [labs, legacy, subjectMaps, subjects, courses] = await Promise.all([listLabs(), listLabCourseMappings(), listLabSubjectMappings(), listSubjects(), listCourses()])
+    // the rooms really in use are the subject/section mappings; show them as courses (a subject's lab course is CODE_LAB when it has theory too)
+    const codeOf = new Map(subjects.map(s => [s.id, s.code]))
+    const courseIds = new Set(courses.map(c => c.id))
+    res.json(labs.map(l => {
+      const ids = new Set(legacy.filter(m => m.labId === l.id).map(m => m.courseId))
+      for (const m of subjectMaps.filter(x => x.labId === l.id)) {
+        const code = codeOf.get(m.subjectId)
+        if (!code) continue
+        if (courseIds.has(`${code}_LAB`)) ids.add(`${code}_LAB`); else if (courseIds.has(code)) ids.add(code)
+      }
+      return { ...l, courseIds: [...ids] }
+    }))
   } catch (err) {
     next(err)
   }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { AlertTriangle, Check, FolderOpen, Inbox, Lock, Users, X } from 'lucide-react'
 import {
   api,
   type FacultyProfile,
@@ -41,15 +42,15 @@ function notSpecified(v: number | string | null | undefined): string {
 
 function computeStatus(prefs: FacultyPreference[]): { key: StatusKey; label: string; className: string } {
   if (prefs.length === 0) {
-    return { key: 'DRAFT', label: 'DRAFT · Nothing saved yet', className: 'bg-slate-100 text-slate-600 border-slate-200' }
+    return { key: 'DRAFT', label: 'Draft · nothing saved yet', className: 'bg-slate-100 text-slate-600 border-slate-200' }
   }
   const set = new Set(prefs.map(p => p.status))
   const all = (s: StatusKey) => prefs.every(p => p.status === s)
-  if (all('APPROVED')) return { key: 'APPROVED', label: '✓ APPROVED', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
-  if (set.has('CHANGES_REQUESTED')) return { key: 'CHANGES_REQUESTED', label: '⚠ CHANGES REQUESTED', className: 'bg-amber-100 text-amber-800 border-amber-200' }
-  if (set.has('REJECTED')) return { key: 'REJECTED', label: '✕ REJECTED', className: 'bg-rose-100 text-rose-800 border-rose-200' }
-  if (set.has('SUBMITTED')) return { key: 'SUBMITTED', label: '⏳ SUBMITTED · Under HOD Review', className: 'bg-blue-100 text-blue-800 border-blue-200' }
-  return { key: 'DRAFT', label: '📝 DRAFT', className: 'bg-slate-100 text-slate-700 border-slate-200' }
+  if (all('APPROVED')) return { key: 'APPROVED', label: 'Approved', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+  if (set.has('CHANGES_REQUESTED')) return { key: 'CHANGES_REQUESTED', label: 'Changes requested', className: 'bg-amber-100 text-amber-800 border-amber-200' }
+  if (set.has('REJECTED')) return { key: 'REJECTED', label: 'Rejected', className: 'bg-rose-100 text-rose-800 border-rose-200' }
+  if (set.has('SUBMITTED')) return { key: 'SUBMITTED', label: 'Submitted · under HOD review', className: 'bg-blue-100 text-blue-800 border-blue-200' }
+  return { key: 'DRAFT', label: 'Draft', className: 'bg-slate-100 text-slate-700 border-slate-200' }
 }
 
 interface FacultySubjectAllocationProps {
@@ -373,7 +374,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
   if (error) {
     return (
       <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center">
-        <p className="text-2xl mb-2">⚠️</p>
+        <AlertTriangle size={26} className="mx-auto mb-2 text-rose-600" strokeWidth={1.8} />
         <h2 className="font-display font-700 text-rose-800 mb-1">Could not load the allocation workspace</h2>
         <p className="text-xs text-rose-700 mb-4">{error}</p>
         <button
@@ -394,6 +395,40 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
       .map(w => w[0])
       .join('') || 'FAC'
 
+  if (isLocked) {
+    const approved = status.key === 'APPROVED'
+    return (
+      <div className="max-w-2xl mx-auto space-y-6 pt-1">
+        <h1 className="font-display text-[28px] font-700 tracking-[-0.02em] text-slate-900">My Subjects</h1>
+        <section className="lg-panel p-6 sm:p-7 flex items-center gap-5">
+          <span className="grid place-items-center w-14 h-14 shrink-0 rounded-2xl text-[color:var(--c-700)] bg-gradient-to-br from-[var(--c-600)]/25 to-[var(--c-600)]/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(var(--ink-rgb),0.18)]">
+            <Lock size={24} strokeWidth={1.6} />
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-[21px] font-700 tracking-tight text-slate-900">Your preferences are locked</h2>
+            <p className="mt-0.5 text-[14px] text-slate-600">{approved ? 'Approved by the HOD.' : 'Waiting for the HOD to review them.'}</p>
+          </div>
+        </section>
+        {selectionArr.length > 0 && (
+          <section>
+            <div className="lg-title"><h2>Your subjects</h2></div>
+            <div className="lg-panel lg-clip">
+              {selectionArr.map((x, i) => (
+                <div key={x.subjectId} className="lg-row">
+                  <span className="lg-lead !min-w-[1.6rem] text-slate-400">{i + 1}</span>
+                  <div className="lg-main">
+                    <p className="lg-t truncate">{x.name}</p>
+                    <p className="lg-s truncate">{x.code} · Semester {x.semester}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col space-y-4">
       {/* Header */}
@@ -408,37 +443,23 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
       {/* Notifications */}
       {successMsg && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-600 rounded-xl px-4 py-3 flex items-center justify-between shadow-xs">
-          <span>✓ {successMsg}</span>
-          <button onClick={() => setSuccessMsg('')} className="text-emerald-500 hover:text-emerald-800">✕</button>
+          <span className="flex items-center gap-2"><Check size={15} strokeWidth={2.2} /> {successMsg}</span>
+          <button onClick={() => setSuccessMsg('')} aria-label="Dismiss" className="text-emerald-600 hover:text-emerald-900"><X size={15} /></button>
         </div>
       )}
       {validationMsg && (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs font-600 rounded-xl px-4 py-3 flex items-center justify-between shadow-xs">
-          <span>⚠ {validationMsg}</span>
-          <button onClick={() => setValidationMsg('')} className="text-rose-500 hover:text-rose-800">✕</button>
+          <span className="flex items-center gap-2"><AlertTriangle size={15} strokeWidth={2} /> {validationMsg}</span>
+          <button onClick={() => setValidationMsg('')} aria-label="Dismiss" className="text-rose-600 hover:text-rose-900"><X size={15} /></button>
         </div>
       )}
       {/* Status-specific banners — APPROVED, CHANGES_REQUESTED, REJECTED, SUBMITTED */}
-      {status.key === 'APPROVED' && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 shadow-xs flex items-start gap-3">
-          <span className="text-lg leading-none mt-0.5">🔒</span>
-          <div>
-            <p className="text-xs font-700 text-emerald-800">Your preferences have been approved by the HOD.</p>
-            <p className="text-[11px] text-emerald-700 mt-0.5">The HOD assigns your sections next. Your choices can no longer be edited.</p>
-          </div>
-        </div>
-      )}
-      {status.key === 'SUBMITTED' && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs font-600 rounded-xl px-4 py-3 shadow-xs">
-          🔒 Your preferences are submitted and pending HOD review. Editing resumes only if the HOD requests changes.
-        </div>
-      )}
       {status.key === 'CHANGES_REQUESTED' && (() => {
         const withComment = existingPrefs.find(p => p.status === 'CHANGES_REQUESTED' && p.hodComment)
         return (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 shadow-xs space-y-2">
             <p className="text-xs font-700 text-amber-800 flex items-center gap-1.5">
-              <span>⚠</span> The HOD has requested changes to one or more of your preferences.
+              <AlertTriangle size={14} strokeWidth={2} /> The HOD has requested changes to one or more of your preferences.
             </p>
             {withComment && (
               <div>
@@ -457,7 +478,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
         return (
           <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 shadow-xs space-y-2">
             <p className="text-xs font-700 text-rose-800 flex items-center gap-1.5">
-              <span>✕</span> One or more of your preferences have been rejected by the HOD.
+              <X size={14} strokeWidth={2.2} /> One or more of your preferences have been rejected by the HOD.
             </p>
             {rejected.filter(p => p.hodComment).map(p => (
               <div key={p.id}>
@@ -509,7 +530,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
 
         {!experienceConfigured && (
           <p className="mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            ⚠ Allocation experience is not configured. Open <span className="font-700">My Profile</span> to set it before selecting subjects.
+            <AlertTriangle size={13} className="inline -mt-0.5 mr-1" strokeWidth={2} /> Allocation experience is not configured. Open <span className="font-700">My Profile</span> to set it before selecting subjects.
           </p>
         )}
       </div>
@@ -581,12 +602,12 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
             <div className="p-5">
               {!yearEligible ? (
                 <div className="bg-slate-50/70 border border-slate-200/80 rounded-xl p-5 text-center opacity-70">
-                  <p className="text-xs font-600 text-slate-600">🔒 {selectedYear} is not eligible for your allocation experience {allocationExperience != null ? `(${allocationExperience} years)` : ''}</p>
+                  <p className="text-xs font-600 text-slate-600"><Lock size={13} className="inline -mt-0.5 mr-1" strokeWidth={2} />{selectedYear} is not eligible for your allocation experience {allocationExperience != null ? `(${allocationExperience} years)` : ''}</p>
                   <p className="text-[11px] text-slate-400 mt-1">{reasons[selectedYear] || 'Please select an eligible semester above.'}</p>
                 </div>
               ) : catalog.length === 0 ? (
                 <div className="text-center py-10">
-                  <p className="text-2xl mb-2">📭</p>
+                  <Inbox size={28} className="mx-auto mb-2 text-slate-400" strokeWidth={1.6} />
                   <p className="text-sm font-600 text-slate-700">No subjects configured for Semester {semester}</p>
                   <p className="text-xs text-slate-400 mt-1">There are no canonical curriculum subjects for this semester yet.</p>
                 </div>
@@ -638,7 +659,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
                               ? 'bg-blue-50 text-blue-700 border border-blue-200'
                               : 'bg-slate-100 text-slate-500'
                           }`}>
-                            👥 {interestUnavailable ? '—' : wanted > 0 ? (full ? `Full · ${wanted} of ${wanted} teachers chosen` : `${wanted - (dem?.left ?? 0)} of ${wanted} teachers chosen · ${dem?.left ?? 0} slot${(dem?.left ?? 0) === 1 ? '' : 's'} left`) : `${interestCount} interested`}
+                            <Users size={12} className="inline -mt-0.5 mr-1" strokeWidth={2} />{interestUnavailable ? '—' : wanted > 0 ? (full ? `Full · ${wanted} of ${wanted} teachers chosen` : `${wanted - (dem?.left ?? 0)} of ${wanted} teachers chosen · ${dem?.left ?? 0} slot${(dem?.left ?? 0) === 1 ? '' : 's'} left`) : `${interestCount} interested`}
                           </span>
                           {!isLocked && (
                             <button
@@ -711,7 +732,7 @@ export default function FacultySubjectAllocation({ facultyId }: FacultySubjectAl
             <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto min-h-0 space-y-2 mb-3">
               {selectionArr.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-2xl mb-1">🗂️</p>
+                  <FolderOpen size={26} className="mx-auto mb-1 text-slate-300" strokeWidth={1.6} />
                   <p className="text-xs text-slate-400">No subjects selected yet.</p>
                 </div>
               ) : (

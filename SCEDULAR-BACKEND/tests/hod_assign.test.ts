@@ -93,7 +93,7 @@ describe('HOD subject -> teacher -> sections assignment', () => {
   })
 
   it('blocks assignment beyond the faculty weekly capacity unless overridden', async () => {
-    // the weekly cap is now a department policy (Settings -> Policy & cycle -> staffing weightage), 28 by default
+    // the weekly cap is now a department policy (Settings -> Policy & cycle -> staffing weightage), 22 by default
     const saved = db().allocationSettings
     db().allocationSettings = { ...(saved ?? {}), maxWeeklyPeriods: 1 } as any
     saveLocalDbSync()

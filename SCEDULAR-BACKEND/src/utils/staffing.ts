@@ -3,14 +3,14 @@
  *
  *  - A subject needs one teacher per ~`avgSectionsPerTeacher` sections. Maths in 10 sections (4 periods each = 40T) with an
  *    average of 3 sections per teacher wants ceil(10/3) = 4 teachers, so only 4 preferences are accepted for it.
- *  - A teacher can carry at most `maxWeeklyPeriods` (default 28) periods a week. Total demand = sections x subjects x periods;
+ *  - A teacher can carry at most `maxWeeklyPeriods` (default 22) periods a week. Total demand = sections x subjects x periods;
  *    divided by that cap it gives the number of teachers the department needs, and the shortfall is "need N more teachers".
  */
 import type { AllocationConfig } from './allocationPolicy.js'
 import type { Faculty, Section, SectionSubject, Subject, TeachingAssignment } from '../types.js'
 
 export const DEFAULT_AVG_SECTIONS_PER_TEACHER = 3
-export const DEFAULT_MAX_WEEKLY_PERIODS = 28
+export const DEFAULT_MAX_WEEKLY_PERIODS = 22
 
 export interface StaffingPolicy { avgSectionsPerTeacher: number; maxWeeklyPeriods: number }
 

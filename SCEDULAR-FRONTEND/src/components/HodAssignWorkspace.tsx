@@ -78,7 +78,7 @@ export default function HodAssignWorkspace({ board, semester, onChanged, say }: 
           </div>
         </div>
         <div className="max-h-[calc(100vh-290px)] overflow-y-auto divide-y divide-slate-50">
-          {list.length === 0 && <p className="text-xs text-slate-400 text-center py-8">{filter === 'open' ? 'Everything is staffed 🎉' : 'Nothing here.'}</p>}
+          {list.length === 0 && <p className="text-xs text-slate-400 text-center py-8">{filter === 'open' ? 'Everything is staffed' : 'Nothing here.'}</p>}
           {list.map(s => {
             const on = s.subjectId === selected
             const pct = Math.round((100 * s.assignedCount) / Math.max(1, s.sectionCount))
@@ -225,7 +225,7 @@ function Detail({ sub, board, semester, counts, setCounts, busy, setBusy, onChan
           <TeacherPicker teachers={board.teachers} subjectId={sub.subjectId} semester={semester} action={assignControl} />
         </div>
       ) : (
-        <p className="text-xs font-600 text-[color:var(--c-700)] bg-[color:var(--c-500)]/6 border border-[color:var(--c-500)]/15 rounded-xl px-4 py-3">✓ Every section has a teacher.</p>
+        <p className="text-xs font-600 text-[color:var(--c-700)] bg-[color:var(--c-500)]/6 border border-[color:var(--c-500)]/15 rounded-xl px-4 py-3">Every section has a teacher.</p>
       )}
     </div>
   )

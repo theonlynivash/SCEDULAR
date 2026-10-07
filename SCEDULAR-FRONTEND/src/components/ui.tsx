@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type { ReactNode, SelectHTMLAttributes, InputHTMLAttributes } from 'react'
 
 export function PageHeader({ title, children }: { title: string; desc?: string; children?: ReactNode }) {
@@ -195,6 +196,26 @@ export function PillTabs<T extends string>({ tabs, value, onChange, className = 
           {t.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+
+/** A card whose body opens and closes (a dropdown): for reference material that should not fill the page. */
+export function Dropdown({ title, hint, children, defaultOpen = false }: { title: string; hint?: string; children: ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
+      <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display font-700 text-sm text-slate-800">{title}</h2>
+          {hint && <p className="text-[11px] text-slate-500 truncate">{hint}</p>}
+        </div>
+        <ChevronDown size={18} className={`shrink-0 text-slate-500 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+        <div className="min-h-0 overflow-hidden"><div className="px-4 pb-4">{children}</div></div>
+      </div>
     </div>
   )
 }

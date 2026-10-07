@@ -204,7 +204,7 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
       </GlassPanel>
 
       <GlassPanel className="p-4">
-        <p className="text-xs text-slate-500 leading-relaxed">💡 The older row-based workload and subject import controls are intentionally no longer promoted here. They remain available only through their legacy routes while the migration is completed.</p>
+        <p className="text-xs text-slate-500 leading-relaxed">The older row-based workload and subject import controls are intentionally no longer promoted here. They remain available only through their legacy routes while the migration is completed.</p>
       </GlassPanel>
 
       <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
@@ -244,7 +244,7 @@ export default function DataHub({ navigate }: { navigate: (p: Page) => void }) {
         </Section>
 
         {/* Labs quick-add */}
-        <Section title="Labs & Physical Rooms" actions={<Btn variant="secondary" onClick={() => navigate('lab-management')}>Manage Course Mapping →</Btn>}>
+        <Section title="Labs & Physical Rooms" actions={<Btn variant="secondary" onClick={() => navigate('lab-management')}>Manage lab rooms →</Btn>}>
           <div>
             <p className="text-xs font-600 text-slate-500 uppercase tracking-wider mb-2">Labs already added ({labs.length})</p>
             {labs.length === 0 && <p className="text-xs text-slate-400">No labs configured yet.</p>}

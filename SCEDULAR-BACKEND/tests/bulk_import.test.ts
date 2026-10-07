@@ -125,9 +125,9 @@ describe('syllabus import', () => {
   })
 })
 
-describe('teacher import: replace all (another department)', () => {
+describe('teacher import: reset (another department)', () => {
   const H = ['Faculty ID', 'Name *', 'Designation', 'Email', 'Phone', 'Experience (years) *']
-  it('rewrites the whole teacher list only with the HOD password and REPLACE, keeping the HOD', async () => {
+  it('rewrites the whole teacher list only with the HOD password, keeping the HOD', async () => {
     const { getLocalDb } = await import('../src/db/localDb.js')
     const { listFaculty } = await import('../src/db/repo.js')
     const db = getLocalDb()
@@ -136,25 +136,27 @@ describe('teacher import: replace all (another department)', () => {
     const reusedEmail = before.find(f => f.email)!.email!          // an email that belongs to a teacher who is about to be replaced
 
     const up = await (async () => {
-      const fd = new FormData(); fd.append('mode', 'replace')
+      const fd = new FormData(); fd.append('mode', 'reset')
       fd.append('file', sheetFile('Teachers', [H, ['FAC-777', 'New Dept One', 'Professor', reusedEmail, '', '11'], ['', 'New Dept Two', '', 'two@newdept.edu', '', '5']]), 'x.xlsx')
       const r = await fetch(`${base}/api/setup/import/teachers/preview`, { method: 'POST', headers: { authorization: `Bearer ${hod}` }, body: fd })
       return { status: r.status, body: await r.json() as any }
     })()
     expect(up.status).toBe(200)
-    expect(up.body.summary.errors).toBe(0)                                   // reusing an old teacher's email is fine when replacing
+    expect(up.body.summary.errors).toBe(0)                                   // reusing an old teacher's email is fine when resetting
+    expect(up.body.willRemove).toMatchObject({ what: 'teachers', count: before.length })
     expect(up.body.rows[0].issues.some((i: any) => i.field === 'facultyId' && i.level === 'warning')).toBe(true)
 
     const rows = up.body.rows
-    expect((await post('/api/setup/import/teachers/commit', { rows, mode: 'replace', password: 'SCEDULAR_AIDS' })).status).toBe(400)               // no REPLACE
-    expect((await post('/api/setup/import/teachers/commit', { rows, mode: 'replace', confirm: 'REPLACE', password: 'wrong' })).status).toBe(403)    // wrong password
+    expect((await post('/api/setup/import/teachers/commit', { rows, mode: 'reset' })).status).toBe(403)                                               // no password
+    expect((await post('/api/setup/import/teachers/commit', { rows, mode: 'reset', password: 'wrong' })).status).toBe(403)                            // wrong password
     expect((await listFaculty()).filter(f => f.role !== 'HOD').length).toBe(before.length)                                                           // nothing changed yet
 
-    const done = await post('/api/setup/import/teachers/commit', { rows, mode: 'replace', confirm: 'REPLACE', password: 'SCEDULAR_AIDS' })
+    const done = await post('/api/setup/import/teachers/commit', { rows, mode: 'reset', password: 'SCEDULAR_AIDS' })
     expect(done.status).toBe(200)
-    expect(done.body).toMatchObject({ created: 2, removed: before.length })
+    expect(done.body).toMatchObject({ created: 2, removed: before.length, removedWhat: 'teachers' })
     const after = await listFaculty()
     expect(after.filter(f => f.role === 'HOD')).toHaveLength(1)               // the HOD survives
+    expect(after.filter(f => f.role !== 'HOD').every(f => f.maxWeeklyPeriods === 22)).toBe(true)   // new teachers get the department's weekly limit
     expect(after.filter(f => f.role !== 'HOD').map(f => f.name).sort()).toEqual(['New Dept One', 'New Dept Two'])
     expect(db.generationRuns).toHaveLength(0)                                 // old timetables referred to removed teachers
     expect(db.teachingAssignments.every((t: any) => after.some(f => f.id === t.facultyId))).toBe(true)
@@ -177,5 +179,96 @@ describe('syllabus import nudges towards one integrated subject', () => {
       ['V', 'PAIR2', 'Computer Vision Laboratory', 'CVL', 'LAB', '0', '3', '2', '', lab, '']]))
     const w = up.body.rows[1].issues.find((i: any) => i.field === 'type' && i.level === 'warning')
     expect(w.message).toMatch(/single INTEGRATED subject/)
+  })
+})
+
+describe('data check only counts what is really scheduled', () => {
+  it('a lab subject of a semester with no running section is not "missing a room"; one offered to a running section is', async () => {
+    const { upsertSubject, upsertSection, upsertSectionSubject } = await import('../src/db/repo.js')
+    const lab = { deliveryType: 'LAB' as const, category: 'LAB_ONLY', credits: 1, theoryPeriods: 0, labPeriods: 3, shortName: 'DC' }
+    await upsertSubject({ id: 'SUB-DCK001', code: 'DCK001', name: 'Off-cycle Lab', year: 'Year 1', semester: 'II', ...lab })            // no sections at all
+    await upsertSubject({ id: 'SUB-DCK002', code: 'DCK002', name: 'Running Lab', year: 'Year 2', semester: 'III', ...lab })
+    await upsertSection({ id: 'Y2-DCK', name: 'DCK', year: 'Year 2', semester: 'III', department: 'AI & DS', studentCount: null, active: true })
+    await upsertSectionSubject({ sectionId: 'Y2-DCK', subjectId: 'SUB-DCK002', theoryPeriods: 0, labPeriods: 3, labBlockLength: 3 })
+
+    const check = await (await fetch(base + '/api/setup/import/data-check', { headers: J(hod) })).json() as any
+    const msgs = check.items.filter((i: any) => i.area === 'syllabus').map((i: any) => i.message) as string[]
+    expect(msgs.some(m => /DCK001/.test(m))).toBe(false)
+    expect(msgs.some(m => /DCK002.*no lab room/.test(m))).toBe(true)
+    expect(check.items.some((i: any) => i.area === 'sections' && /Semester/.test(i.message))).toBe(false)
+  })
+})
+
+describe('add keeps what exists; reset removes it first (password again)', () => {
+  const preview = async (kind: string, file: Blob, mode: string) => {
+    const fd = new FormData(); fd.append('mode', mode); fd.append('file', file, 'x.xlsx')
+    const r = await fetch(`${base}/api/setup/import/${kind}/preview`, { method: 'POST', headers: { authorization: `Bearer ${hod}` }, body: fd })
+    return { status: r.status, body: await r.json() as any }
+  }
+  it('sections: add keeps the old ones, reset replaces them all and takes their assignments and timetables with them', async () => {
+    const { listSections, listTeachingAssignments } = await import('../src/db/repo.js')
+    const H = ['Semester *', 'Section *', 'Students', 'Class In-charge']
+    const old = (await listSections()).length
+    expect(old).toBeGreaterThan(5)
+
+    const add = await preview('sections', sheetFile('Sections', [H, ['III', 'Z', '60', '']]), 'add')
+    expect((await post('/api/setup/import/sections/commit', { rows: add.body.rows })).status).toBe(200)
+    expect((await listSections()).length).toBe(old + 1)                       // nothing was removed
+
+    const up = await preview('sections', sheetFile('Sections', [H, ['III', 'A', '60', ''], ['III', 'B', '58', '']]), 'reset')
+    expect(up.body.willRemove).toMatchObject({ what: 'sections', count: old + 1 })
+    expect(up.body.rows.every((r: any) => r.action === 'create')).toBe(true)  // nothing in the file clashes with what is about to go
+    expect((await post('/api/setup/import/sections/commit', { rows: up.body.rows, mode: 'reset', password: 'wrong' })).status).toBe(403)
+    expect((await listSections()).length).toBe(old + 1)
+    const done = await post('/api/setup/import/sections/commit', { rows: up.body.rows, mode: 'reset', password: 'SCEDULAR_AIDS' })
+    expect(done.status).toBe(200)
+    expect(done.body).toMatchObject({ created: 2, removed: old + 1, removedWhat: 'sections' })
+    expect((await listSections()).map(s => s.id).sort()).toEqual(['Y2-A', 'Y2-B'])
+    const { getLocalDb } = await import('../src/db/localDb.js')
+    expect(getLocalDb().generationRuns).toHaveLength(0)
+    const live = new Set(getLocalDb().sectionSubjects.map((o: any) => o.id))
+    expect((await listTeachingAssignments()).every(t => live.has(t.sectionSubjectId))).toBe(true)   // no assignment points at a removed offering
+  })
+
+  it('syllabus: reset removes every old subject, then loads the file', async () => {
+    const { listSubjects } = await import('../src/db/repo.js')
+    const H = ['Semester *', 'Subject Code *', 'Subject Name *', 'Short Name', 'Type *', 'Theory periods/week *', 'Lab periods/week *', 'Credits', 'Category', 'Lab rooms', 'Sections']
+    const old = (await listSubjects()).length
+    const up = await preview('syllabus', sheetFile('Syllabus', [H, ['III', 'RST1001', 'Reset Theory', 'RST', 'THEORY', '4', '0', '3', 'CORE', '', '']]), 'reset')
+    expect(up.body.willRemove).toMatchObject({ what: 'subjects', count: old })
+    expect((await post('/api/setup/import/syllabus/commit', { rows: up.body.rows, mode: 'reset' })).status).toBe(403)       // no password
+    expect((await listSubjects()).length).toBe(old)
+    const done = await post('/api/setup/import/syllabus/commit', { rows: up.body.rows, mode: 'reset', password: 'SCEDULAR_AIDS' })
+    expect(done.status).toBe(200)
+    expect(done.body).toMatchObject({ created: 1, removed: old, removedWhat: 'subjects' })
+    expect((await listSubjects()).map(s => s.code)).toEqual(['RST1001'])
+  })
+})
+
+describe('one weekly limit for every teacher', () => {
+  it('sets every teacher and the policy together, names who already carries more, and is editable per teacher', async () => {
+    const { listFaculty, getAllocationSettings, upsertSection } = await import('../src/db/repo.js')
+    void upsertSection
+    const r = await post('/api/setup/weekly-limit', { limit: 18 })
+    expect(r.status).toBe(200)
+    expect(r.body).toMatchObject({ success: true, limit: 18 })
+    const teachers = (await listFaculty()).filter(f => f.role !== 'HOD')
+    expect(teachers.length).toBeGreaterThan(0)
+    expect(teachers.every(f => f.maxWeeklyPeriods === 18)).toBe(true)
+    expect((await getAllocationSettings()).maxWeeklyPeriods).toBe(18)
+    expect((await post('/api/setup/weekly-limit', { limit: 0 })).status).toBe(400)
+    expect((await post('/api/setup/weekly-limit', { limit: 99 })).status).toBe(400)
+
+    // one teacher can still be changed on their own
+    const one = teachers[0]
+    const patch = await fetch(`${base}/api/setup/faculty/${one.id}`, { method: 'PATCH', headers: J(hod), body: JSON.stringify({ maxWeeklyPeriods: 12 }) })
+    expect(patch.status).toBe(200)
+    expect((await listFaculty()).find(f => f.id === one.id)!.maxWeeklyPeriods).toBe(12)
+
+    // saving the policy with another limit applies it to everyone again
+    const cfg = await getAllocationSettings()
+    const saved = await post('/api/hod/allocation-settings', { config: { ...cfg, maxWeeklyPeriods: 22 } })
+    expect(saved.status).toBe(200)
+    expect((await listFaculty()).filter(f => f.role !== 'HOD').every(f => f.maxWeeklyPeriods === 22)).toBe(true)
   })
 })

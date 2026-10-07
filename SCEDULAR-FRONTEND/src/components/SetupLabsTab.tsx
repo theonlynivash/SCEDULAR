@@ -17,6 +17,7 @@ export default function SetupLabsTab({ say }: { say: (ok: boolean, text: string)
   const [maps, setMaps] = useState<Mapping[]>([])
   const [semester, setSemester] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
   const [newName, setNewName] = useState('')
   const [newCap, setNewCap] = useState('')
@@ -24,23 +25,27 @@ export default function SetupLabsTab({ say }: { say: (ok: boolean, text: string)
   const load = useCallback(async () => {
     try {
       const [l, s, sec, m] = await Promise.all([api.labs.list(), api.setup.listSubjects(), api.sections.list(), api.labs.subjectMappings()])
-      setLabs(l); setSubjects(s); setSections(sec); setMaps(m)
+      setLabs(l); setSubjects(s); setSections(sec); setMaps(m); setLoaded(true)
     } catch (e: any) { say(false, e?.message || 'Could not load lab rooms.') }
   }, [say])
   useEffect(() => { load() }, [load])
 
-  const labSubjects = useMemo(() => subjects.filter(s => s.labPeriods > 0 && s.semester), [subjects])
-  const semesters = useMemo(() => [...new Set(labSubjects.map(s => s.semester!))].sort((a, b) => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'].indexOf(a) - ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'].indexOf(b)), [labSubjects])
-  useEffect(() => { if (!semester || !semesters.includes(semester)) setSemester(semesters.find(sm => labSubjects.some(s => s.semester === sm && !maps.some(m => m.subjectId === s.id))) ?? semesters[0] ?? '') }, [semesters]) // eslint-disable-line react-hooks/exhaustive-deps
-  const rows = labSubjects.filter(s => s.semester === semester).sort((a, b) => a.code.localeCompare(b.code))
+  // only what will really be scheduled: a subject counts once it is offered to a running section, so semesters outside the
+  // current cycle (or ones this department has no sections for) never show up here as "missing"
+  const activeSections = useMemo(() => sections.filter(x => x.active !== false).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })), [sections])
+  const sectionsOf = useCallback((s: SetupSubject) => activeSections.filter(x => x.semester === s.semester && s.sectionIds.includes(x.id)), [activeSections])
+  const labSubjects = useMemo(() => subjects.filter(s => s.labPeriods > 0 && s.semester && sectionsOf(s).length > 0), [subjects, sectionsOf])
+  const ORDER = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
+  const semesters = useMemo(() => [...new Set(labSubjects.map(s => s.semester!))].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)), [labSubjects]) // eslint-disable-line react-hooks/exhaustive-deps
   // a subject is only complete when EVERY section has a room: either one set for all sections, or one fixed for that section
-  const sectionsOf = (s: SetupSubject) => sections.filter(x => x.semester === s.semester && x.active !== false).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
   const missingFor = (s: SetupSubject) => {
     const mine = maps.filter(m => m.subjectId === s.id)
     if (mine.some(m => !m.sectionId)) return []
     return sectionsOf(s).filter(sec => !mine.some(m => m.sectionId === sec.id)).map(x => x.id)
   }
-  const noRoom = labSubjects.filter(s => missingFor(s).length > 0 || !maps.some(m => m.subjectId === s.id))
+  const noRoom = labSubjects.filter(s => missingFor(s).length > 0)
+  useEffect(() => { if (!semester || !semesters.includes(semester)) setSemester(semesters.find(sm => labSubjects.some(s => s.semester === sm && missingFor(s).length > 0)) ?? semesters[0] ?? '') }, [semesters]) // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = labSubjects.filter(s => s.semester === semester).sort((a, b) => a.code.localeCompare(b.code))
 
   async function act(fn: () => Promise<unknown>, ok?: string) {
     setBusy(true)
@@ -101,16 +106,16 @@ export default function SetupLabsTab({ say }: { say: (ok: boolean, text: string)
       </div>
 
       {/* subjects */}
-      {noRoom.length > 0 && <p className="text-xs font-600 text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">⚠ {noRoom.length} subject{noRoom.length === 1 ? '' : 's'} with lab periods {noRoom.length === 1 ? 'has' : 'have'} no room for some or all sections. The timetable cannot be generated until every section has one.</p>}
-      {semesters.length === 0 ? <p className="text-sm text-slate-500 text-center py-8">No subject has lab periods yet.</p> : (
+      {noRoom.length > 0 && <p className="text-xs font-600 text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">{noRoom.length} subject{noRoom.length === 1 ? '' : 's'} with lab periods {noRoom.length === 1 ? 'has' : 'have'} no room for some or all sections. The timetable cannot be generated until every section has one.</p>}
+      {!loaded ? null : semesters.length === 0 ? <p className="text-sm text-slate-500 text-center py-8">No running section has a subject with lab periods.</p> : (
         <>
-          <PillTabs value={semester} onChange={setSemester} tabs={semesters.map(sm => ({ id: sm, label: `Sem ${sm}${labSubjects.some(s => s.semester === sm && (missingFor(s).length > 0 || !maps.some(m => m.subjectId === s.id))) ? ' ⚠' : ''}` }))} />
+          <PillTabs value={semester} onChange={setSemester} tabs={semesters.map(sm => ({ id: sm, label: `Sem ${sm}${labSubjects.some(s => s.semester === sm && missingFor(s).length > 0) ? ' !' : ''}` }))} />
           <div className="bg-white/80 border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
             {rows.map(s => {
               const mine = maps.filter(m => m.subjectId === s.id)
               const all = new Set(mine.filter(m => !m.sectionId).map(m => m.labId))
               const per = mine.filter(m => m.sectionId)
-              const semSections = sections.filter(x => x.semester === s.semester && x.active !== false).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+              const semSections = sectionsOf(s)
               const isOpen = open === s.id
               return (
                 <div key={s.id} className="px-4 py-3">
@@ -126,7 +131,7 @@ export default function SetupLabsTab({ say }: { say: (ok: boolean, text: string)
                       })}
                     </div>
                     <div className="w-40 text-right">
-                      {mine.length === 0 ? <span className="text-[11px] font-700 text-amber-700">No room set</span> : missingFor(s).length > 0 ? <span className="text-[11px] font-700 text-amber-700">{missingFor(s).length} section{missingFor(s).length === 1 ? '' : 's'} without a room</span> : <span className="text-[11px] font-600 text-emerald-700">✓ {all.size ? `${all.size} room${all.size === 1 ? '' : 's'}` : ''}{per.length ? `${all.size ? ' · ' : ''}${per.length} per section` : ''}</span>}
+                      {mine.length === 0 ? <span className="text-[11px] font-700 text-amber-700">No room set</span> : missingFor(s).length > 0 ? <span className="text-[11px] font-700 text-amber-700">{missingFor(s).length} section{missingFor(s).length === 1 ? '' : 's'} without a room</span> : <span className="text-[11px] font-600 text-emerald-700">{all.size ? `${all.size} room${all.size === 1 ? '' : 's'}` : ''}{per.length ? `${all.size ? ' · ' : ''}${per.length} per section` : ''}</span>}
                     </div>
                   </div>
                   {missingFor(s).length > 0 && (

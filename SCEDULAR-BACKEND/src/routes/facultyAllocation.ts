@@ -1,4 +1,5 @@
 import { notifyPasswordChanged } from '../mail/notify.js'
+import { applyWeeklyLimit } from '../utils/weeklyLimit.js'
 import { Router, type Request, type Response } from 'express'
 import bcrypt from 'bcryptjs'
 import {
@@ -987,7 +988,10 @@ facultyAllocationRouter.post('/hod/allocation-settings', requireAuth, requireRol
   if (!config || !Array.isArray(config.bands)) {
     return res.status(400).json({ error: 'INVALID_CONFIG', message: 'Valid config object with bands array is required' })
   }
+  const before = (await getAllocationSettings()).maxWeeklyPeriods
   const saved = await saveAllocationSettings(config)
+  // one weekly limit: changing it here changes it for every teacher too (their own limit is what the solver enforces)
+  if (saved.maxWeeklyPeriods && saved.maxWeeklyPeriods !== before) await applyWeeklyLimit(saved.maxWeeklyPeriods, { savePolicy: false })
   return res.json({ success: true, config: saved })
 })
 

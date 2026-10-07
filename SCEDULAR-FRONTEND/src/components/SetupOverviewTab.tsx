@@ -4,7 +4,7 @@ import { api, type SetupOverview } from '../api'
 import type { Page } from '../types'
 
 /** One-glance checklist for getting a semester ready: sections → syllabus → teachers → choices → assignment. */
-export default function SetupOverviewTab({ navigate, goTo }: { navigate: (p: Page) => void; goTo: (tab: 'sections' | 'syllabus' | 'import') => void }) {
+export default function SetupOverviewTab({ navigate, goTo }: { navigate: (p: Page) => void; goTo: (tab: 'sections' | 'syllabus' | 'labs' | 'import') => void }) {
   const [ov, setOv] = useState<SetupOverview | null>(null)
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => { api.setup.overview().then(setOv).catch(e => setErr(e?.message || 'Could not load.')) }, [])
@@ -43,7 +43,7 @@ export default function SetupOverviewTab({ navigate, goTo }: { navigate: (p: Pag
       </div>
       <div className="bg-white border border-slate-200 rounded-xl p-4">
         <Step done={t.total > 0 && t.withLogin === t.total} title="Teachers and logins" detail={`${t.total} teachers, ${t.withLogin} with a personal login${t.total - t.withLogin ? ` · ${t.total - t.withLogin} still need one` : ''}`} action={{ label: 'Open teachers', run: () => navigate('faculty') }} />
-        <Step done={ov.labs > 0} title="Lab rooms" detail={`${ov.labs} rooms configured`} action={{ label: 'Open labs', run: () => navigate('lab-management') }} />
+        <Step done={ov.labs > 0} title="Lab rooms" detail={`${ov.labs} rooms configured`} action={{ label: 'Open labs', run: () => goTo('labs') }} />
       </div>
     </div>
   )

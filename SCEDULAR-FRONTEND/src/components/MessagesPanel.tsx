@@ -96,7 +96,7 @@ export default function MessagesPanel({ role }: { role?: 'HOD' | 'FACULTY' }) {
           ) : (
             <>
               <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
-                {msgs.length === 0 && <p className="text-xs text-white/40 text-center py-8">Say hello 👋</p>}
+                {msgs.length === 0 && <p className="text-xs text-white/40 text-center py-8">No messages yet.</p>}
                 {msgs.map(m => (
                   <div key={m.id} className={`pop-in flex items-end gap-1.5 ${m.fromId === me ? 'justify-end' : 'justify-start'}`}>
                     {m.fromId !== me && active && <Avatar id={active.id} name={active.name} photoAt={active.photoAt} size={24} />}

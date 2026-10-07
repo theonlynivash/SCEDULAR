@@ -27,7 +27,7 @@ const facultySchema = z.object({
   name: z.string().min(1),
   designation: z.string().nullable().optional(),
   maxDailyPeriods: z.number().int().positive().default(6),
-  maxWeeklyPeriods: z.number().int().positive().default(24),
+  maxWeeklyPeriods: z.number().int().positive().default(22),
 })
 
 const unavailabilitySchema = z.object({

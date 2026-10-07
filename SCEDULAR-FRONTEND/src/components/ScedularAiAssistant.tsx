@@ -153,7 +153,7 @@ function DraftCard({ draft }: { draft: Draft }) {
           <option value="new">Include NEW password</option>
         </select>
         <button onClick={send} disabled={!draft.email || state.kind === 'sending' || state.kind === 'sent'} className="ml-auto px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 font-bold text-[11px] disabled:opacity-40">
-          {state.kind === 'sending' ? 'Sending…' : state.kind === 'sent' ? 'Sent ✓' : 'Send'}
+          {state.kind === 'sending' ? 'Sending…' : state.kind === 'sent' ? 'Sent' : 'Send'}
         </button>
       </div>
       {state.text && <p className={`text-[11px] ${state.kind === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>{state.text}</p>}

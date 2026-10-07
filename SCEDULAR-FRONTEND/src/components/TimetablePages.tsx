@@ -26,7 +26,7 @@ import DownloadTimetables from './DownloadTimetables'
 import { downloadFile } from '../api'
 import { cellLabel } from '../utils/subjectLabel'
 import type { SemesterReadiness } from '../types'
-import { AlertTriangle, Download, Building2, CheckCircle2, CloudSun, Clock, Cpu, Sun, UserRound, Utensils } from 'lucide-react'
+import { AlertTriangle, CalendarClock, Download, Building2, CheckCircle2, CloudSun, Clock, Cpu, Sun, UserRound, Utensils } from 'lucide-react'
 
 function BackBtn({ navigate }: { navigate: (p: Page) => void }) {
   return (
@@ -133,7 +133,7 @@ export function GenerateTimetable({
           {running ? <p className="text-sm font-600 text-slate-700">Solving {ready.length} semester{ready.length === 1 ? '' : 's'} together… this can take up to a minute.</p>
             : result ? (
               result.status === 'GREEN'
-                ? <p className="text-sm font-700 text-emerald-700">✓ Timetable ready — {result.placements} placements, no clashes <span className="font-500 text-slate-500">({result.seconds}s)</span></p>
+                ? <p className="text-sm font-700 text-emerald-700">Timetable ready — {result.placements} placements, no clashes <span className="font-500 text-slate-500">({result.seconds}s)</span></p>
                 : <p className="text-sm font-700 text-rose-700">{result.conflicts} problem{result.conflicts === 1 ? '' : 's'} found — nothing was published.</p>
             ) : <p className="text-sm text-slate-600">{ready.length === 0 ? 'No semester is ready yet.' : `${ready.length} of ${rows.length} semester${rows.length === 1 ? '' : 's'} ready to generate.`}</p>}
           {error && <p className="text-xs text-rose-600 mt-1">{error}</p>}
@@ -218,7 +218,7 @@ export function TimetableResult({ navigate, runId }: { navigate: (p: Page) => vo
       </PageHeader>
       <div className="max-w-3xl mx-auto space-y-6">
         <GlassPanel strong className="p-8 text-center">
-          <div className="text-6xl mb-4">{isGreen ? '🎉' : '⚠️'}</div>
+          <div className="mb-4 flex justify-center">{isGreen ? <CheckCircle2 size={52} className="text-emerald-600" strokeWidth={1.4} /> : <AlertTriangle size={52} className="text-amber-600" strokeWidth={1.4} />}</div>
           <h2 className={`font-display font-800 text-2xl mb-2 ${isGreen ? 'text-emerald-600' : 'text-rose-600'}`}>
             {isGreen ? 'Timetable Generated Successfully' : 'Infeasible — No Valid Timetable Generated'}
           </h2>
@@ -261,7 +261,7 @@ export function TimetableResult({ navigate, runId }: { navigate: (p: Page) => vo
           {!isGreen && (
             <div className="mt-6 p-6 rounded-3xl bg-cyan-950/30 border border-cyan-500/30 text-left space-y-3">
               <h4 className="text-sm font-bold text-cyan-300 flex items-center gap-2">
-                🤖 SCEDULAR AI Assistant Infeasibility Analysis
+                SCEDULAR AI · infeasibility analysis
               </h4>
               {loadingAi ? (
                 <p className="text-xs text-slate-400">Analyzing deterministic solver report with SCEDULAR AI...</p>
@@ -575,34 +575,19 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
       </PageHeader>
 
       {hasMasterRun === false && (
-        <div className="max-w-lg mx-auto text-center py-20">
-          {isHod ? (
-            <>
-              <div className="mx-auto mb-5 w-20 h-20 rounded-full bg-[color:var(--c-600)]/10 flex items-center justify-center shadow-sm">
-                <Cpu size={36} className="text-[color:var(--c-600)]" strokeWidth={1.4} />
-              </div>
-              <p className="font-display font-800 text-xl text-slate-800 mb-1.5">No Timetable Generated Yet</p>
-              <p className="text-slate-400 text-sm mb-8 max-w-xs mx-auto">Generate a timetable to view it here. The AI scheduler will optimize faculty, section, and lab allocations.</p>
-              <button
-                onClick={() => navigate('generate')}
-                className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-gradient-to-r from-[var(--c-600)] to-[var(--ink-800)] text-white font-700 text-base shadow-lg shadow-[color:var(--c-600)]/25 hover:from-[var(--c-650)] hover:to-[#0c1d42] hover:shadow-xl hover:shadow-[color:var(--c-600)]/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
-              >
-                <Cpu size={20} strokeWidth={2} />
-                Generate Timetable
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="mx-auto mb-5 w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center">
-                <svg className="w-10 h-10 text-amber-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              </div>
-              <p className="font-display font-800 text-xl text-slate-800 mb-1.5">Time Table Generation Under Progress</p>
-              <p className="text-slate-400 text-sm max-w-xs mx-auto">Please wait while the HOD generates the timetable.</p>
-            </>
-          )}
+        <div className="max-w-md mx-auto py-16 sm:py-24">
+          <div className="lg-panel px-8 py-10 text-center">
+            <span className="mx-auto mb-5 grid place-items-center w-16 h-16 rounded-3xl text-[color:var(--c-600)] bg-gradient-to-br from-[var(--c-600)]/25 to-[var(--c-600)]/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(var(--ink-rgb),0.18)]">
+              <CalendarClock size={30} strokeWidth={1.7} />
+            </span>
+            <h2 className="font-display text-[22px] font-700 tracking-tight text-slate-900">{isHod ? 'No timetable yet' : 'Timetable not ready yet'}</h2>
+            <p className="mt-2 text-[14px] text-slate-600">{isHod ? 'Generate it once staffing is complete.' : 'Your HOD has not published it yet.'}</p>
+            <div className="mt-6 flex justify-center">
+              {isHod
+                ? <button className="lg-btn lg-btn-primary" onClick={() => navigate('generate')}>Generate timetable</button>
+                : <button className="lg-btn lg-btn-glass" onClick={() => navigate('dashboard')}>Back to dashboard</button>}
+            </div>
+          </div>
         </div>
       )}
 
@@ -660,7 +645,7 @@ export function ViewTimetable({ navigate, role }: { navigate: (p: Page) => void;
 
       {error && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs font-700 rounded-xl px-4 py-3 mb-4 text-center">
-          ⏳ {error}
+          {error}
         </div>
       )}
 

@@ -32,7 +32,8 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
   const [issued, setIssued] = useState<IssuedLogin[]>([])
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [form, setForm] = useState({ name: '', designation: 'Assistant Professor', email: '', allocationExperience: '', maxWeeklyPeriods: '24' })
+  const [form, setForm] = useState({ name: '', designation: 'Assistant Professor', email: '', allocationExperience: '', maxWeeklyPeriods: '22' })
+  const [limit, setLimit] = useState('')
 
   const say = useCallback((ok: boolean, text: string) => { setNotice({ ok, text }); setTimeout(() => setNotice(null), 6000) }, [])
 
@@ -67,10 +68,10 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
     const r = await api.setup.createTeacher({
       name: form.name.trim(), designation: form.designation.trim() || null, email: form.email.trim() || null,
       allocationExperience: form.allocationExperience === '' ? undefined : Number(form.allocationExperience),
-      maxWeeklyPeriods: Number(form.maxWeeklyPeriods) || 24,
+      maxWeeklyPeriods: Number(form.maxWeeklyPeriods) || 22,
     })
     setIssued(x => [r, ...x]); setAdding(false)
-    setForm({ name: '', designation: 'Assistant Professor', email: '', allocationExperience: '', maxWeeklyPeriods: '24' })
+    setForm({ name: '', designation: 'Assistant Professor', email: '', allocationExperience: '', maxWeeklyPeriods: '22' })
     say(true, `${r.name} added as ${r.facultyId}. Their password is shown below once.`)
   })
   const reissue = (f: Faculty) => {
@@ -80,6 +81,22 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
     if (window.confirm(`Remove ${f.name} (${f.id})?\n\nTheir login, subject choices and teaching assignments are deleted; the sections they taught become open again.`)) run(async () => { await api.setup.deleteTeacher(f.id); say(true, `${f.name} removed.`) })
   }
   const bulk = () => run(async () => { const r = await api.setup.issueMissingLogins(); setIssued(x => [...r.issued, ...x]); say(true, `Created ${r.issued.length} login${r.issued.length === 1 ? '' : 's'}.`) })
+  // the most common limit today, shown until the HOD types another
+  const common = useMemo(() => {
+    const n = new Map<number, number>()
+    for (const f of faculty) if (f.role !== 'HOD') n.set(f.maxWeeklyPeriods, (n.get(f.maxWeeklyPeriods) ?? 0) + 1)
+    return [...n.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 22
+  }, [faculty])
+  const applyLimit = () => {
+    const n = Number(limit || common)
+    if (!Number.isInteger(n) || n < 1 || n > 40) { say(false, 'Enter a weekly limit from 1 to 40 periods.'); return }
+    if (!window.confirm(`Set the weekly limit to ${n} periods for every teacher?\n\nYou can still change one teacher afterwards.`)) return
+    run(async () => {
+      const r = await api.setup.setWeeklyLimit(n)
+      setLimit('')
+      say(true, `Weekly limit is now ${r.limit} periods for ${r.teachers} teachers.${r.over.length ? ` ${r.over.length} already carry more (${r.over.slice(0, 4).map(o => `${o.name} ${o.load}`).join(', ')}${r.over.length > 4 ? ', …' : ''}); move a section off them in Assign Teachers before generating.` : ''}`)
+    })
+  }
   const saveField = (f: Faculty, patch: { allocationExperience?: number; maxWeeklyPeriods?: number }) => run(async () => { await api.setup.updateTeacher(f.id, patch) })
 
   const num = (v: number | null | undefined, onSave: (n: number) => void, min = 0, max = 60) => (
@@ -103,7 +120,15 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
         </div>
       </div>
 
-      {notice && <div className={`slide-down text-xs font-600 rounded-lg px-4 py-2.5 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>{notice.ok ? '✓' : '⚠'} {notice.text}</div>}
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-3 flex-wrap">
+        <p className="text-xs font-700 text-slate-700">Weekly limit for all teachers</p>
+        <input type="number" min={1} max={40} value={limit || String(common)} onChange={e => setLimit(e.target.value)} className="w-16 text-center border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[color:var(--c-600)]" />
+        <span className="text-[11px] text-slate-500">periods a week</span>
+        <button disabled={busy} onClick={applyLimit} className="px-3 py-1 rounded-full bg-[color:var(--c-600)] text-white text-xs font-700 disabled:opacity-40">Apply to all</button>
+        <span className="text-[11px] text-slate-400 ml-auto">One teacher: edit the Weekly limit column below.</span>
+      </div>
+
+      {notice && <div className={`slide-down text-xs font-600 rounded-lg px-4 py-2.5 border ${notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>{notice.text}</div>}
 
       {issued.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -156,7 +181,7 @@ export default function TeachersPage({ onMail }: { onMail: (facultyId: string) =
                         <button onClick={() => setEditingMail(f.id)} className="text-[12px] text-slate-400 hover:text-[color:var(--c-700)]">+ add email</button>
                       )}
                     </td>
-                    <td>{logins[f.id] ? <span className="text-emerald-700 font-600">✓ personal</span> : <span className="text-amber-700 font-600">none yet</span>}</td>
+                    <td>{logins[f.id] ? <span className="text-emerald-700 font-600">Personal</span> : <span className="text-amber-700 font-600">none yet</span>}</td>
                     <td className="text-right whitespace-nowrap">
                       <button title={logins[f.id] ? 'Reset password' : 'Create login'} disabled={busy} onClick={() => reissue(f)} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500"><KeyRound className="w-3.5 h-3.5" /></button>
                       {!hod && <button title="Remove teacher" disabled={busy} onClick={() => remove(f)} className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>}

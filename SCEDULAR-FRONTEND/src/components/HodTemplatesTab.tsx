@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { type AssignBoard } from '../api'
 import AutoPlanner from './AutoPlanner'
+import { Dropdown } from './ui'
 
 const tl = (t: number, l: number) => (l > 0 ? `${t}T + ${l}L` : `${t}T`)
 
@@ -33,10 +34,9 @@ export default function HodTemplatesTab({ semester, board, say, onChanged }: {
     <div className="space-y-4">
       <AutoPlanner semester={semester} board={board} say={say} onChanged={onChanged} />
 
-      {/* Subject templates */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs p-4">
-        <h2 className="font-display font-700 text-sm text-slate-800 mb-0.5">Subject templates</h2>
-        <p className="text-[11px] text-slate-500 mb-3">One template per subject. Pick a number of sections to see the workload a teacher would carry.</p>
+      {/* Subject templates: reference material, so it opens as a dropdown and starts closed */}
+      <Dropdown title="Subject templates" hint={`Workload per section for each subject · ${board.subjects.length} subjects`}>
+        <p className="text-[11px] text-slate-500 mb-3">Pick a number of sections to see the workload a teacher would carry.</p>
         <div className="grid gap-2 md:grid-cols-2">
           {board.subjects.map(s => {
             const n = counts[s.subjectId] ?? 1
@@ -56,7 +56,7 @@ export default function HodTemplatesTab({ semester, board, say, onChanged }: {
             )
           })}
         </div>
-      </div>
+      </Dropdown>
 
       {/* Workload per teacher */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs p-4">

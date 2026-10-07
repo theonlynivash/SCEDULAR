@@ -218,3 +218,58 @@ export function absenceReport(ctx: Ctx, today = todayIst()) {
   }).sort((a, b) => b.periodsMissed - a.periodsMissed || b.leaveDays - a.leaveDays || a.name.localeCompare(b.name))
   return { asOf: today, totals: { teachers: rows.length, periodsMissed: rows.reduce((n, r) => n + r.periodsMissed, 0), periodsUpcoming: rows.reduce((n, r) => n + r.periodsUpcoming, 0), notCovered: rows.reduce((n, r) => n + r.notCovered, 0) }, rows }
 }
+
+/* ───────────── the printable substitution sheet of one day ───────────── */
+
+export interface SheetRow {
+  startPeriod: number
+  endPeriod: number
+  sectionId: string
+  year: string | null
+  semester: string | null
+  subjectCode: string
+  subjectName: string
+  blockType: 'THEORY' | 'LAB'
+  labId: string | null
+  absentId: string
+  absentName: string
+  substituteId: string | null
+  substituteName: string | null
+}
+
+/** Every substitution of a day (neighbouring periods of the same class joined) and every class of a teacher on leave that still has nobody. */
+export function substitutionSheet(ctx: Ctx, date: string): { date: string; covered: SheetRow[]; uncovered: SheetRow[]; teachersOnLeave: number } {
+  const nameOf = (id: string) => ctx.faculty.find(f => f.id === id)?.name ?? id
+  const base = (o: { startPeriod: number; endPeriod: number; sectionId: string; subjectId: string; blockType: 'THEORY' | 'LAB'; labId?: string | null; absentId: string; substituteId: string | null }): SheetRow => {
+    const sec = ctx.sections.find(s => s.id === o.sectionId), sub = ctx.subjects.find(s => s.id === o.subjectId)
+    return {
+      startPeriod: o.startPeriod, endPeriod: o.endPeriod, sectionId: o.sectionId, year: sec?.year ?? null, semester: sec?.semester ?? null,
+      subjectCode: sub?.code ?? o.subjectId, subjectName: sub?.name ?? o.subjectId, blockType: o.blockType, labId: o.labId ?? null,
+      absentId: o.absentId, absentName: nameOf(o.absentId), substituteId: o.substituteId, substituteName: o.substituteId ? nameOf(o.substituteId) : null,
+    }
+  }
+  const merge = (rows: SheetRow[]): SheetRow[] => {
+    const sorted = [...rows].sort((a, b) => a.sectionId.localeCompare(b.sectionId, undefined, { numeric: true }) || a.subjectCode.localeCompare(b.subjectCode) || a.startPeriod - b.startPeriod)
+    const out: SheetRow[] = []
+    for (const r of sorted) {
+      const p = out[out.length - 1]
+      if (p && p.sectionId === r.sectionId && p.subjectCode === r.subjectCode && p.blockType === r.blockType && p.absentId === r.absentId && p.substituteId === r.substituteId && r.startPeriod <= p.endPeriod + 1) { p.endPeriod = Math.max(p.endPeriod, r.endPeriod); continue }
+      out.push({ ...r })
+    }
+    return out.sort((a, b) => a.startPeriod - b.startPeriod || a.sectionId.localeCompare(b.sectionId, undefined, { numeric: true }))
+  }
+  const covered = merge(ctx.subs.filter(s => s.date === date).map(s => {
+    const slot = ctx.leaves.find(l => l.id === s.leaveId)?.slots.find(k => k.key === s.slotKey)
+    return base({ startPeriod: s.startPeriod, endPeriod: s.endPeriod, sectionId: s.sectionId, subjectId: s.subjectId, blockType: s.blockType, labId: slot?.labId ?? null, absentId: s.originalFacultyId, substituteId: s.substituteFacultyId })
+  }))
+  const open: SheetRow[] = []
+  const onLeave = new Set<string>()
+  for (const l of ctx.leaves.filter(x => (x.status === 'APPROVED' || x.status === 'PENDING') && x.fromDate <= date && date <= x.toDate)) {
+    onLeave.add(l.facultyId)
+    for (const k of l.slots.filter(x => x.date === date)) {
+      if (ctx.subs.some(s => s.leaveId === l.id && s.slotKey === k.key)) continue
+      open.push(base({ startPeriod: k.startPeriod, endPeriod: k.endPeriod, sectionId: k.sectionId, subjectId: k.subjectId, blockType: k.blockType, labId: k.labId ?? null, absentId: l.facultyId, substituteId: null }))
+    }
+  }
+  return { date, covered, uncovered: merge(open), teachersOnLeave: onLeave.size }
+}

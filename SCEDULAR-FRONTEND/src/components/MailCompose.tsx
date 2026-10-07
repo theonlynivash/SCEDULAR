@@ -95,7 +95,7 @@ export default function MailCompose({ facultyId, onBack }: { facultyId: string; 
         <h1 className="font-display font-600 text-[22px] text-slate-800">Send mail</h1>
       </div>
 
-      {notice && <div className={`rounded-2xl px-4 py-3 text-[13px] ${notice.ok ? 'bg-[color:var(--c-500)]/10 text-[color:var(--c-700)] ring-1 ring-[color:var(--c-500)]/20' : 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'}`}>{notice.ok ? '✓' : '⚠'} {notice.text}</div>}
+      {notice && <div className={`rounded-2xl px-4 py-3 text-[13px] ${notice.ok ? 'bg-[color:var(--c-500)]/10 text-[color:var(--c-700)] ring-1 ring-[color:var(--c-500)]/20' : 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'}`}>{notice.text}</div>}
 
       <div className="mail-split">
         {/* recipient */}

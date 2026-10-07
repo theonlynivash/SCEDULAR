@@ -237,6 +237,11 @@ After renaming, run `npx tsc --noEmit` in both folders and `npm test` in the bac
 
 ---
 
+## 6a. Behaviour a hosting change must not break
+* The department's **weekly limit** (22 periods) is stored in the policy setting and on every teacher; defaults live in `SCEDULAR-BACKEND/src/utils/staffing.ts` and `allocationPolicy.ts`, and `src/utils/weeklyLimit.ts` applies it to everyone. The solver enforces it.
+* Settings → Import has **Add** and **Reset**; Reset needs the HOD's password again (`POST /api/setup/import/:kind/commit` with `mode: "reset"`). If the HOD password differs on the new server, use that one.
+* Lab rooms are managed only in Settings → Lab rooms (the old Lab Management page is gone).
+
 ## 7. Moving data between computers and the online database
 
 ```bash

@@ -117,7 +117,7 @@ export default function HodFacultyManagement() {
         designation: newFacDesig.trim(),
         department: newFacDept.trim() || 'AI & DS',
         maxDailyPeriods: 6,
-        maxWeeklyPeriods: 24,
+        maxWeeklyPeriods: 22,
         unavailability: [],
       } as any)
 

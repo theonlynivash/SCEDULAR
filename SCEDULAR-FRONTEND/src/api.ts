@@ -558,14 +558,15 @@ export interface BoardTeacher {
 }
 
 export type ImportKind = 'sections' | 'teachers' | 'syllabus'
-export type ImportMode = 'add' | 'replace'
+/** add keeps what exists; reset removes it first (the HOD's password is asked again) */
+export type ImportMode = 'add' | 'reset'
 export interface ImportIssue { field: string; level: 'error' | 'warning'; message: string }
 export interface StagedRow { row: number; values: Record<string, string> }
 export interface CheckedRow extends StagedRow { issues: ImportIssue[]; action: 'create' | 'update'; note?: string }
 export interface ImportColumn { key: string; label: string; required?: boolean; hint: string; options?: string[]; width?: number }
 export interface ImportSummary { total: number; errors: number; ready: number; warnings: number; toCreate: number; toUpdate: number }
-export interface ImportPreview { kind: ImportKind; sheet: string; columns: ImportColumn[]; unknownColumns: string[]; rows: CheckedRow[]; summary: ImportSummary; lookups: { labs?: string[]; sections?: { id: string; semester: string | null }[] } }
-export interface ImportCommit { success: boolean; created: number; updated: number; skipped: number; removed?: number; logins: { facultyId: string; name: string; email: string | null; password: string }[]; subjects: string[] }
+export interface ImportPreview { kind: ImportKind; sheet: string; columns: ImportColumn[]; unknownColumns: string[]; rows: CheckedRow[]; summary: ImportSummary; lookups: { labs?: string[]; sections?: { id: string; semester: string | null }[] }; willRemove?: { count: number; what: string; alsoRemoves: string } }
+export interface ImportCommit { success: boolean; created: number; updated: number; skipped: number; removed?: number; removedWhat?: string; logins: { facultyId: string; name: string; email: string | null; password: string }[]; subjects: string[] }
 export interface DataCheck { items: { level: 'error' | 'warning'; area: 'teachers' | 'syllabus' | 'sections' | 'assignment'; message: string; ref?: string }[]; ready: { preferences: boolean; timetable: boolean }; counts: { teachers: number; subjects: number; sections: number } }
 
 export interface MsgThread { id: string; photoAt?: string | null; name: string; designation: string | null; lastText: string | null; lastAt: string | null; lastFromMe: boolean | null; unread: number }
@@ -753,7 +754,7 @@ export const api = {
       return request<ImportPreview>(`/setup/import/${kind}/preview`, { method: 'POST', body: fd })
     },
     validate: (kind: ImportKind, rows: StagedRow[], mode: ImportMode = 'add') => request<{ rows: CheckedRow[]; summary: ImportSummary }>(`/setup/import/${kind}/validate`, { method: 'POST', body: JSON.stringify({ rows, mode }) }),
-    commit: (kind: ImportKind, rows: StagedRow[], skipInvalid = false, opts: { mode?: ImportMode; password?: string; confirm?: string } = {}) =>
+    commit: (kind: ImportKind, rows: StagedRow[], skipInvalid = false, opts: { mode?: ImportMode; password?: string } = {}) =>
       request<ImportCommit>(`/setup/import/${kind}/commit`, { method: 'POST', body: JSON.stringify({ rows, skipInvalid, ...opts }) }),
     dataCheck: () => request<DataCheck>('/setup/import/data-check'),
   },
@@ -782,6 +783,7 @@ export const api = {
     deleteSection: (id: string) => request<{ success: boolean }>(`/setup/sections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     createTeacher: (b: { name: string; designation?: string | null; email?: string | null; allocationExperience?: number; maxWeeklyPeriods?: number }) =>
       request<IssuedLogin>('/setup/faculty', { method: 'POST', body: JSON.stringify(b) }),
+    setWeeklyLimit: (limit: number) => request<{ success: boolean; limit: number; teachers: number; changed: number; over: { facultyId: string; name: string; load: number }[] }>('/setup/weekly-limit', { method: 'POST', body: JSON.stringify({ limit }) }),
     updateTeacher: (id: string, b: { name?: string; designation?: string | null; email?: string | null; allocationExperience?: number; maxWeeklyPeriods?: number }) =>
       request<any>(`/setup/faculty/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(b) }),
     issueLogin: (id: string, password?: string) => request<IssuedLogin>(`/setup/faculty/${encodeURIComponent(id)}/credentials`, { method: 'POST', body: JSON.stringify({ password }) }),

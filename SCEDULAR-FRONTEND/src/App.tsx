@@ -13,7 +13,6 @@ import TeachersPage from './components/TeachersPage'
 import MailCompose from './components/MailCompose'
 import MobileDrawer from './components/MobileDrawer'
 import DataHub from './components/DataHub'
-import LabManagement from './components/LabManagement'
 import { UploadCurriculum, UploadWorkload, ConstraintManagement } from './components/UploadPages'
 import { GenerateTimetable, TimetableResult, ViewTimetable, EditTimetable } from './components/TimetablePages'
 import { ReportsPage } from './components/ReportsPage'
@@ -28,7 +27,7 @@ import HodAssignBoard from './components/HodAssignBoard'
 import HodFacultyManagement from './components/HodFacultyManagement'
 import ScedularAiAssistant from './components/ScedularAiAssistant'
 
-const PAGES: Page[] = ['dashboard', 'profile', 'faculty-allocation', 'hod-allocation-review', 'hod-faculty-management', 'faculty', 'subjects', 'data-hub', 'lab-management', 'upload-curriculum', 'upload-workload', 'constraints', 'generate', 'timetable-result', 'view-timetable', 'edit-timetable', 'reports', 'leave', 'settings', 'mail', 'about']
+const PAGES: Page[] = ['dashboard', 'profile', 'faculty-allocation', 'hod-allocation-review', 'hod-faculty-management', 'faculty', 'subjects', 'data-hub', 'upload-curriculum', 'upload-workload', 'constraints', 'generate', 'timetable-result', 'view-timetable', 'edit-timetable', 'reports', 'leave', 'settings', 'mail', 'about']
 /** The page named in the address bar (#/reports), so links, reload and the browser's Back button work. */
 const pageFromHash = (): Page | null => { const p = window.location.hash.replace(/^#\/?/, '') as Page; return PAGES.includes(p) ? p : null }
 
@@ -56,7 +55,10 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const navigate = (p: Page) => setPage(p)
+  // lab rooms live inside Settings now: the old Lab Management entry opens that tab
+  const navigate = (p: Page) => {
+    if (p === 'lab-management') { try { sessionStorage.setItem('scedular-settings-tab', 'labs') } catch { /* private window */ } setPage('settings') } else setPage(p)
+  }
 
   // keep the address bar and the page in step (deep links, reload, Back / Forward)
   useEffect(() => {
@@ -118,7 +120,7 @@ export default function App() {
             navigate={navigate}
             role={role}
           />
-          <main className="glass-main flex-1 overflow-auto glass-scrollarea rounded-2xl">
+          <main className={`glass-main ${page === 'dashboard' ? 'dash-bg' : ''} flex-1 overflow-auto glass-scrollarea rounded-2xl`}>
             <div key={page} className="page-transition p-5 pb-24 md:pb-5 min-h-full">
               {page === 'dashboard' && <Dashboard navigate={navigate} role={role} userName={user.name} />}
               {page === 'faculty-allocation' && <FacultySubjectAllocation facultyId={facultyId} />}
@@ -128,7 +130,6 @@ export default function App() {
               {page === 'faculty' && <TeachersPage onMail={id => { setMailTarget(id); setPage('mail') }} />}
               {page === 'mail' && role === 'HOD' && <MailCompose facultyId={mailTarget} onBack={() => setPage('faculty')} />}
               {page === 'data-hub' && <DataHub navigate={navigate} />}
-              {page === 'lab-management' && <LabManagement navigate={navigate} />}
               {page === 'upload-curriculum' && <UploadCurriculum navigate={navigate} />}
               {page === 'upload-workload' && <UploadWorkload navigate={navigate} />}
               {page === 'constraints' && <ConstraintManagement navigate={navigate} />}

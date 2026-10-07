@@ -15,7 +15,7 @@ function StatusChip({ status }: { status: Pref['status'] }) {
   const approved = status === 'APPROVED'
   return (
     <span className={`text-[10px] font-700 px-2 py-0.5 rounded-full border whitespace-nowrap ${approved ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
-      {approved ? '✓ Approved' : 'Not approved yet'}
+      {approved ? 'Approved' : 'Not approved yet'}
     </span>
   )
 }

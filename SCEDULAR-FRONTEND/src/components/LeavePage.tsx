@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarOff, Check, ChevronDown, FileText, Handshake, Send, UserCheck, X } from 'lucide-react'
-import { api, type Faculty, type LeaveCandidate, type LeaveDetail, type LeaveListItem, type LeaveSlotView, type LeaveSummary, type LeaveStatus } from '../api'
+import { CalendarOff, Check, ChevronDown, Download, FileText, Handshake, Send, UserCheck, X } from 'lucide-react'
+import { api, downloadFile, type Faculty, type LeaveCandidate, type LeaveDetail, type LeaveListItem, type LeaveSlotView, type LeaveSummary, type LeaveStatus } from '../api'
 import type { Page } from '../types'
 import { Btn, PillTabs } from './ui'
 
@@ -119,7 +119,7 @@ function RequestForm({ asHod, onSent }: { asHod: boolean; onSent: () => void }) 
           <Btn onClick={show} disabled={busy}>{slots ? 'Refresh classes' : 'Show my classes'}</Btn>
         </div>
         {err && <p className="text-[12.5px] font-600 text-rose-700 bg-rose-50 ring-1 ring-rose-200 rounded-lg px-3 py-2">{err}</p>}
-        {done && <p className="text-[12.5px] font-600 text-emerald-800 bg-emerald-50 ring-1 ring-emerald-200 rounded-lg px-3 py-2">✓ {done}</p>}
+        {done && <p className="text-[12.5px] font-600 text-emerald-800 bg-emerald-50 ring-1 ring-emerald-200 rounded-lg px-3 py-2">{done}</p>}
       </div>
 
       {slots && (
@@ -455,6 +455,19 @@ function TakeLeave({ onCreated }: { onCreated: (id: number) => void }) {
   )
 }
 
+/* ───────────────────────── HOD: the printable substitution sheet of any day ───────────────────────── */
+function SheetButton() {
+  const [date, setDate] = useState(today())
+  const [busy, setBusy] = useState(false)
+  const go = async () => { setBusy(true); try { await downloadFile(`/leave/export/substitutions?date=${date}`, `Substitutions-${date}.pdf`) } catch (e) { window.alert((e as Error).message) } finally { setBusy(false) } }
+  return (
+    <div className="flex items-center gap-2 ml-auto">
+      <input type="date" value={date} onChange={e => setDate(e.target.value)} aria-label="Date of the substitution sheet" className={`${input} !py-1.5`} />
+      <button onClick={go} disabled={busy} className="lg-btn lg-btn-glass !h-9 disabled:opacity-60"><Download size={15} /> Substitution sheet</button>
+    </div>
+  )
+}
+
 /* ───────────────────────── the page ───────────────────────── */
 export default function LeavePage({ role }: { role: 'FACULTY' | 'HOD'; navigate?: (p: Page) => void }) {
   const hod = role === 'HOD'
@@ -471,6 +484,7 @@ export default function LeavePage({ role }: { role: 'FACULTY' | 'HOD'; navigate?
       <div className="flex items-center gap-5 flex-wrap">
         <h1 className="font-display font-700 text-lg text-[color:var(--c-600)] flex items-center gap-2"><CalendarOff className="w-5 h-5" /> Leave &amp; substitution</h1>
         <PillTabs value={tab} onChange={setTab} tabs={tabs} />
+        {hod && <SheetButton />}
       </div>
       {tab === 'inbox' && <Inbox tick={tick} bump={bump} focusId={focus} />}
       {tab === 'take' && <TakeLeave onCreated={id => { setFocus(id); bump(); setTab('inbox') }} />}

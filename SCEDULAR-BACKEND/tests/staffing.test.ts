@@ -8,10 +8,15 @@ const world = (teachers: number) => {
   const subjects = ['A', 'B', 'C'].map(c => ({ id: c, code: c, name: `Subject ${c}`, semester: 'III', deliveryType: 'THEORY', category: 'CORE' }) as any)
   let id = 1
   const sectionSubjects = sections.flatMap((s: any) => subjects.map((sub: any) => ({ id: id++, sectionId: s.id, subjectId: sub.id, theoryPeriods: 4, labPeriods: 0, labBlockLength: null })))
-  return { semesters: ['III'], faculty: fac(teachers), sections, subjects, sectionSubjects, teachingAssignments: [], preferences: [], policy: staffingPolicy() }
+  return { semesters: ['III'], faculty: fac(teachers), sections, subjects, sectionSubjects, teachingAssignments: [], preferences: [], policy: staffingPolicy({ maxWeeklyPeriods: 28 }) }
 }
 
 describe('weightage arithmetic', () => {
+  it('the department default is 22 periods a week', () => {
+    expect(staffingPolicy().maxWeeklyPeriods).toBe(22)
+    expect(staffingPolicy({ maxWeeklyPeriods: 0 }).maxWeeklyPeriods).toBe(22)
+  })
+
   it('a subject wants one teacher per ~3 sections', () => {
     expect(subjectQuota(10, 3)).toBe(4)        // maths: 10 sections x 4T = 40T -> 4 teachers
     expect(subjectQuota(12, 3)).toBe(4)
